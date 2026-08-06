@@ -1,1 +1,44 @@
+name: AI Review
 
+on:
+  workflow_run:
+    workflows:
+      - Pass Managers Build
+    types:
+      - completed
+
+jobs:
+  ai-review:
+
+    if: ${{ github.event.workflow_run.conclusion == 'failure' }}
+
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+      issues: write
+      actions: read
+
+    steps:
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download logs
+        uses: actions/download-artifact@v4
+        with:
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.AI_GITHUB_TOKEN }}
+
+      - name: Create AI report
+        run: |
+          echo "Build failed"
+          echo "Workflow ID: ${{ github.event.workflow_run.id }}" > ai-report.txt
+
+      - name: Commit report
+        run: |
+          git config --global user.name "AI-Agent"
+          git config --global user.email "ai-agent@github.com"
+          git add ai-report.txt
+          git commit -m "AI build failure report" || exit 0
+          git push
