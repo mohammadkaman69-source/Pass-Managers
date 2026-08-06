@@ -1,0 +1,13 @@
+name: Runner Test
+
+"on":
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Test runner
+        run: |
+          echo "Runner works"
