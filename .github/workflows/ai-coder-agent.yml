@@ -1,6 +1,6 @@
 name: AI Coder Agent
 
-"on":
+on:
   workflow_dispatch:
 
   push:
@@ -28,6 +28,7 @@ jobs:
       github.event_name != 'workflow_run' ||
       github.event.workflow_run.conclusion == 'failure'
 
+
     runs-on: ubuntu-latest
 
 
@@ -39,72 +40,152 @@ jobs:
           fetch-depth: 0
 
 
-      - name: Setup Git
+      - name: Install tools
         run: |
-          git config user.name "AI-Coder-Agent"
-          git config user.email "ai-agent@github.com"
+          sudo apt update
+          sudo apt install -y jq
 
 
-      - name: Collect repository information
+      - name: Collect project information
         run: |
-          echo "Repository:"
-          ls -la
 
-          echo "Git history:"
-          git log --oneline -10
+          echo "===== PROJECT FILES =====" > context.txt
+
+          find . \
+          -not -path "./.git/*" \
+          -maxdepth 4 \
+          -type f >> context.txt
+
+
+          echo "" >> context.txt
+
+          echo "===== GIT HISTORY =====" >> context.txt
+
+          git log --oneline -20 >> context.txt
+
+
+          echo "" >> context.txt
+
+          echo "===== FLUTTER FILES =====" >> context.txt
+
+          find . -name "*.dart" | head -100 >> context.txt
+
 
 
       - name: Get failed workflow logs
         if: github.event_name == 'workflow_run'
         env:
           GH_TOKEN: ${{ secrets.AI_GITHUB_TOKEN }}
+
         run: |
-          gh run view ${{ github.event.workflow_run.id }} --log > error.log || true
+
+          gh run view \
+          ${{ github.event.workflow_run.id }} \
+          --log > error.log || true
 
 
-      - name: Prepare AI prompt
+
+      - name: Create AI prompt
         run: |
 
           echo "
-          You are an expert senior software engineer.
+You are an expert Flutter developer and autonomous coding agent.
 
-          Analyze this Flutter project.
+Project:
+Pass-Managers
 
-          Tasks:
-          1. Read the repository.
-          2. Find bugs.
-          3. Fix build errors.
-          4. Improve architecture when needed.
-          5. Keep compatibility with Flutter latest stable.
+Your tasks:
+1. Analyze the repository.
+2. Find build problems.
+3. Identify Flutter compatibility issues.
+4. Suggest exact code changes.
+5. Do not remove functionality.
 
-          If there is an error log:
-          " > ai_prompt.txt
-
-          cat error.log >> ai_prompt.txt 2>/dev/null || true
+Project information:
+" > prompt.txt
 
 
-      - name: Run AI Coding Agent
+          cat context.txt >> prompt.txt
+
+
+          echo "
+
+Build errors:
+
+" >> prompt.txt
+
+
+          cat error.log 2>/dev/null || true
+
+
+
+      - name: Send request to GPT-4.1
+
         env:
-          GH_TOKEN: ${{ secrets.AI_GITHUB_TOKEN }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_KEY }}
+
         run: |
 
-          echo "AI Agent placeholder"
+          jq -Rs '{ 
+            model:"gpt-4.1",
+            messages:[
+              {
+                role:"system",
+                content:"You are a senior Flutter engineer."
+              },
+              {
+                role:"user",
+                content:.
+              }
+            ]
+          }' prompt.txt > request.json
 
-          echo "
-          The AI model:
-          openai/gpt-4.1
-
-          Repository analysis started.
-          "
 
 
-      - name: Commit changes
+          curl https://api.openai.com/v1/chat/completions \
+          -H "Content-Type: application/json" \
+          -H "Authorization: Bearer $OPENAI_API_KEY" \
+          -d @request.json \
+          > ai-response.json
+
+
+
+      - name: Show AI response
+
         run: |
 
-          git status
+          cat ai-response.json
 
-          if [[ -n "$(git status --porcelain)" ]]; then
 
+
+      - name: Save AI report
+
+        run: |
+
+          echo "AI analysis generated"
+
+          cp ai-response.json AI_REPORT.json
+
+
+
+      - name: Commit AI report
+
+        run: |
+
+          git config user.name "AI-Coder-Agent"
+
+          git config user.email "actions@github.com"
+
+
+          git add AI_REPORT.json
+
+
+          git commit \
+          -m "AI Agent analysis report" \
+          || echo "Nothing to commit"
+
+
+          git push origin main || true
             git add .
 
             git commit -m "AI Agent automatic fix"
