@@ -1,6 +1,6 @@
 name: AI Coder Agent
 
-on:
+"on":
   workflow_dispatch:
 
   push:
