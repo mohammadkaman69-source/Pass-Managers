@@ -1,16 +1,14 @@
 name: Pass Managers Build
 
-on:
+"on":
   workflow_dispatch:
 
 jobs:
 
   windows-build:
-
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
 
     steps:
-
       - name: Checkout source
         uses: actions/checkout@v4
 
@@ -36,11 +34,9 @@ jobs:
 
 
   android-build:
-
     runs-on: ubuntu-latest
 
     steps:
-
       - name: Checkout source
         uses: actions/checkout@v4
 
@@ -54,30 +50,6 @@ jobs:
 
       - name: Analyze
         run: flutter analyze
-
-      - name: Build APK
-        run: flutter build apk --release
-
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: PassManagers-Android
-          path: build/app/outputs/flutter-apk/app-release.apk    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout source
-        uses: actions/checkout@v4
-
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: '3.24.0'
-
-      - name: Get dependencies
-        run: flutter pub get
-
-      - name: Generate Flutter platform files
-        run: flutter create --project-name pass_managers .
 
       - name: Build APK
         run: flutter build apk --release
