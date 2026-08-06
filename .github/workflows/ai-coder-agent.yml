@@ -3,109 +3,73 @@ name: AI Coder Agent
 "on":
   workflow_dispatch:
 
-  push:
-    branches:
-      - main
-
-
-permissions:
-  contents: write
-  actions: read
-  issues: write
-
-
 jobs:
-
   ai-agent:
 
     runs-on: ubuntu-latest
 
+    permissions:
+      contents: write
 
     steps:
 
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
 
-      - name: Install tools
+      - name: Show project information
         run: |
-          sudo apt update
-          sudo apt install -y jq
+          echo "Project files:"
+          ls -la
+
+          echo "Git branch:"
+          git branch
 
 
-      - name: Collect project information
+      - name: Prepare AI request
         run: |
+          echo "Analyze this Flutter project and find possible problems." > prompt.txt
 
-          echo "===== PROJECT FILES =====" > context.txt
+          echo "Files:" >> prompt.txt
 
-          find . \
-          -not -path "./.git/*" \
-          -maxdepth 4 \
-          -type f >> context.txt
+          find . -maxdepth 3 -type f >> prompt.txt
 
 
-          echo "===== GIT HISTORY =====" >> context.txt
-
-          git log --oneline -20 >> context.txt
-
-
-      - name: Create AI prompt
-        run: |
-
-          echo "
-You are an expert Flutter developer.
-
-Analyze this repository.
-Find possible build problems.
-Suggest fixes.
-
-" > prompt.txt
-
-          cat context.txt >> prompt.txt
-
-
-      - name: Send request to GPT-4.1
+      - name: Call GPT-4.1
 
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_KEY }}
 
         run: |
 
-          jq -Rs '{
-            model:"gpt-4.1",
-            messages:[
-              {
-                role:"system",
-                content:"You are a senior Flutter engineer."
-              },
-              {
-                role:"user",
-                content:.
-              }
-            ]
-          }' prompt.txt > request.json
-
-
           curl https://api.openai.com/v1/chat/completions \
           -H "Content-Type: application/json" \
           -H "Authorization: Bearer $OPENAI_API_KEY" \
-          -d @request.json \
-          > AI_REPORT.json
+          -d '{
+            "model": "gpt-4.1",
+            "messages": [
+              {
+                "role": "system",
+                "content": "You are a senior Flutter developer."
+              },
+              {
+                "role": "user",
+                "content": "Analyze this project and suggest improvements."
+              }
+            ]
+          }' > AI_REPORT.json
 
 
-      - name: Save report
+      - name: Save AI report
 
         run: |
 
           git config user.name "AI-Agent"
+
           git config user.email "actions@github.com"
 
           git add AI_REPORT.json
 
-          git commit \
-          -m "AI Agent analysis report" \
-          || echo "No changes"
+          git commit -m "AI Agent report" || echo "No changes"
 
-          git push origin main || true
+          git push
