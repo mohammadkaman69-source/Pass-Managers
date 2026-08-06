@@ -21,7 +21,7 @@ jobs:
         run: flutter pub get
 
       - name: Generate Flutter platform files
-        run: flutter create .
+        run: flutter create --project-name pass_managers .
 
       - name: Analyze
         run: flutter analyze
@@ -52,7 +52,7 @@ jobs:
         run: flutter pub get
 
       - name: Generate Flutter platform files
-        run: flutter create .
+        run: flutter create --project-name pass_managers .
 
       - name: Build APK
         run: flutter build apk --release
