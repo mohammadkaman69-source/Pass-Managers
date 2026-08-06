@@ -1,0 +1,118 @@
+name: AI Coder Agent
+
+"on":
+  workflow_dispatch:
+
+  push:
+    branches:
+      - main
+
+  workflow_run:
+    workflows:
+      - Pass Managers Build
+    types:
+      - completed
+
+
+permissions:
+  contents: write
+  actions: read
+  issues: write
+
+
+jobs:
+
+  ai-agent:
+
+    if: >
+      github.event_name != 'workflow_run' ||
+      github.event.workflow_run.conclusion == 'failure'
+
+    runs-on: ubuntu-latest
+
+
+    steps:
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+
+      - name: Setup Git
+        run: |
+          git config user.name "AI-Coder-Agent"
+          git config user.email "ai-agent@github.com"
+
+
+      - name: Collect repository information
+        run: |
+          echo "Repository:"
+          ls -la
+
+          echo "Git history:"
+          git log --oneline -10
+
+
+      - name: Get failed workflow logs
+        if: github.event_name == 'workflow_run'
+        env:
+          GH_TOKEN: ${{ secrets.AI_GITHUB_TOKEN }}
+        run: |
+          gh run view ${{ github.event.workflow_run.id }} --log > error.log || true
+
+
+      - name: Prepare AI prompt
+        run: |
+
+          echo "
+          You are an expert senior software engineer.
+
+          Analyze this Flutter project.
+
+          Tasks:
+          1. Read the repository.
+          2. Find bugs.
+          3. Fix build errors.
+          4. Improve architecture when needed.
+          5. Keep compatibility with Flutter latest stable.
+
+          If there is an error log:
+          " > ai_prompt.txt
+
+          cat error.log >> ai_prompt.txt 2>/dev/null || true
+
+
+      - name: Run AI Coding Agent
+        env:
+          GH_TOKEN: ${{ secrets.AI_GITHUB_TOKEN }}
+        run: |
+
+          echo "AI Agent placeholder"
+
+          echo "
+          The AI model:
+          openai/gpt-4.1
+
+          Repository analysis started.
+          "
+
+
+      - name: Commit changes
+        run: |
+
+          git status
+
+          if [[ -n "$(git status --porcelain)" ]]; then
+
+            git add .
+
+            git commit -m "AI Agent automatic fix"
+
+            git push origin main
+
+          else
+
+            echo "No changes detected"
+
+          fi
