@@ -7,12 +7,6 @@ on:
     branches:
       - main
 
-  workflow_run:
-    workflows:
-      - Pass Managers Build
-    types:
-      - completed
-
 
 permissions:
   contents: write
@@ -23,11 +17,6 @@ permissions:
 jobs:
 
   ai-agent:
-
-    if: >
-      github.event_name != 'workflow_run' ||
-      github.event.workflow_run.conclusion == 'failure'
-
 
     runs-on: ubuntu-latest
 
@@ -57,66 +46,24 @@ jobs:
           -type f >> context.txt
 
 
-          echo "" >> context.txt
-
           echo "===== GIT HISTORY =====" >> context.txt
 
           git log --oneline -20 >> context.txt
-
-
-          echo "" >> context.txt
-
-          echo "===== FLUTTER FILES =====" >> context.txt
-
-          find . -name "*.dart" | head -100 >> context.txt
-
-
-
-      - name: Get failed workflow logs
-        if: github.event_name == 'workflow_run'
-        env:
-          GH_TOKEN: ${{ secrets.AI_GITHUB_TOKEN }}
-
-        run: |
-
-          gh run view \
-          ${{ github.event.workflow_run.id }} \
-          --log > error.log || true
-
 
 
       - name: Create AI prompt
         run: |
 
           echo "
-You are an expert Flutter developer and autonomous coding agent.
+You are an expert Flutter developer.
 
-Project:
-Pass-Managers
+Analyze this repository.
+Find possible build problems.
+Suggest fixes.
 
-Your tasks:
-1. Analyze the repository.
-2. Find build problems.
-3. Identify Flutter compatibility issues.
-4. Suggest exact code changes.
-5. Do not remove functionality.
-
-Project information:
 " > prompt.txt
 
-
           cat context.txt >> prompt.txt
-
-
-          echo "
-
-Build errors:
-
-" >> prompt.txt
-
-
-          cat error.log 2>/dev/null || true
-
 
 
       - name: Send request to GPT-4.1
@@ -126,7 +73,7 @@ Build errors:
 
         run: |
 
-          jq -Rs '{ 
+          jq -Rs '{
             model:"gpt-4.1",
             messages:[
               {
@@ -141,59 +88,24 @@ Build errors:
           }' prompt.txt > request.json
 
 
-
           curl https://api.openai.com/v1/chat/completions \
           -H "Content-Type: application/json" \
           -H "Authorization: Bearer $OPENAI_API_KEY" \
           -d @request.json \
-          > ai-response.json
+          > AI_REPORT.json
 
 
-
-      - name: Show AI response
-
-        run: |
-
-          cat ai-response.json
-
-
-
-      - name: Save AI report
+      - name: Save report
 
         run: |
 
-          echo "AI analysis generated"
-
-          cp ai-response.json AI_REPORT.json
-
-
-
-      - name: Commit AI report
-
-        run: |
-
-          git config user.name "AI-Coder-Agent"
-
+          git config user.name "AI-Agent"
           git config user.email "actions@github.com"
-
 
           git add AI_REPORT.json
 
-
           git commit \
           -m "AI Agent analysis report" \
-          || echo "Nothing to commit"
-
+          || echo "No changes"
 
           git push origin main || true
-            git add .
-
-            git commit -m "AI Agent automatic fix"
-
-            git push origin main
-
-          else
-
-            echo "No changes detected"
-
-          fi
