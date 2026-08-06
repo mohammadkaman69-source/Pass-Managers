@@ -1,6 +1,6 @@
 name: Pass Managers Build
 
-on:
+"on":
   workflow_dispatch:
 
 jobs:
