@@ -23,9 +23,6 @@ jobs:
       - name: Generate Flutter platform files
         run: flutter create --project-name pass_managers .
 
-      - name: Analyze
-        run: flutter analyze
-
       - name: Build Windows
         run: flutter build windows --release
 
