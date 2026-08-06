@@ -1,4 +1,4 @@
-name: Pass Managers Build
+name: pass_managers
 
 "on":
   workflow_dispatch:
