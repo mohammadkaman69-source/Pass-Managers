@@ -1,0 +1,49 @@
+name: Regenerate Windows Platform
+
+"on":
+  workflow_dispatch:
+
+jobs:
+  regenerate-windows:
+
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.32.8"
+
+
+      - name: Generate Windows Platform
+        run: |
+          flutter create \
+            --platforms=windows \
+            --project-name pass_managers \
+            .
+
+
+      - name: Verify CMake
+        run: |
+          echo "Checking CMake"
+          cat windows/CMakeLists.txt
+
+
+      - name: Commit Windows
+        run: |
+          git config user.name "AI-Agent"
+          git config user.email "actions@github.com"
+
+          git add windows
+
+          git commit -m "Regenerate clean Windows platform" || echo "No changes"
+
+          git push
