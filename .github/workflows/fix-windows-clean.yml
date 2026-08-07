@@ -18,6 +18,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           flutter-version: "3.24.0"
+          channel: stable
 
       - name: Remove old Windows files
         run: |
@@ -27,16 +28,22 @@ jobs:
         run: |
           flutter create --platforms=windows --project-name pass_managers .
 
-      - name: Check Visual Studio references
+      - name: Search old Visual Studio generator
         run: |
-          grep -R "Visual Studio 16 2019" windows || true
+          echo "Searching Visual Studio 16 2019..."
+          grep -R "Visual Studio 16 2019" . || true
+
+      - name: Show generated Windows CMake
+        run: |
+          echo "CMakeLists.txt:"
+          cat windows/CMakeLists.txt
 
       - name: Commit changes
         run: |
           git config user.name "AI-Agent"
           git config user.email "actions@github.com"
 
-          git add windows
+          git add .
 
           git commit -m "Regenerate clean Windows platform" || echo "No changes"
 
