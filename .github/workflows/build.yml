@@ -25,8 +25,19 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
-      - name: Clean project
+      - name: Clean Flutter
         run: flutter clean
+
+      - name: Remove old Windows build cache
+        shell: bash
+        run: |
+          rm -rf build/windows
+
+      - name: Check old Visual Studio generator
+        shell: bash
+        run: |
+          echo "Searching Visual Studio 16 2019..."
+          grep -R "Visual Studio 16 2019" . || true
 
       - name: Analyze
         run: flutter analyze
@@ -67,7 +78,7 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
-      - name: Clean project
+      - name: Clean Flutter
         run: flutter clean
 
       - name: Analyze
