@@ -1,0 +1,91 @@
+name: Rebuild Windows Clean
+
+"on":
+  workflow_dispatch:
+
+jobs:
+
+  rebuild-windows:
+
+    runs-on: windows-latest
+
+    permissions:
+      contents: write
+
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.32.8"
+          channel: stable
+          cache: false
+
+
+      - name: Show tools
+        shell: powershell
+        run: |
+          flutter --version
+          cmake --version
+          where cmake
+
+
+      - name: Remove old windows and build cache
+        shell: powershell
+        run: |
+          Remove-Item -Recurse -Force windows -ErrorAction SilentlyContinue
+          Remove-Item -Recurse -Force build -ErrorAction SilentlyContinue
+          Remove-Item -Recurse -Force .dart_tool -ErrorAction SilentlyContinue
+
+
+      - name: Enable Windows
+        run: flutter config --enable-windows-desktop
+
+
+      - name: Create Windows platform
+        run: |
+          flutter create `
+          --platforms=windows `
+          --project-name pass_managers `
+          .
+
+
+      - name: Verify CMake
+        shell: powershell
+        run: |
+          Get-Content windows/CMakeLists.txt
+
+
+      - name: Get packages
+        run: flutter pub get
+
+
+      - name: Analyze
+        run: flutter analyze
+
+
+      - name: Build Windows
+        shell: powershell
+        env:
+          CMAKE_GENERATOR: "Visual Studio 17 2022"
+        run: |
+          flutter build windows --release -v
+
+
+      - name: Commit Windows folder
+        shell: powershell
+        run: |
+
+          git config user.name "AI-Agent"
+          git config user.email "actions@github.com"
+
+          git add windows
+
+          git commit -m "Rebuild clean Windows platform" `
+          || echo "No changes"
+
+          git push
