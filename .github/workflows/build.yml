@@ -1,4 +1,4 @@
-name: pass_managers
+name: Pass Managers Build
 
 "on":
   workflow_dispatch:
@@ -6,6 +6,7 @@ name: pass_managers
 jobs:
 
   windows-build:
+    name: Windows Build
     runs-on: windows-latest
 
     steps:
@@ -15,10 +16,17 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.24.0'
+          flutter-version: "3.24.0"
+          channel: stable
+
+      - name: Flutter doctor
+        run: flutter doctor -v
 
       - name: Get dependencies
         run: flutter pub get
+
+      - name: Clean project
+        run: flutter clean
 
       - name: Analyze
         run: flutter analyze
@@ -34,6 +42,7 @@ jobs:
 
 
   android-build:
+    name: Android Build
     runs-on: ubuntu-latest
 
     steps:
@@ -43,10 +52,23 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.24.0'
+          flutter-version: "3.24.0"
+          channel: stable
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Flutter doctor
+        run: flutter doctor -v
 
       - name: Get dependencies
         run: flutter pub get
+
+      - name: Clean project
+        run: flutter clean
 
       - name: Analyze
         run: flutter analyze
