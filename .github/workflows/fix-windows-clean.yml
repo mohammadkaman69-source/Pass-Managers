@@ -35,7 +35,7 @@ jobs:
 
       - name: Show generated Windows CMake
         run: |
-          echo "CMakeLists.txt:"
+          echo "===== windows/CMakeLists.txt ====="
           cat windows/CMakeLists.txt
 
       - name: Commit changes
@@ -45,6 +45,6 @@ jobs:
 
           git add .
 
-          git commit -m "Regenerate clean Windows platform" || echo "No changes"
+          git commit -m "Clean regenerate Windows platform" || echo "No changes"
 
           git push
