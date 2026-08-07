@@ -10,8 +10,10 @@ jobs:
     runs-on: windows-latest
 
     steps:
+
       - name: Checkout source
         uses: actions/checkout@v4
+
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -19,34 +21,46 @@ jobs:
           flutter-version: "3.24.0"
           channel: stable
 
-      - name: Flutter doctor
-        run: flutter doctor -v
+
+      - name: Flutter version
+        run: flutter --version
+
+
+      - name: Check CMake
+        shell: powershell
+        run: |
+          cmake --version
+          cmake --help | Select-String "Visual Studio"
+
+
+      - name: Check environment
+        shell: powershell
+        run: |
+          Get-ChildItem Env:CMAKE*
+
+
+      - name: Clean Flutter
+        shell: powershell
+        run: |
+          flutter clean
+          if (Test-Path build) {
+            Remove-Item -Recurse -Force build
+          }
+
 
       - name: Get dependencies
         run: flutter pub get
 
-      - name: Clean Flutter
-        run: flutter clean
-
-      - name: Remove CMake cache
-        shell: bash
-        run: |
-          rm -rf build/windows
-
-      - name: Force Visual Studio 2022
-        shell: bash
-        run: |
-          echo "Using Visual Studio 2022"
-          export CMAKE_GENERATOR="Visual Studio 17 2022"
 
       - name: Analyze
         run: flutter analyze
 
-      - name: Build Windows
-        shell: bash
+
+      - name: Build Windows verbose
+        shell: powershell
         run: |
-          export CMAKE_GENERATOR="Visual Studio 17 2022"
-          flutter build windows --release
+          flutter build windows --release -v
+
 
       - name: Upload Windows Build
         uses: actions/upload-artifact@v4
@@ -55,13 +69,16 @@ jobs:
           path: build/windows/x64/runner/Release/
 
 
+
   android-build:
     name: Android Build
     runs-on: ubuntu-latest
 
     steps:
+
       - name: Checkout source
         uses: actions/checkout@v4
+
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -69,26 +86,29 @@ jobs:
           flutter-version: "3.24.0"
           channel: stable
 
+
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
 
-      - name: Flutter doctor
-        run: flutter doctor -v
+
+      - name: Flutter version
+        run: flutter --version
+
 
       - name: Get dependencies
         run: flutter pub get
 
-      - name: Clean Flutter
-        run: flutter clean
 
       - name: Analyze
         run: flutter analyze
 
+
       - name: Build APK
         run: flutter build apk --release
+
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
