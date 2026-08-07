@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'tree_page.dart';
+import 'table_page.dart';
 
 
 class HomePage extends StatefulWidget {
@@ -9,12 +10,14 @@ class HomePage extends StatefulWidget {
 
 
   @override
-  State<HomePage> createState() => _HomePageState();
+  State<HomePage> createState() =>
+      _HomePageState();
 
 }
 
 
 class _HomePageState extends State<HomePage> {
+
 
   final List<TreeItem> items = [];
 
@@ -31,7 +34,8 @@ class _HomePageState extends State<HomePage> {
 
           child: Column(
 
-            mainAxisSize: MainAxisSize.min,
+            mainAxisSize:
+                MainAxisSize.min,
 
             children: [
 
@@ -114,13 +118,17 @@ class _HomePageState extends State<HomePage> {
 
           content: TextField(
 
-            controller: controller,
+            controller:
+                controller,
 
-            autofocus: true,
+            autofocus:
+                true,
 
-            decoration: const InputDecoration(
+            decoration:
+                const InputDecoration(
 
-              labelText: "Folder name",
+              labelText:
+                  "Folder name",
 
             ),
 
@@ -212,13 +220,17 @@ class _HomePageState extends State<HomePage> {
 
           content: TextField(
 
-            controller: controller,
+            controller:
+                controller,
 
-            autofocus: true,
+            autofocus:
+                true,
 
-            decoration: const InputDecoration(
+            decoration:
+                const InputDecoration(
 
-              labelText: "Table name",
+              labelText:
+                  "Table name",
 
             ),
 
@@ -292,6 +304,41 @@ class _HomePageState extends State<HomePage> {
 
   void openItem(TreeItem item) {
 
+    // اگر Table است، مستقیماً TablePage را باز کن.
+    if (item.type == TreeItemType.table) {
+
+      Navigator.push(
+
+        context,
+
+        MaterialPageRoute(
+
+          builder: (context) {
+
+            return TablePage(
+              table: item,
+            );
+
+          },
+
+        ),
+
+      ).then((_) {
+
+        if (mounted) {
+
+          setState(() {});
+
+        }
+
+      });
+
+      return;
+
+    }
+
+
+    // اگر Folder است، TreePage را باز کن.
     Navigator.push(
 
       context,
@@ -310,7 +357,11 @@ class _HomePageState extends State<HomePage> {
 
     ).then((_) {
 
-      setState(() {});
+      if (mounted) {
+
+        setState(() {});
+
+      }
 
     });
 
@@ -331,120 +382,144 @@ class _HomePageState extends State<HomePage> {
       ),
 
 
-      body: items.isEmpty
+      body:
 
-          ? Center(
+          items.isEmpty
 
-              child: Column(
+              ? Center(
 
-                mainAxisSize:
-                    MainAxisSize.min,
+                  child: Column(
 
-                children: [
+                    mainAxisSize:
+                        MainAxisSize.min,
 
-                  const Icon(
+                    children: [
 
-                    Icons.folder_open,
+                      const Icon(
 
-                    size: 80,
+                        Icons.folder_open,
 
-                  ),
+                        size: 80,
 
-
-                  const SizedBox(
-                    height: 20,
-                  ),
+                      ),
 
 
-                  const Text(
-
-                    "No items created yet",
-
-                    style: TextStyle(
-                      fontSize: 18,
-                    ),
-
-                  ),
+                      const SizedBox(
+                        height: 20,
+                      ),
 
 
-                  const SizedBox(
-                    height: 20,
-                  ),
+                      const Text(
+
+                        "No items created yet",
+
+                        style:
+                            TextStyle(
+                          fontSize: 18,
+                        ),
+
+                      ),
 
 
-                  ElevatedButton.icon(
-
-                    onPressed:
-                        createItem,
-
-                    icon: const Icon(
-                      Icons.add,
-                    ),
-
-                    label: const Text(
-                      "Create",
-                    ),
-
-                  ),
-
-                ],
-
-              ),
-
-            )
+                      const SizedBox(
+                        height: 20,
+                      ),
 
 
-          : ListView.builder(
+                      ElevatedButton.icon(
 
-              padding:
-                  const EdgeInsets.all(16),
+                        onPressed:
+                            createItem,
 
-              itemCount:
-                  items.length,
+                        icon:
+                            const Icon(
+                          Icons.add,
+                        ),
 
-              itemBuilder:
-                  (context, index) {
+                        label:
+                            const Text(
+                          "Create",
+                        ),
 
-                final item =
-                    items[index];
+                      ),
 
-
-                return Card(
-
-                  child: ListTile(
-
-                    leading: Icon(
-
-                      item.type ==
-                              TreeItemType.folder
-
-                          ? Icons.folder
-
-                          : Icons.table_chart,
-
-                    ),
-
-                    title: Text(
-                      item.name,
-                    ),
-
-                    trailing: const Icon(
-                      Icons.chevron_right,
-                    ),
-
-                    onTap: () {
-
-                      openItem(item);
-
-                    },
+                    ],
 
                   ),
 
-                );
+                )
 
-              },
 
-            ),
+              : ListView.builder(
+
+                  padding:
+                      const EdgeInsets.all(16),
+
+                  itemCount:
+                      items.length,
+
+                  itemBuilder:
+                      (context, index) {
+
+                    final item =
+                        items[index];
+
+
+                    final isTable =
+                        item.type ==
+                            TreeItemType.table;
+
+
+                    return Card(
+
+                      child: ListTile(
+
+                        leading: Icon(
+
+                          isTable
+
+                              ? Icons.table_chart
+
+                              : Icons.folder,
+
+                        ),
+
+
+                        title: Text(
+                          item.name,
+                        ),
+
+
+                        subtitle:
+
+                            isTable
+
+                                ? Text(
+                                    "${item.rows.length} rows • ${item.columns.length} columns",
+                                  )
+
+                                : null,
+
+
+                        trailing:
+                            const Icon(
+                          Icons.chevron_right,
+                        ),
+
+
+                        onTap: () {
+
+                          openItem(item);
+
+                        },
+
+                      ),
+
+                    );
+
+                  },
+
+                ),
 
 
       floatingActionButton:
@@ -454,7 +529,8 @@ class _HomePageState extends State<HomePage> {
             onPressed:
                 createItem,
 
-            child: const Icon(
+            child:
+                const Icon(
               Icons.add,
             ),
 
