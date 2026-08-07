@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../services/password_service.dart';
 import 'home_page.dart';
 
@@ -15,29 +16,46 @@ class LoginPage extends StatefulWidget {
 
 
 
-class _LoginPageState extends State<LoginPage>{
-
-  final controller = TextEditingController();
+class _LoginPageState extends State<LoginPage> {
 
 
-  bool creating = false;
+  final TextEditingController controller =
+      TextEditingController();
+
+
+  bool createMode = false;
+
 
 
   @override
-  void initState(){
+  void initState() {
 
     super.initState();
 
-    check();
+    checkPasswordStatus();
 
   }
 
 
-  Future<void> check() async {
 
-    creating = !(await PasswordService.hasPassword());
+  Future<void> checkPasswordStatus() async {
 
-    setState(() {});
+
+    bool exists =
+        await PasswordService.hasPassword();
+
+
+    if(!mounted){
+      return;
+    }
+
+
+    setState(() {
+
+      createMode = !exists;
+
+    });
+
 
   }
 
@@ -46,13 +64,18 @@ class _LoginPageState extends State<LoginPage>{
   Future<void> submit() async {
 
 
-    if(controller.text.isEmpty) return;
+    if(controller.text.isEmpty){
+
+      return;
+
+    }
 
 
-    if(creating){
+    if(createMode){
+
 
       await PasswordService.savePassword(
-        controller.text
+        controller.text,
       );
 
 
@@ -62,25 +85,41 @@ class _LoginPageState extends State<LoginPage>{
     }else{
 
 
-      bool ok = await PasswordService.checkPassword(
-        controller.text
-      );
+      bool result =
+          await PasswordService.checkPassword(
+            controller.text,
+          );
 
 
-      if(ok){
+      if(result){
+
 
         openHome();
 
+
       }else{
+
+
+        if(!mounted){
+          return;
+        }
+
 
         ScaffoldMessenger.of(context)
         .showSnackBar(
+
           const SnackBar(
-            content: Text("Wrong password")
-          )
+
+            content:
+            Text("Wrong Master Password"),
+
+          ),
+
         );
 
+
       }
+
 
     }
 
@@ -91,92 +130,142 @@ class _LoginPageState extends State<LoginPage>{
 
   void openHome(){
 
+
+    if(!mounted){
+      return;
+    }
+
+
     Navigator.pushReplacement(
+
       context,
+
       MaterialPageRoute(
-        builder:(context)=>const HomePage()
-      )
+
+        builder:(context)=>
+        const HomePage(),
+
+      ),
+
     );
+
 
   }
 
 
 
   @override
-  Widget build(BuildContext context){
+  Widget build(BuildContext context) {
+
 
     return Scaffold(
 
+
       body: Center(
+
 
         child: Padding(
 
-          padding: const EdgeInsets.all(30),
+          padding:
+          const EdgeInsets.all(30),
+
 
           child: Column(
 
-            mainAxisSize: MainAxisSize.min,
+            mainAxisSize:
+            MainAxisSize.min,
 
 
             children:[
 
 
               const Text(
+
                 "Pass Managers",
+
                 style: TextStyle(
+
                   fontSize:32,
-                  fontWeight:FontWeight.bold
+
+                  fontWeight:
+                  FontWeight.bold,
+
                 ),
+
               ),
+
 
 
               const SizedBox(height:30),
 
 
+
               TextField(
 
-                controller:controller,
+                controller:
+                controller,
+
 
                 obscureText:true,
 
-                decoration:InputDecoration(
+
+                decoration:
+                InputDecoration(
 
                   labelText:
-                  creating
-                  ?"Create Master Password"
-                  :"Enter Master Password"
+
+                  createMode
+
+                  ? "Create Master Password"
+
+                  : "Enter Master Password",
 
                 ),
 
               ),
 
 
+
               const SizedBox(height:20),
+
 
 
               ElevatedButton(
 
                 onPressed:submit,
 
-                child:Text(
-                  creating
-                  ?"Create"
-                  :"Login"
+
+                child:
+
+                Text(
+
+                  createMode
+
+                  ? "Create"
+
+                  : "Login",
+
                 ),
 
               )
 
 
-            ]
+            ],
+
 
           ),
 
+
         ),
+
 
       ),
 
+
     );
 
+
   }
+
 
 }
