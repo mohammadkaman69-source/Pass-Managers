@@ -18,7 +18,7 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: "3.24.0"
+          flutter-version: "3.35.0"
           channel: stable
 
 
@@ -26,40 +26,32 @@ jobs:
         run: flutter --version
 
 
-      - name: Check CMake
-        shell: powershell
-        run: |
-          cmake --version
-          cmake --help | Select-String "Visual Studio"
-
-
-      - name: Check environment
-        shell: powershell
-        run: |
-          Get-ChildItem Env:CMAKE*
-
-
-      - name: Clean Flutter
-        shell: powershell
-        run: |
-          flutter clean
-          if (Test-Path build) {
-            Remove-Item -Recurse -Force build
-          }
+      - name: Flutter doctor
+        run: flutter doctor -v
 
 
       - name: Get dependencies
         run: flutter pub get
 
 
+      - name: Clean Flutter
+        run: flutter clean
+
+
+      - name: Remove old build cache
+        shell: powershell
+        run: |
+          if (Test-Path build) {
+            Remove-Item -Recurse -Force build
+          }
+
+
       - name: Analyze
         run: flutter analyze
 
 
-      - name: Build Windows verbose
-        shell: powershell
-        run: |
-          flutter build windows --release -v
+      - name: Build Windows
+        run: flutter build windows --release -v
 
 
       - name: Upload Windows Build
@@ -83,7 +75,7 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: "3.24.0"
+          flutter-version: "3.35.0"
           channel: stable
 
 
