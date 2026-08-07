@@ -1,28 +1,47 @@
 import 'package:flutter/material.dart';
+import 'screens/login_page.dart';
 
-void main() {
-  runApp(const PassManagersApp());
+
+void main(){
+
+runApp(
+const PassManagers()
+);
+
 }
 
-class PassManagersApp extends StatelessWidget {
-  const PassManagersApp({super.key});
 
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Pass Managers',
-      debugShowCheckedModeBanner: false,
-      home: Scaffold(
-        appBar: AppBar(
-          title: const Text('Pass Managers'),
-        ),
-        body: const Center(
-          child: Text(
-            'Pass Managers Build Test OK',
-            style: TextStyle(fontSize: 24),
-          ),
-        ),
-      ),
-    );
-  }
+
+class PassManagers extends StatelessWidget{
+
+const PassManagers({super.key});
+
+
+@override
+Widget build(BuildContext context){
+
+
+return MaterialApp(
+
+debugShowCheckedModeBanner:false,
+
+title:"Pass Managers",
+
+theme:ThemeData(
+
+colorSchemeSeed:Colors.blue,
+
+useMaterial3:true,
+
+),
+
+
+home:const LoginPage(),
+
+
+);
+
+}
+
+
 }
