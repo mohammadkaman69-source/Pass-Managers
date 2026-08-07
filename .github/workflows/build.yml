@@ -6,6 +6,7 @@ name: Pass Managers Build
 jobs:
 
   windows-build:
+    name: Windows Build
     runs-on: windows-latest
 
     steps:
@@ -15,8 +16,37 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: "3.32.8"
+          flutter-version: "3.44.7"
           channel: stable
+
+      - name: Show Flutter version
+        run: flutter --version
+
+      - name: Enable Windows desktop
+        run: flutter config --enable-windows-desktop
+
+      - name: Recreate Android and Windows platforms
+        shell: pwsh
+        run: |
+          if (Test-Path android) {
+            Remove-Item -Recurse -Force android
+          }
+
+          if (Test-Path windows) {
+            Remove-Item -Recurse -Force windows
+          }
+
+          flutter create --platforms=android,windows --project-name pass_managers .
+
+      - name: Remove generated sample test
+        shell: pwsh
+        run: |
+          if (Test-Path test) {
+            Remove-Item -Recurse -Force test
+          }
+
+      - name: Clean Flutter
+        run: flutter clean
 
       - name: Get dependencies
         run: flutter pub get
@@ -24,35 +54,11 @@ jobs:
       - name: Analyze
         run: flutter analyze
 
-      - name: Configure Visual Studio 2026
-        shell: powershell
-        run: |
-          $vsPath = "C:\Program Files\Microsoft Visual Studio\18\Enterprise"
-
-          if (-not (Test-Path $vsPath)) {
-            Write-Error "Visual Studio 2026 Enterprise was not found at $vsPath"
-            exit 1
-          }
-
-          $env:CMAKE_GENERATOR = "Visual Studio 18 2026"
-          $env:CMAKE_GENERATOR_PLATFORM = "x64"
-
-          "CMAKE_GENERATOR=Visual Studio 18 2026" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          "CMAKE_GENERATOR_PLATFORM=x64" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-
-          Write-Host "Visual Studio path: $vsPath"
-          Write-Host "CMAKE_GENERATOR: Visual Studio 18 2026"
-          Write-Host "CMAKE_GENERATOR_PLATFORM: x64"
-
-      - name: Clean Windows build cache
-        shell: powershell
-        run: |
-          if (Test-Path "build/windows") {
-            Remove-Item -Recurse -Force "build/windows"
-          }
+      - name: Check Visual Studio
+        run: flutter doctor -v
 
       - name: Build Windows
-        run: flutter build windows --release
+        run: flutter build windows --release -v
 
       - name: Upload Windows Build
         uses: actions/upload-artifact@v4
@@ -62,6 +68,7 @@ jobs:
 
 
   android-build:
+    name: Android Build
     runs-on: ubuntu-latest
 
     steps:
@@ -71,8 +78,26 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: "3.32.8"
+          flutter-version: "3.44.7"
           channel: stable
+
+      - name: Show Flutter version
+        run: flutter --version
+
+      - name: Enable Android
+        run: flutter config --enable-android
+
+      - name: Recreate Android platform
+        run: |
+          rm -rf android
+          flutter create --platforms=android --project-name pass_managers .
+
+      - name: Remove generated sample test
+        run: |
+          rm -rf test
+
+      - name: Clean Flutter
+        run: flutter clean
 
       - name: Get dependencies
         run: flutter pub get
