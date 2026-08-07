@@ -28,22 +28,25 @@ jobs:
       - name: Clean Flutter
         run: flutter clean
 
-      - name: Remove old Windows build cache
+      - name: Remove CMake cache
         shell: bash
         run: |
           rm -rf build/windows
 
-      - name: Check old Visual Studio generator
+      - name: Force Visual Studio 2022
         shell: bash
         run: |
-          echo "Searching Visual Studio 16 2019..."
-          grep -R "Visual Studio 16 2019" . || true
+          echo "Using Visual Studio 2022"
+          export CMAKE_GENERATOR="Visual Studio 17 2022"
 
       - name: Analyze
         run: flutter analyze
 
       - name: Build Windows
-        run: flutter build windows --release
+        shell: bash
+        run: |
+          export CMAKE_GENERATOR="Visual Studio 17 2022"
+          flutter build windows --release
 
       - name: Upload Windows Build
         uses: actions/upload-artifact@v4
