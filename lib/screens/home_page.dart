@@ -1,35 +1,129 @@
 import 'package:flutter/material.dart';
 
-
-class HomePage extends StatelessWidget {
-
-
-const HomePage({super.key});
+import 'add_password_page.dart';
 
 
-@override
-Widget build(BuildContext context){
+class HomePage extends StatefulWidget {
 
-return Scaffold(
-
-appBar:AppBar(
-title:const Text("Pass Managers"),
-),
+  const HomePage({super.key});
 
 
-body:const Center(
-
-child:Text(
-"Home Page - Ready",
-style:TextStyle(
-fontSize:25
-),
-),
-
-),
-
-);
+  @override
+  State<HomePage> createState() =>
+      _HomePageState();
 
 }
+
+
+
+class _HomePageState extends State<HomePage> {
+
+
+  @override
+  Widget build(BuildContext context) {
+
+
+    return Scaffold(
+
+      appBar: AppBar(
+
+        title:
+            const Text("Pass Managers"),
+
+      ),
+
+
+
+      body: Center(
+
+        child: Column(
+
+          mainAxisAlignment:
+              MainAxisAlignment.center,
+
+
+          children: [
+
+
+            const Icon(
+
+              Icons.lock_outline,
+
+              size:80,
+
+            ),
+
+
+
+            const SizedBox(height:20),
+
+
+
+            const Text(
+
+              "No passwords saved yet",
+
+              style: TextStyle(
+
+                fontSize:18,
+
+              ),
+
+            ),
+
+
+
+            const SizedBox(height:30),
+
+
+
+            ElevatedButton.icon(
+
+              onPressed: () {
+
+
+                Navigator.push(
+
+                  context,
+
+                  MaterialPageRoute(
+
+                    builder:(context) =>
+                        const AddPasswordPage(),
+
+                  ),
+
+                );
+
+
+              },
+
+
+              icon:
+                  const Icon(Icons.add),
+
+
+              label:
+                  const Text("Add Password"),
+
+
+            ),
+
+
+
+          ],
+
+
+        ),
+
+
+      ),
+
+
+    );
+
+
+  }
+
 
 }
