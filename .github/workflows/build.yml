@@ -6,6 +6,7 @@ workflow_dispatch:
 jobs:
 
 android-build:
+name: Pass Managers - Android
 runs-on: ubuntu-latest
 
 steps:
@@ -34,6 +35,7 @@ steps:
       path: build/app/outputs/flutter-apk/app-release.apk
 
 windows-build:
+name: Pass Managers - Windows
 runs-on: windows-latest
 
 steps:
