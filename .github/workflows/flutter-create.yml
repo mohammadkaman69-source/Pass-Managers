@@ -25,7 +25,15 @@ jobs:
 
       - name: Create Android and Windows platforms
         run: |
-          flutter create --platforms=android,windows .
+          flutter create --platforms=android,windows --project-name pass_managers .
+
+      - name: Check generated files
+        run: |
+          ls -la
+          echo "Android:"
+          ls -la android || true
+          echo "Windows:"
+          ls -la windows || true
 
       - name: Commit generated files
         run: |
