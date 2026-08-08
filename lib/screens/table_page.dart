@@ -495,25 +495,19 @@ class _TablePageState extends State<TablePage> {
                   onPressed: () {
                     editRow(row);
                   },
-                  icon:
-                      const Icon(
+                  icon: const Icon(
                     Icons.edit,
                   ),
-                  tooltip:
-                      "Edit",
+                  tooltip: "Edit",
                 ),
                 IconButton(
                   onPressed: () {
-                    deleteRow(
-                      rowIndex,
-                    );
+                    deleteRow(rowIndex);
                   },
-                  icon:
-                      const Icon(
+                  icon: const Icon(
                     Icons.delete_outline,
                   ),
-                  tooltip:
-                      "Delete",
+                  tooltip: "Delete",
                 ),
               ],
             ),
@@ -524,8 +518,7 @@ class _TablePageState extends State<TablePage> {
             ...widget.table.columns.map(
               (column) {
                 final value =
-                    row.values[
-                            column.name] ??
+                    row.values[column.name] ??
                         '';
 
                 final isPassword =
@@ -543,9 +536,7 @@ class _TablePageState extends State<TablePage> {
 
                 return InkWell(
                   borderRadius:
-                      BorderRadius.circular(
-                    8,
-                  ),
+                      BorderRadius.circular(8),
                   onTap: () {
                     editRow(row);
                   },
@@ -556,21 +547,18 @@ class _TablePageState extends State<TablePage> {
                     ),
                     child: Column(
                       crossAxisAlignment:
-                          CrossAxisAlignment
-                              .start,
+                          CrossAxisAlignment.start,
                       children: [
                         Text(
                           column.name,
-                          style:
-                              TextStyle(
+                          style: TextStyle(
                             fontSize: 13,
                             fontWeight:
                                 FontWeight.bold,
-                            color: Theme.of(
-                              context,
-                            )
-                                .colorScheme
-                                .primary,
+                            color:
+                                Theme.of(context)
+                                    .colorScheme
+                                    .primary,
                           ),
                         ),
                         const SizedBox(
@@ -614,31 +602,24 @@ class _TablePageState extends State<TablePage> {
         ),
         actions: [
           IconButton(
-            onPressed:
-                renameTable,
-            icon:
-                const Icon(
+            onPressed: renameTable,
+            icon: const Icon(
               Icons.edit,
             ),
-            tooltip:
-                "Rename Table",
+            tooltip: "Rename Table",
           ),
           PopupMenuButton<String>(
-            onSelected:
-                (value) {
+            onSelected: (value) {
               if (value ==
                   "add_column") {
                 addColumn();
               }
             },
-            itemBuilder:
-                (context) {
+            itemBuilder: (context) {
               return const [
                 PopupMenuItem<String>(
-                  value:
-                      "add_column",
-                  child:
-                      Text(
+                  value: "add_column",
+                  child: Text(
                     "Add Column",
                   ),
                 ),
@@ -661,3 +642,56 @@ class _TablePageState extends State<TablePage> {
                     children: [
                       const Icon(
                         Icons
+                            .table_chart_outlined,
+                        size: 80,
+                      ),
+                      const SizedBox(
+                        height: 20,
+                      ),
+                      const Text(
+                        "Table is empty",
+                        style: TextStyle(
+                          fontSize: 18,
+                        ),
+                      ),
+                      const SizedBox(
+                        height: 20,
+                      ),
+                      ElevatedButton.icon(
+                        onPressed: addRow,
+                        icon: const Icon(
+                          Icons.add,
+                        ),
+                        label: const Text(
+                          "Add Row",
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              : ListView.builder(
+                  padding:
+                      const EdgeInsets.all(16),
+                  itemCount:
+                      widget.table.rows.length,
+                  itemBuilder:
+                      (context, index) {
+                    return buildRowCard(
+                      widget.table.rows[index],
+                      index,
+                    );
+                  },
+                ),
+      floatingActionButton:
+          FloatingActionButton.extended(
+        onPressed: addRow,
+        icon: const Icon(
+          Icons.add,
+        ),
+        label: const Text(
+          "Add Row",
+        ),
+      ),
+    );
+  }
+}
