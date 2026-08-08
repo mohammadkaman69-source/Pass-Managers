@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 
-import '../models/tree_item.dart';
-import '../models/table_row_data.dart';
 import '../models/table_column_definition.dart';
+import '../models/table_row_data.dart';
+import '../models/tree_item.dart';
 
 class TablePage extends StatefulWidget {
   final TreeItem table;
+
   final VoidCallback? onDelete;
 
   const TablePage({
@@ -45,7 +46,7 @@ class _TablePageState extends State<TablePage> {
       builder: (dialogContext) {
         return AlertDialog(
           title: const Text(
-            "Edit Record",
+            'Edit Record',
           ),
           content: SizedBox(
             width: 500,
@@ -56,20 +57,23 @@ class _TablePageState extends State<TablePage> {
                     final isPassword =
                         column.name
                             .toLowerCase()
-                            .contains("password");
+                            .contains('password');
 
                     return Padding(
-                      padding: const EdgeInsets.only(
+                      padding:
+                          const EdgeInsets.only(
                         bottom: 14,
                       ),
                       child: TextField(
                         controller:
                             controllers[column.name],
                         obscureText: isPassword,
-                        decoration: InputDecoration(
-                          labelText: column.name,
+                        decoration:
+                            const InputDecoration(
                           border:
-                              const OutlineInputBorder(),
+                              OutlineInputBorder(),
+                        ).copyWith(
+                          labelText: column.name,
                         ),
                       ),
                     );
@@ -84,7 +88,7 @@ class _TablePageState extends State<TablePage> {
                 Navigator.pop(dialogContext);
               },
               child: const Text(
-                "Cancel",
+                'Cancel',
               ),
             ),
             ElevatedButton(
@@ -99,7 +103,7 @@ class _TablePageState extends State<TablePage> {
                 setState(() {});
               },
               child: const Text(
-                "Save",
+                'Save',
               ),
             ),
           ],
@@ -118,10 +122,10 @@ class _TablePageState extends State<TablePage> {
       builder: (dialogContext) {
         return AlertDialog(
           title: const Text(
-            "Delete Record",
+            'Delete Record',
           ),
           content: const Text(
-            "Are you sure you want to delete this record?",
+            'Are you sure you want to delete this record?',
           ),
           actions: [
             TextButton(
@@ -129,7 +133,7 @@ class _TablePageState extends State<TablePage> {
                 Navigator.pop(dialogContext);
               },
               child: const Text(
-                "Cancel",
+                'Cancel',
               ),
             ),
             ElevatedButton(
@@ -141,7 +145,7 @@ class _TablePageState extends State<TablePage> {
                 Navigator.pop(dialogContext);
               },
               child: const Text(
-                "Delete",
+                'Delete',
               ),
             ),
           ],
@@ -158,14 +162,14 @@ class _TablePageState extends State<TablePage> {
       builder: (dialogContext) {
         return AlertDialog(
           title: const Text(
-            "Add Field",
+            'Add Field',
           ),
           content: TextField(
             controller: controller,
             autofocus: true,
             decoration: const InputDecoration(
-              labelText: "Field name",
-              hintText: "Example: Volume",
+              labelText: 'Field name',
+              hintText: 'Example: Volume',
               border: OutlineInputBorder(),
             ),
           ),
@@ -175,13 +179,12 @@ class _TablePageState extends State<TablePage> {
                 Navigator.pop(dialogContext);
               },
               child: const Text(
-                "Cancel",
+                'Cancel',
               ),
             ),
             ElevatedButton(
               onPressed: () {
-                final name =
-                    controller.text.trim();
+                final name = controller.text.trim();
 
                 if (name.isEmpty) {
                   return;
@@ -198,7 +201,7 @@ class _TablePageState extends State<TablePage> {
                       .showSnackBar(
                     const SnackBar(
                       content: Text(
-                        "A field with this name already exists in this record.",
+                        'A field with this name already exists in this record.',
                       ),
                     ),
                   );
@@ -216,7 +219,7 @@ class _TablePageState extends State<TablePage> {
                 Navigator.pop(dialogContext);
               },
               child: const Text(
-                "Add Field",
+                'Add Field',
               ),
             ),
           ],
@@ -226,13 +229,15 @@ class _TablePageState extends State<TablePage> {
       controller.dispose();
     });
   }
-    void renameColumn(
+
+  void renameColumn(
     TableRowData row,
     TableColumnDefinition column,
   ) {
     final oldName = column.name;
 
-    final controller = TextEditingController(
+    final controller =
+        TextEditingController(
       text: oldName,
     );
 
@@ -241,13 +246,13 @@ class _TablePageState extends State<TablePage> {
       builder: (dialogContext) {
         return AlertDialog(
           title: const Text(
-            "Rename Field",
+            'Rename Field',
           ),
           content: TextField(
             controller: controller,
             autofocus: true,
             decoration: const InputDecoration(
-              labelText: "Field name",
+              labelText: 'Field name',
               border: OutlineInputBorder(),
             ),
           ),
@@ -257,7 +262,7 @@ class _TablePageState extends State<TablePage> {
                 Navigator.pop(dialogContext);
               },
               child: const Text(
-                "Cancel",
+                'Cancel',
               ),
             ),
             ElevatedButton(
@@ -270,7 +275,8 @@ class _TablePageState extends State<TablePage> {
                 }
 
                 if (newName != oldName) {
-                  final exists = row.columns.any(
+                  final exists =
+                      row.columns.any(
                     (item) =>
                         item != column &&
                         item.name.toLowerCase() ==
@@ -282,7 +288,7 @@ class _TablePageState extends State<TablePage> {
                         .showSnackBar(
                       const SnackBar(
                         content: Text(
-                          "A field with this name already exists in this record.",
+                          'A field with this name already exists in this record.',
                         ),
                       ),
                     );
@@ -303,7 +309,7 @@ class _TablePageState extends State<TablePage> {
                 Navigator.pop(dialogContext);
               },
               child: const Text(
-                "Save",
+                'Save',
               ),
             ),
           ],
@@ -322,7 +328,7 @@ class _TablePageState extends State<TablePage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            "At least one field must remain in this record.",
+            'At least one field must remain in this record.',
           ),
         ),
       );
@@ -334,7 +340,7 @@ class _TablePageState extends State<TablePage> {
       builder: (dialogContext) {
         return AlertDialog(
           title: const Text(
-            "Delete Field",
+            'Delete Field',
           ),
           content: Text(
             'Delete field "${column.name}" from this record?',
@@ -345,14 +351,13 @@ class _TablePageState extends State<TablePage> {
                 Navigator.pop(dialogContext);
               },
               child: const Text(
-                "Cancel",
+                'Cancel',
               ),
             ),
             ElevatedButton(
               onPressed: () {
                 setState(() {
-                  final columnName =
-                      column.name;
+                  final columnName = column.name;
 
                   row.columns.remove(column);
                   row.values.remove(columnName);
@@ -361,7 +366,7 @@ class _TablePageState extends State<TablePage> {
                 Navigator.pop(dialogContext);
               },
               child: const Text(
-                "Delete",
+                'Delete',
               ),
             ),
           ],
@@ -376,6 +381,7 @@ class _TablePageState extends State<TablePage> {
     int newIndex,
   ) {
     final columns = row.columns;
+
     final oldIndex = columns.indexOf(column);
 
     if (oldIndex == -1) {
@@ -393,7 +399,10 @@ class _TablePageState extends State<TablePage> {
 
     setState(() {
       columns.removeAt(oldIndex);
-      columns.insert(newIndex, column);
+      columns.insert(
+        newIndex,
+        column,
+      );
     });
   }
 
@@ -401,8 +410,7 @@ class _TablePageState extends State<TablePage> {
     TableRowData row,
     TableColumnDefinition column,
   ) {
-    final index =
-        row.columns.indexOf(column);
+    final index = row.columns.indexOf(column);
 
     showModalBottomSheet(
       context: context,
@@ -416,7 +424,7 @@ class _TablePageState extends State<TablePage> {
                   Icons.edit,
                 ),
                 title: const Text(
-                  "Rename Field",
+                  'Rename Field',
                 ),
                 onTap: () {
                   Navigator.pop(sheetContext);
@@ -433,7 +441,7 @@ class _TablePageState extends State<TablePage> {
                 ),
                 enabled: index > 0,
                 title: const Text(
-                  "Move Up",
+                  'Move Up',
                 ),
                 onTap: index > 0
                     ? () {
@@ -455,9 +463,9 @@ class _TablePageState extends State<TablePage> {
                 ),
                 enabled:
                     index <
-                    row.columns.length - 1,
+                        row.columns.length - 1,
                 title: const Text(
-                  "Move Down",
+                  'Move Down',
                 ),
                 onTap:
                     index <
@@ -480,7 +488,7 @@ class _TablePageState extends State<TablePage> {
                   Icons.delete_outline,
                 ),
                 title: const Text(
-                  "Delete Field",
+                  'Delete Field',
                 ),
                 onTap: () {
                   Navigator.pop(sheetContext);
@@ -512,13 +520,13 @@ class _TablePageState extends State<TablePage> {
       builder: (dialogContext) {
         return AlertDialog(
           title: const Text(
-            "Rename Table",
+            'Rename Table',
           ),
           content: TextField(
             controller: controller,
             autofocus: true,
             decoration: const InputDecoration(
-              labelText: "Table name",
+              labelText: 'Table name',
             ),
           ),
           actions: [
@@ -527,7 +535,7 @@ class _TablePageState extends State<TablePage> {
                 Navigator.pop(dialogContext);
               },
               child: const Text(
-                "Cancel",
+                'Cancel',
               ),
             ),
             ElevatedButton(
@@ -546,7 +554,7 @@ class _TablePageState extends State<TablePage> {
                 Navigator.pop(dialogContext);
               },
               child: const Text(
-                "Save",
+                'Save',
               ),
             ),
           ],
@@ -563,7 +571,7 @@ class _TablePageState extends State<TablePage> {
       builder: (dialogContext) {
         return AlertDialog(
           title: const Text(
-            "Delete Table",
+            'Delete Table',
           ),
           content: Text(
             'Delete "${widget.table.name}" and all its records?',
@@ -574,7 +582,7 @@ class _TablePageState extends State<TablePage> {
                 Navigator.pop(dialogContext);
               },
               child: const Text(
-                "Cancel",
+                'Cancel',
               ),
             ),
             ElevatedButton(
@@ -588,7 +596,7 @@ class _TablePageState extends State<TablePage> {
                 }
               },
               child: const Text(
-                "Delete",
+                'Delete',
               ),
             ),
           ],
@@ -596,7 +604,8 @@ class _TablePageState extends State<TablePage> {
       },
     );
   }
-    Widget buildRowCard(
+
+  Widget buildRowCard(
     TableRowData row,
     int rowIndex,
   ) {
@@ -619,14 +628,14 @@ class _TablePageState extends State<TablePage> {
                 final isPassword =
                     column.name
                         .toLowerCase()
-                        .contains("password");
+                        .contains('password');
 
                 final displayValue =
                     isPassword &&
                             value.isNotEmpty
-                        ? "••••••••"
+                        ? '••••••••'
                         : value.isEmpty
-                            ? "—"
+                            ? '—'
                             : value;
 
                 return InkWell(
@@ -677,7 +686,7 @@ class _TablePageState extends State<TablePage> {
                             size: 20,
                           ),
                           tooltip:
-                              "Field options",
+                              'Field options',
                         ),
                       ],
                     ),
@@ -705,7 +714,7 @@ class _TablePageState extends State<TablePage> {
                       Icons.edit,
                     ),
                     label: const Text(
-                      "Edit",
+                      'Edit',
                     ),
                   ),
                   TextButton.icon(
@@ -716,7 +725,7 @@ class _TablePageState extends State<TablePage> {
                       Icons.delete_outline,
                     ),
                     label: const Text(
-                      "Delete",
+                      'Delete',
                     ),
                   ),
                   TextButton.icon(
@@ -727,7 +736,7 @@ class _TablePageState extends State<TablePage> {
                       Icons.add_box_outlined,
                     ),
                     label: const Text(
-                      "Add Field",
+                      'Add Field',
                     ),
                   ),
                 ],
@@ -752,7 +761,7 @@ class _TablePageState extends State<TablePage> {
             icon: const Icon(
               Icons.edit,
             ),
-            tooltip: "Rename Table",
+            tooltip: 'Rename Table',
           ),
           if (widget.onDelete != null)
             IconButton(
@@ -760,18 +769,16 @@ class _TablePageState extends State<TablePage> {
               icon: const Icon(
                 Icons.delete_outline,
               ),
-              tooltip: "Delete Table",
+              tooltip: 'Delete Table',
             ),
         ],
       ),
       body: widget.table.rows.isEmpty
           ? Center(
               child: SingleChildScrollView(
-                padding:
-                    const EdgeInsets.all(24),
+                padding: const EdgeInsets.all(24),
                 child: Column(
-                  mainAxisSize:
-                      MainAxisSize.min,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     const Icon(
                       Icons.table_chart_outlined,
@@ -781,7 +788,7 @@ class _TablePageState extends State<TablePage> {
                       height: 20,
                     ),
                     const Text(
-                      "No records yet",
+                      'No records yet',
                       style: TextStyle(
                         fontSize: 18,
                       ),
@@ -795,7 +802,7 @@ class _TablePageState extends State<TablePage> {
                         Icons.add,
                       ),
                       label: const Text(
-                        "Add Record",
+                        'Add Record',
                       ),
                     ),
                   ],
@@ -812,8 +819,7 @@ class _TablePageState extends State<TablePage> {
               ),
               itemCount:
                   widget.table.rows.length,
-              itemBuilder:
-                  (context, index) {
+              itemBuilder: (context, index) {
                 return buildRowCard(
                   widget.table.rows[index],
                   index,
@@ -827,7 +833,7 @@ class _TablePageState extends State<TablePage> {
           Icons.add,
         ),
         label: const Text(
-          "Add Record",
+          'Add Record',
         ),
       ),
     );
