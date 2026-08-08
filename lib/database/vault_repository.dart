@@ -493,8 +493,14 @@ await db.delete(
 TreeItem _treeItemFromMap(
 Map<String, Object?> map,
 ) {
+final id =
+map['id'] as int;
+
+final parentId =
+    map['parent_id'] as int?;
+
 final name =
-map['name'] as String;
+    map['name'] as String;
 
 final type =
     map['type'] as String;
@@ -502,11 +508,15 @@ final type =
 if (type == 'table') {
   return TreeItem.table(
     name,
+    id: id,
+    parentId: parentId,
   );
 }
 
 return TreeItem.folder(
   name,
+  id: id,
+  parentId: parentId,
 );
 
 }
