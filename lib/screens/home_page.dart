@@ -20,7 +20,7 @@ class _HomePageState extends State<HomePage> {
   void createItem() {
     showModalBottomSheet(
       context: context,
-      builder: (context) {
+      builder: (sheetContext) {
         return SafeArea(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -33,7 +33,7 @@ class _HomePageState extends State<HomePage> {
                   'Create Folder',
                 ),
                 onTap: () {
-                  Navigator.pop(context);
+                  Navigator.pop(sheetContext);
                   createFolder();
                 },
               ),
@@ -45,7 +45,7 @@ class _HomePageState extends State<HomePage> {
                   'Create Table',
                 ),
                 onTap: () {
-                  Navigator.pop(context);
+                  Navigator.pop(sheetContext);
                   createTable();
                 },
               ),
@@ -170,7 +170,8 @@ class _HomePageState extends State<HomePage> {
       controller.dispose();
     });
   }
-    void deleteItem(int index) {
+
+  void deleteItem(int index) {
     if (index < 0 ||
         index >= items.length) {
       return;
@@ -178,27 +179,20 @@ class _HomePageState extends State<HomePage> {
 
     final item = items[index];
 
-    final itemType =
-        item.type == TreeItemType.folder
-            ? 'Folder'
-            : 'Table';
-
     showDialog(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          title: Text(
-            'Delete $itemType',
+          title: const Text(
+            'Delete Item',
           ),
           content: Text(
-            'Delete "${item.name}"?',
+            'Delete "${item.name}" and everything inside it?',
           ),
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.pop(
-                  dialogContext,
-                );
+                Navigator.pop(dialogContext);
               },
               child: const Text(
                 'Cancel',
@@ -210,9 +204,7 @@ class _HomePageState extends State<HomePage> {
                   items.removeAt(index);
                 });
 
-                Navigator.pop(
-                  dialogContext,
-                );
+                Navigator.pop(dialogContext);
               },
               child: const Text(
                 'Delete',
@@ -223,13 +215,10 @@ class _HomePageState extends State<HomePage> {
       },
     );
   }
+    void openItem(TreeItem item) {
+    final index = items.indexOf(item);
 
-  void openItem(TreeItem item) {
-    final index =
-        items.indexOf(item);
-
-    if (item.type ==
-        TreeItemType.table) {
+    if (item.type == TreeItemType.table) {
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -276,112 +265,118 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
-  @override
-  Widget build(
+  Widget buildItemCard(
     BuildContext context,
+    TreeItem item,
+    int index,
   ) {
+    final isTable =
+        item.type == TreeItemType.table;
+
+    return Card(
+      child: ListTile(
+        leading: Icon(
+          isTable
+              ? Icons.table_chart
+              : Icons.folder,
+        ),
+        title: Text(
+          item.name,
+        ),
+        subtitle: isTable
+            ? Text(
+                '${item.rows.length} rows • '
+                '${item.columns.length} columns',
+              )
+            : null,
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              onPressed: () {
+                deleteItem(index);
+              },
+              icon: const Icon(
+                Icons.delete_outline,
+              ),
+              tooltip: 'Delete',
+            ),
+            const Icon(
+              Icons.chevron_right,
+            ),
+          ],
+        ),
+        onTap: () {
+          openItem(item);
+        },
+      ),
+    );
+  }
+
+  Widget buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisSize:
+            MainAxisSize.min,
+        children: [
+          const Icon(
+            Icons.folder_open,
+            size: 80,
+          ),
+          const SizedBox(
+            height: 20,
+          ),
+          const Text(
+            'No items created yet',
+            style: TextStyle(
+              fontSize: 18,
+            ),
+          ),
+          const SizedBox(
+            height: 20,
+          ),
+          ElevatedButton.icon(
+            onPressed: createItem,
+            icon: const Icon(
+              Icons.add,
+            ),
+            label: const Text(
+              'Create',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget buildItemList() {
+    return ListView.builder(
+      padding:
+          const EdgeInsets.all(16),
+      itemCount: items.length,
+      itemBuilder:
+          (context, index) {
+        final item = items[index];
+
+        return buildItemCard(
+          context,
+          item,
+          index,
+        );
+      },
+    );
+  }
+    @override
+  Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text(
           'Pass Managers',
         ),
       ),
-            body: items.isEmpty
-          ? Center(
-              child: Column(
-                mainAxisSize:
-                    MainAxisSize.min,
-                children: [
-                  const Icon(
-                    Icons.folder_open,
-                    size: 80,
-                  ),
-                  const SizedBox(
-                    height: 20,
-                  ),
-                  const Text(
-                    'No items created yet',
-                    style: TextStyle(
-                      fontSize: 18,
-                    ),
-                  ),
-                  const SizedBox(
-                    height: 20,
-                  ),
-                  ElevatedButton.icon(
-                    onPressed:
-                        createItem,
-                    icon: const Icon(
-                      Icons.add,
-                    ),
-                    label: const Text(
-                      'Create',
-                    ),
-                  ),
-                ],
-              ),
-            )
-          : ListView.builder(
-              padding:
-                  const EdgeInsets.all(
-                16,
-              ),
-              itemCount:
-                  items.length,
-              itemBuilder:
-                  (context, index) {
-                final item =
-                    items[index];
-
-                final isTable =
-                    item.type ==
-                        TreeItemType.table;
-
-                return Card(
-                  child: ListTile(
-                    leading: Icon(
-                      isTable
-                          ? Icons.table_chart
-                          : Icons.folder,
-                    ),
-                    title: Text(
-                      item.name,
-                    ),
-                    subtitle: isTable
-                        ? Text(
-                            '${item.rows.length} rows • '
-                            '${item.columns.length} columns',
-                          )
-                        : null,
-                    trailing: Row(
-                      mainAxisSize:
-                          MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          onPressed: () {
-                            deleteItem(
-                              index,
-                            );
-                          },
-                          icon:
-                              const Icon(
-                            Icons.delete_outline,
-                          ),
-                          tooltip:
-                              'Delete',
-                        ),
-                        const Icon(
-                          Icons.chevron_right,
-                        ),
-                      ],
-                    ),
-                    onTap: () {
-                      openItem(item);
-                    },
-                  ),
-                );
-              },
-            ),
+      body: items.isEmpty
+          ? buildEmptyState()
+          : buildItemList(),
       floatingActionButton:
           FloatingActionButton(
         onPressed: createItem,
