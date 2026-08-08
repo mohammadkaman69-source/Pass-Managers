@@ -26,7 +26,8 @@ class _TablePageState extends State<TablePage> {
   }
 
   void editRow(TableRowData row) {
-    final controllers = <String, TextEditingController>{};
+    final controllers =
+        <String, TextEditingController>{};
 
     for (final column in widget.table.columns) {
       controllers[column.name] =
@@ -48,6 +49,11 @@ class _TablePageState extends State<TablePage> {
               child: Column(
                 children: widget.table.columns.map(
                   (column) {
+                    final isPassword =
+                        column.name
+                            .toLowerCase()
+                            .contains("password");
+
                     return Padding(
                       padding:
                           const EdgeInsets.only(
@@ -56,6 +62,8 @@ class _TablePageState extends State<TablePage> {
                       child: TextField(
                         controller:
                             controllers[column.name],
+                        obscureText:
+                            isPassword,
                         decoration:
                             InputDecoration(
                           labelText:
@@ -63,12 +71,6 @@ class _TablePageState extends State<TablePage> {
                           border:
                               const OutlineInputBorder(),
                         ),
-                        obscureText:
-                            column.name
-                                .toLowerCase()
-                                .contains(
-                                  "password",
-                                ),
                       ),
                     );
                   },
@@ -461,8 +463,147 @@ class _TablePageState extends State<TablePage> {
     });
   }
 
+  Widget buildRowCard(
+    TableRowData row,
+    int rowIndex,
+  ) {
+    return Card(
+      margin: const EdgeInsets.only(
+        bottom: 16,
+      ),
+      child: Padding(
+        padding:
+            const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment:
+              CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    "Record ${rowIndex + 1}",
+                    style:
+                        const TextStyle(
+                      fontSize: 18,
+                      fontWeight:
+                          FontWeight.bold,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  onPressed: () {
+                    editRow(row);
+                  },
+                  icon:
+                      const Icon(
+                    Icons.edit,
+                  ),
+                  tooltip:
+                      "Edit",
+                ),
+                IconButton(
+                  onPressed: () {
+                    deleteRow(
+                      rowIndex,
+                    );
+                  },
+                  icon:
+                      const Icon(
+                    Icons.delete_outline,
+                  ),
+                  tooltip:
+                      "Delete",
+                ),
+              ],
+            ),
+            const Divider(),
+            const SizedBox(
+              height: 8,
+            ),
+            ...widget.table.columns.map(
+              (column) {
+                final value =
+                    row.values[
+                            column.name] ??
+                        '';
+
+                final isPassword =
+                    column.name
+                        .toLowerCase()
+                        .contains(
+                          "password",
+                        );
+
+                final displayValue =
+                    isPassword &&
+                            value.isNotEmpty
+                        ? "••••••••"
+                        : value;
+
+                return InkWell(
+                  borderRadius:
+                      BorderRadius.circular(
+                    8,
+                  ),
+                  onTap: () {
+                    editRow(row);
+                  },
+                  child: Padding(
+                    padding:
+                        const EdgeInsets.symmetric(
+                      vertical: 8,
+                    ),
+                    child: Column(
+                      crossAxisAlignment:
+                          CrossAxisAlignment
+                              .start,
+                      children: [
+                        Text(
+                          column.name,
+                          style:
+                              TextStyle(
+                            fontSize: 13,
+                            fontWeight:
+                                FontWeight.bold,
+                            color: Theme.of(
+                              context,
+                            )
+                                .colorScheme
+                                .primary,
+                          ),
+                        ),
+                        const SizedBox(
+                          height: 4,
+                        ),
+                        Text(
+                          displayValue.isEmpty
+                              ? "—"
+                              : displayValue,
+                          style:
+                              const TextStyle(
+                            fontSize: 16,
+                          ),
+                        ),
+                        const SizedBox(
+                          height: 6,
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(
+    BuildContext context,
+  ) {
     final columns =
         widget.table.columns;
 
@@ -473,24 +614,31 @@ class _TablePageState extends State<TablePage> {
         ),
         actions: [
           IconButton(
-            onPressed: renameTable,
-            icon: const Icon(
+            onPressed:
+                renameTable,
+            icon:
+                const Icon(
               Icons.edit,
             ),
             tooltip:
                 "Rename Table",
           ),
           PopupMenuButton<String>(
-            onSelected: (value) {
-              if (value == "add_column") {
+            onSelected:
+                (value) {
+              if (value ==
+                  "add_column") {
                 addColumn();
               }
             },
-            itemBuilder: (context) {
+            itemBuilder:
+                (context) {
               return const [
                 PopupMenuItem<String>(
-                  value: "add_column",
-                  child: Text(
+                  value:
+                      "add_column",
+                  child:
+                      Text(
                     "Add Column",
                   ),
                 ),
@@ -512,185 +660,4 @@ class _TablePageState extends State<TablePage> {
                         MainAxisSize.min,
                     children: [
                       const Icon(
-                        Icons.table_chart_outlined,
-                        size: 80,
-                      ),
-                      const SizedBox(
-                        height: 20,
-                      ),
-                      const Text(
-                        "Table is empty",
-                        style:
-                            TextStyle(
-                          fontSize: 18,
-                        ),
-                      ),
-                      const SizedBox(
-                        height: 20,
-                      ),
-                      ElevatedButton.icon(
-                        onPressed:
-                            addRow,
-                        icon:
-                            const Icon(
-                          Icons.add,
-                        ),
-                        label:
-                            const Text(
-                          "Add Row",
-                        ),
-                      ),
-                    ],
-                  ),
-                )
-              : SingleChildScrollView(
-                  scrollDirection:
-                      Axis.horizontal,
-                  child: SingleChildScrollView(
-                    child: DataTable(
-                      columns:
-                          columns.map(
-                        (column) {
-                          return DataColumn(
-                            label: InkWell(
-                              onTap: () {
-                                renameColumn(
-                                  column,
-                                );
-                              },
-                              child:
-                                  Row(
-                                children: [
-                                  Text(
-                                    column.name,
-                                    style:
-                                        const TextStyle(
-                                      fontWeight:
-                                          FontWeight.bold,
-                                    ),
-                                  ),
-                                  const SizedBox(
-                                    width: 6,
-                                  ),
-                                  const Icon(
-                                    Icons.edit,
-                                    size: 15,
-                                  ),
-                                ],
-                              ),
-                            ),
-                            onSort:
-                                null,
-                          );
-                        },
-                      ).toList()
-                        ..add(
-                          const DataColumn(
-                            label:
-                                Text(
-                              "Actions",
-                            ),
-                          ),
-                        ),
-                      rows:
-                          List.generate(
-                        widget.table.rows.length,
-                        (rowIndex) {
-                          final row =
-                              widget.table.rows[
-                                  rowIndex];
-
-                          return DataRow(
-                            cells:
-                                columns.map(
-                              (column) {
-                                final value =
-                                    row.values[
-                                            column.name] ??
-                                        '';
-
-                                final isPassword =
-                                    column.name
-                                        .toLowerCase()
-                                        .contains(
-                                          "password",
-                                        );
-
-                                return DataCell(
-                                  SizedBox(
-                                    width: 150,
-                                    child:
-                                        Text(
-                                      isPassword &&
-                                              value.isNotEmpty
-                                          ? "••••••••"
-                                          : value,
-                                      overflow:
-                                          TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                  onTap: () {
-                                    editRow(
-                                      row,
-                                    );
-                                  },
-                                );
-                              },
-                            ).toList()
-                              ..add(
-                                DataCell(
-                                  Row(
-                                    mainAxisSize:
-                                        MainAxisSize.min,
-                                    children: [
-                                      IconButton(
-                                        onPressed:
-                                            () {
-                                          editRow(
-                                            row,
-                                          );
-                                        },
-                                        icon:
-                                            const Icon(
-                                          Icons.edit,
-                                        ),
-                                        tooltip:
-                                            "Edit",
-                                      ),
-                                      IconButton(
-                                        onPressed:
-                                            () {
-                                          deleteRow(
-                                            rowIndex,
-                                          );
-                                        },
-                                        icon:
-                                            const Icon(
-                                          Icons.delete_outline,
-                                        ),
-                                        tooltip:
-                                            "Delete",
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                          );
-                        },
-                      ),
-                    ),
-                  ),
-                ),
-      floatingActionButton:
-          FloatingActionButton.extended(
-        onPressed: addRow,
-        icon: const Icon(
-          Icons.add,
-        ),
-        label: const Text(
-          "Add Row",
-        ),
-      ),
-    );
-  }
-}
+                        Icons
