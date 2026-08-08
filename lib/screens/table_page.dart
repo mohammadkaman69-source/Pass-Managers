@@ -23,9 +23,7 @@ class _TablePageState extends State<TablePage> {
     setState(() {
       widget.table.rows.add(
         TableRowData(
-          columns: List<TableColumnDefinition>.from(
-            widget.table.columns,
-          ),
+          columns: widget.table.columns,
         ),
       );
     });
@@ -38,7 +36,7 @@ class _TablePageState extends State<TablePage> {
   void editRow(TableRowData row) {
     final controllers = <String, TextEditingController>{};
 
-    for (final column in widget.table.columns) {
+    for (final column in row.columns) {
       controllers[column.name] = TextEditingController(
         text: row.values[column.name] ?? '',
       );
@@ -53,7 +51,7 @@ class _TablePageState extends State<TablePage> {
             width: 500,
             child: SingleChildScrollView(
               child: Column(
-                children: widget.table.columns.map(
+                children: row.columns.map(
                   (column) {
                     final isPassword = column.name
                         .toLowerCase()
@@ -64,11 +62,13 @@ class _TablePageState extends State<TablePage> {
                         bottom: 14,
                       ),
                       child: TextField(
-                        controller: controllers[column.name],
+                        controller:
+                            controllers[column.name],
                         obscureText: isPassword,
                         decoration: InputDecoration(
                           labelText: column.name,
-                          border: const OutlineInputBorder(),
+                          border:
+                              const OutlineInputBorder(),
                         ),
                       ),
                     );
@@ -86,7 +86,7 @@ class _TablePageState extends State<TablePage> {
             ),
             ElevatedButton(
               onPressed: () {
-                for (final column in widget.table.columns) {
+                for (final column in row.columns) {
                   row.values[column.name] =
                       controllers[column.name]!.text;
                 }
@@ -144,10 +144,10 @@ class _TablePageState extends State<TablePage> {
   }
 
   // ------------------------------------------------------------
-  // ADD FIELD
+  // ADD FIELD TO THIS RECORD ONLY
   // ------------------------------------------------------------
 
-  void addColumn() {
+  void addColumn(TableRowData row) {
     final controller = TextEditingController();
 
     showDialog(
@@ -179,17 +179,18 @@ class _TablePageState extends State<TablePage> {
                   return;
                 }
 
-                final exists = widget.table.columns.any(
+                final exists = row.columns.any(
                   (column) =>
                       column.name.toLowerCase() ==
                       name.toLowerCase(),
                 );
 
                 if (exists) {
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  ScaffoldMessenger.of(context)
+                      .showSnackBar(
                     const SnackBar(
                       content: Text(
-                        "A field with this name already exists.",
+                        "A field with this name already exists in this record.",
                       ),
                     ),
                   );
@@ -197,13 +198,11 @@ class _TablePageState extends State<TablePage> {
                 }
 
                 setState(() {
-                  widget.table.columns.add(
+                  row.columns.add(
                     TableColumnDefinition(name),
                   );
 
-                  for (final row in widget.table.rows) {
-                    row.values[name] = '';
-                  }
+                  row.values[name] = '';
                 });
 
                 Navigator.pop(dialogContext);
@@ -219,10 +218,11 @@ class _TablePageState extends State<TablePage> {
   }
 
   // ------------------------------------------------------------
-  // RENAME FIELD
+  // RENAME FIELD IN THIS RECORD ONLY
   // ------------------------------------------------------------
 
   void renameColumn(
+    TableRowData row,
     TableColumnDefinition column,
   ) {
     final oldName = column.name;
@@ -260,7 +260,7 @@ class _TablePageState extends State<TablePage> {
                 }
 
                 if (newName != oldName) {
-                  final exists = widget.table.columns.any(
+                  final exists = row.columns.any(
                     (item) =>
                         item != column &&
                         item.name.toLowerCase() ==
@@ -268,10 +268,11 @@ class _TablePageState extends State<TablePage> {
                   );
 
                   if (exists) {
-                    ScaffoldMessenger.of(context).showSnackBar(
+                    ScaffoldMessenger.of(context)
+                        .showSnackBar(
                       const SnackBar(
                         content: Text(
-                          "A field with this name already exists.",
+                          "A field with this name already exists in this record.",
                         ),
                       ),
                     );
@@ -280,12 +281,11 @@ class _TablePageState extends State<TablePage> {
                 }
 
                 setState(() {
-                  for (final row in widget.table.rows) {
-                    final value = row.values[oldName] ?? '';
+                  final value =
+                      row.values[oldName] ?? '';
 
-                    row.values.remove(oldName);
-                    row.values[newName] = value;
-                  }
+                  row.values.remove(oldName);
+                  row.values[newName] = value;
 
                   column.name = newName;
                 });
@@ -303,17 +303,18 @@ class _TablePageState extends State<TablePage> {
   }
 
   // ------------------------------------------------------------
-  // DELETE FIELD
+  // DELETE FIELD FROM THIS RECORD ONLY
   // ------------------------------------------------------------
 
   void deleteColumn(
+    TableRowData row,
     TableColumnDefinition column,
   ) {
-    if (widget.table.columns.length <= 1) {
+    if (row.columns.length <= 1) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            "At least one field must remain.",
+            "At least one field must remain in this record.",
           ),
         ),
       );
@@ -326,7 +327,7 @@ class _TablePageState extends State<TablePage> {
         return AlertDialog(
           title: const Text("Delete Field"),
           content: Text(
-            'Delete field "${column.name}"?',
+            'Delete field "${column.name}" from this record?',
           ),
           actions: [
             TextButton(
@@ -340,11 +341,8 @@ class _TablePageState extends State<TablePage> {
                 setState(() {
                   final columnName = column.name;
 
-                  widget.table.columns.remove(column);
-
-                  for (final row in widget.table.rows) {
-                    row.values.remove(columnName);
-                  }
+                  row.columns.remove(column);
+                  row.values.remove(columnName);
                 });
 
                 Navigator.pop(dialogContext);
@@ -358,14 +356,15 @@ class _TablePageState extends State<TablePage> {
   }
 
   // ------------------------------------------------------------
-  // MOVE FIELD
+  // MOVE FIELD IN THIS RECORD ONLY
   // ------------------------------------------------------------
 
   void moveColumn(
+    TableRowData row,
     TableColumnDefinition column,
     int newIndex,
   ) {
-    final columns = widget.table.columns;
+    final columns = row.columns;
 
     final oldIndex = columns.indexOf(column);
 
@@ -392,9 +391,10 @@ class _TablePageState extends State<TablePage> {
   // ------------------------------------------------------------
 
   void showColumnMenu(
+    TableRowData row,
     TableColumnDefinition column,
   ) {
-    final index = widget.table.columns.indexOf(column);
+    final index = row.columns.indexOf(column);
 
     showModalBottomSheet(
       context: context,
@@ -408,11 +408,17 @@ class _TablePageState extends State<TablePage> {
                 title: const Text("Rename Field"),
                 onTap: () {
                   Navigator.pop(sheetContext);
-                  renameColumn(column);
+
+                  renameColumn(
+                    row,
+                    column,
+                  );
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.arrow_upward),
+                leading: const Icon(
+                  Icons.arrow_upward,
+                ),
                 enabled: index > 0,
                 title: const Text("Move Up"),
                 onTap: index > 0
@@ -420,6 +426,7 @@ class _TablePageState extends State<TablePage> {
                         Navigator.pop(sheetContext);
 
                         moveColumn(
+                          row,
                           column,
                           index - 1,
                         );
@@ -427,18 +434,21 @@ class _TablePageState extends State<TablePage> {
                     : null,
               ),
               ListTile(
-                leading: const Icon(Icons.arrow_downward),
+                leading: const Icon(
+                  Icons.arrow_downward,
+                ),
                 enabled:
-                    index <
-                    widget.table.columns.length - 1,
+                    index < row.columns.length - 1,
                 title: const Text("Move Down"),
                 onTap:
-                    index <
-                            widget.table.columns.length - 1
+                    index < row.columns.length - 1
                         ? () {
-                            Navigator.pop(sheetContext);
+                            Navigator.pop(
+                              sheetContext,
+                            );
 
                             moveColumn(
+                              row,
                               column,
                               index + 1,
                             );
@@ -453,7 +463,10 @@ class _TablePageState extends State<TablePage> {
                 onTap: () {
                   Navigator.pop(sheetContext);
 
-                  deleteColumn(column);
+                  deleteColumn(
+                    row,
+                    column,
+                  );
                 },
               ),
               const SizedBox(height: 8),
@@ -535,7 +548,7 @@ class _TablePageState extends State<TablePage> {
         ),
         child: Column(
           children: [
-            ...widget.table.columns.map(
+            ...row.columns.map(
               (column) {
                 final value =
                     row.values[column.name] ?? '';
@@ -585,7 +598,10 @@ class _TablePageState extends State<TablePage> {
                         ),
                         IconButton(
                           onPressed: () {
-                            showColumnMenu(column);
+                            showColumnMenu(
+                              row,
+                              column,
+                            );
                           },
                           icon: const Icon(
                             Icons.more_vert,
@@ -604,9 +620,8 @@ class _TablePageState extends State<TablePage> {
               padding: const EdgeInsets.symmetric(
                 horizontal: 8,
               ),
-              child: Row(
-                mainAxisAlignment:
-                    MainAxisAlignment.end,
+              child: Wrap(
+                alignment: WrapAlignment.end,
                 children: [
                   TextButton.icon(
                     onPressed: () {
@@ -627,7 +642,9 @@ class _TablePageState extends State<TablePage> {
                     label: const Text("Delete"),
                   ),
                   TextButton.icon(
-                    onPressed: addColumn,
+                    onPressed: () {
+                      addColumn(row);
+                    },
                     icon: const Icon(
                       Icons.add_box_outlined,
                     ),
@@ -648,8 +665,6 @@ class _TablePageState extends State<TablePage> {
 
   @override
   Widget build(BuildContext context) {
-    final columns = widget.table.columns;
-
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -663,103 +678,61 @@ class _TablePageState extends State<TablePage> {
             ),
             tooltip: "Rename Table",
           ),
-          PopupMenuButton<String>(
-            onSelected: (value) {
-              if (value == "add_field") {
-                addColumn();
-              }
-            },
-            itemBuilder: (context) {
-              return const [
-                PopupMenuItem<String>(
-                  value: "add_field",
-                  child: Text(
-                    "Add Field",
-                  ),
-                ),
-              ];
-            },
-          ),
         ],
       ),
-      body: columns.isEmpty
+      body: widget.table.rows.isEmpty
           ? Center(
-              child: ElevatedButton.icon(
-                onPressed: addColumn,
-                icon: const Icon(Icons.add),
-                label: const Text("Add Field"),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.table_chart_outlined,
+                      size: 80,
+                    ),
+                    const SizedBox(
+                      height: 20,
+                    ),
+                    const Text(
+                      "No records yet",
+                      style: TextStyle(
+                        fontSize: 18,
+                      ),
+                    ),
+                    const SizedBox(
+                      height: 20,
+                    ),
+                    ElevatedButton.icon(
+                      onPressed: addRow,
+                      icon: const Icon(
+                        Icons.add,
+                      ),
+                      label: const Text(
+                        "Add Record",
+                      ),
+                    ),
+                  ],
+                ),
               ),
             )
-          : widget.table.rows.isEmpty
-              ? Center(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.table_chart_outlined,
-                          size: 80,
-                        ),
-                        const SizedBox(
-                          height: 20,
-                        ),
-                        const Text(
-                          "No records yet",
-                          style: TextStyle(
-                            fontSize: 18,
-                          ),
-                        ),
-                        const SizedBox(
-                          height: 20,
-                        ),
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            ElevatedButton.icon(
-                              onPressed: addRow,
-                              icon: const Icon(
-                                Icons.add,
-                              ),
-                              label: const Text(
-                                "Add Record",
-                              ),
-                            ),
-                            const SizedBox(
-                              width: 12,
-                            ),
-                            OutlinedButton.icon(
-                              onPressed: addColumn,
-                              icon: const Icon(
-                                Icons.view_column_outlined,
-                              ),
-                              label: const Text(
-                                "Add Field",
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                )
-              : ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(
-                    16,
-                    16,
-                    16,
-                    120,
-                  ),
-                  itemCount:
-                      widget.table.rows.length,
-                  itemBuilder: (context, index) {
-                    return buildRowCard(
-                      widget.table.rows[index],
-                      index,
-                    );
-                  },
-                ),
-      floatingActionButton: FloatingActionButton.extended(
+          : ListView.builder(
+              padding: const EdgeInsets.fromLTRB(
+                16,
+                16,
+                16,
+                120,
+              ),
+              itemCount: widget.table.rows.length,
+              itemBuilder: (context, index) {
+                return buildRowCard(
+                  widget.table.rows[index],
+                  index,
+                );
+              },
+            ),
+      floatingActionButton:
+          FloatingActionButton.extended(
         onPressed: addRow,
         icon: const Icon(
           Icons.add,
