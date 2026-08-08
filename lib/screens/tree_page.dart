@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../models/table_column_definition.dart';
-import '../models/table_row_data.dart';
 import '../models/tree_item.dart';
 import 'table_page.dart';
 
