@@ -1,642 +1,175 @@
 import 'package:flutter/material.dart';
 
-import 'table_page.dart';
+import 'tree_page.dart';
 
-enum TreeItemType {
-  folder,
-  table,
-}
-
-class TableColumnDefinition {
-  String name;
-
-  TableColumnDefinition(this.name);
-}
-
-class TableRowData {
-  final Map<String, String> values;
-
-  TableRowData({
-    required List<TableColumnDefinition> columns,
-  }) : values = {
-          for (final column in columns) column.name: '',
-        };
-}
-
-class TreeItem {
-  String name;
-
-  final TreeItemType type;
-
-  final List<TreeItem> children;
-
-  final List<TableColumnDefinition> columns;
-
-  final List<TableRowData> rows;
-
-  TreeItem.folder(
-    this.name,
-  )   : type = TreeItemType.folder,
-        children = [],
-        columns = [],
-        rows = [];
-
-  TreeItem.table(
-    this.name,
-  )   : type = TreeItemType.table,
-        children = [],
-        columns = [
-          TableColumnDefinition("Name"),
-          TableColumnDefinition("IP"),
-          TableColumnDefinition("Username"),
-          TableColumnDefinition("Password"),
-          TableColumnDefinition("Version"),
-          TableColumnDefinition("Description"),
-        ],
-        rows = [];
-}
-
-class TreePage extends StatefulWidget {
-  final TreeItem item;
-
-  // برای حذف Folder/Table از والد
+class TablePage extends StatefulWidget {
+  final TreeItem table;
   final VoidCallback? onDelete;
 
-  const TreePage({
+  const TablePage({
     super.key,
-    required this.item,
+    required this.table,
     this.onDelete,
   });
 
   @override
-  State<TreePage> createState() => _TreePageState();
+  State<TablePage> createState() => _TablePageState();
 }
 
-class _TreePageState extends State<TreePage> {
+class _TablePageState extends State<TablePage> {
   // ------------------------------------------------------------
-  // CREATE ITEM
-  // ------------------------------------------------------------
-
-  void createItem() {
-    showModalBottomSheet(
-      context: context,
-      builder: (context) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                leading: const Icon(
-                  Icons.create_new_folder_outlined,
-                ),
-                title: const Text(
-                  "Create Folder",
-                ),
-                onTap: () {
-                  Navigator.pop(context);
-                  createFolder();
-                },
-              ),
-              ListTile(
-                leading: const Icon(
-                  Icons.table_chart_outlined,
-                ),
-                title: const Text(
-                  "Create Table",
-                ),
-                onTap: () {
-                  Navigator.pop(context);
-                  createTable();
-                },
-              ),
-              const SizedBox(height: 10),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  // ------------------------------------------------------------
-  // CREATE FOLDER
+  // ADD RECORD
   // ------------------------------------------------------------
 
-  void createFolder() {
-    final controller = TextEditingController();
-
-    showDialog(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text(
-            "Create Folder",
-          ),
-          content: TextField(
-            controller: controller,
-            autofocus: true,
-            decoration: const InputDecoration(
-              labelText: "Folder name",
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(dialogContext);
-              },
-              child: const Text(
-                "Cancel",
-              ),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                final name = controller.text.trim();
-
-                if (name.isEmpty) {
-                  return;
-                }
-
-                setState(() {
-                  widget.item.children.add(
-                    TreeItem.folder(name),
-                  );
-                });
-
-                Navigator.pop(dialogContext);
-              },
-              child: const Text(
-                "Create",
-              ),
-            ),
-          ],
-        );
-      },
-    ).then((_) {
-      controller.dispose();
-    });
-  }
-
-  // ------------------------------------------------------------
-  // CREATE TABLE
-  // ------------------------------------------------------------
-
-  void createTable() {
-    final controller = TextEditingController();
-
-    showDialog(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text(
-            "Create Table",
-          ),
-          content: TextField(
-            controller: controller,
-            autofocus: true,
-            decoration: const InputDecoration(
-              labelText: "Table name",
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(dialogContext);
-              },
-              child: const Text(
-                "Cancel",
-              ),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                final name = controller.text.trim();
-
-                if (name.isEmpty) {
-                  return;
-                }
-
-                setState(() {
-                  widget.item.children.add(
-                    TreeItem.table(name),
-                  );
-                });
-
-                Navigator.pop(dialogContext);
-              },
-              child: const Text(
-                "Create",
-              ),
-            ),
-          ],
-        );
-      },
-    ).then((_) {
-      controller.dispose();
-    });
-  }
-
-  // ------------------------------------------------------------
-  // OPEN ITEM
-  // ------------------------------------------------------------
-
-  void openItem(TreeItem item) {
-    // ----------------------------------------------------------
-    // OPEN TABLE
-    // ----------------------------------------------------------
-
-    if (item.type == TreeItemType.table) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) {
-            return TablePage(
-              table: item,
-              onDelete: () {
-                final index =
-                    widget.item.children.indexOf(item);
-
-                if (index != -1) {
-                  widget.item.children.removeAt(index);
-                }
-              },
-            );
-          },
+  void addRow() {
+    setState(() {
+      widget.table.rows.add(
+        TableRowData(
+          columns: widget.table.columns,
         ),
-      ).then((_) {
-        if (mounted) {
-          setState(() {});
-        }
-      });
-
-      return;
-    }
-
-    // ----------------------------------------------------------
-    // OPEN FOLDER
-    // ----------------------------------------------------------
-
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) {
-          return TreePage(
-            item: item,
-            onDelete: () {
-              final index =
-                  widget.item.children.indexOf(item);
-
-              if (index != -1) {
-                widget.item.children.removeAt(index);
-              }
-            },
-          );
-        },
-      ),
-    ).then((_) {
-      if (mounted) {
-        setState(() {});
-      }
+      );
     });
   }
 
   // ------------------------------------------------------------
-  // RENAME ITEM
+  // EDIT RECORD
   // ------------------------------------------------------------
 
-  void renameItem() {
-    final controller = TextEditingController(
-      text: widget.item.name,
-    );
+  void editRow(TableRowData row) {
+    final controllers = <String, TextEditingController>{};
 
-    showDialog(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text(
-            "Rename",
-          ),
-          content: TextField(
-            controller: controller,
-            autofocus: true,
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(dialogContext);
-              },
-              child: const Text(
-                "Cancel",
-              ),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                final name = controller.text.trim();
-
-                if (name.isEmpty) {
-                  return;
-                }
-
-                setState(() {
-                  widget.item.name = name;
-                });
-
-                Navigator.pop(dialogContext);
-              },
-              child: const Text(
-                "Save",
-              ),
-            ),
-          ],
-        );
-      },
-    ).then((_) {
-      controller.dispose();
-    });
-  }
-
-  // ------------------------------------------------------------
-  // DELETE FOLDER
-  // ------------------------------------------------------------
-
-  void deleteFolder() {
-    if (widget.onDelete == null) {
-      return;
+    for (final column in widget.table.columns) {
+      controllers[column.name] = TextEditingController(
+        text: row.values[column.name] ?? '',
+      );
     }
 
     showDialog(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          title: const Text(
-            "Delete Folder",
-          ),
-          content: Text(
-            'Delete "${widget.item.name}" and everything inside it?',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(dialogContext);
-              },
-              child: const Text(
-                "Cancel",
-              ),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(dialogContext);
-
-                widget.onDelete!.call();
-
-                if (mounted) {
-                  Navigator.pop(context);
-                }
-              },
-              child: const Text(
-                "Delete",
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  // ------------------------------------------------------------
-  // BUILD
-  // ------------------------------------------------------------
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          widget.item.name,
-        ),
-        actions: [
-          // Rename
-          IconButton(
-            onPressed: renameItem,
-            icon: const Icon(
-              Icons.edit,
-            ),
-            tooltip: "Rename",
-          ),
-
-          // Delete
-          if (widget.onDelete != null)
-            IconButton(
-              onPressed: deleteFolder,
-              icon: const Icon(
-                Icons.delete_outline,
-              ),
-              tooltip: "Delete Folder",
-            ),
-        ],
-      ),
-
-      // --------------------------------------------------------
-      // BODY
-      // --------------------------------------------------------
-
-      body: widget.item.children.isEmpty
-          ? Center(
+          title: const Text("Edit Record"),
+          content: SizedBox(
+            width: 500,
+            child: SingleChildScrollView(
               child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.folder_open,
-                    size: 80,
-                    color: Theme.of(context)
-                        .colorScheme
-                        .primary,
-                  ),
+                children: widget.table.columns.map(
+                  (column) {
+                    final isPassword = column.name
+                        .toLowerCase()
+                        .contains("password");
 
-                  const SizedBox(
-                    height: 20,
-                  ),
-
-                  const Text(
-                    "Folder is empty",
-                    style: TextStyle(
-                      fontSize: 18,
-                    ),
-                  ),
-
-                  const SizedBox(
-                    height: 20,
-                  ),
-
-                  ElevatedButton.icon(
-                    onPressed: createItem,
-                    icon: const Icon(
-                      Icons.add,
-                    ),
-                    label: const Text(
-                      "Create",
-                    ),
-                  ),
-                ],
+                    return Padding(
+                      padding: const EdgeInsets.only(
+                        bottom: 14,
+                      ),
+                      child: TextField(
+                        controller: controllers[column.name],
+                        obscureText: isPassword,
+                        decoration: InputDecoration(
+                          labelText: column.name,
+                          border: const OutlineInputBorder(),
+                        ),
+                      ),
+                    );
+                  },
+                ).toList(),
               ),
-            )
-          : ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: widget.item.children.length,
-              itemBuilder: (context, index) {
-                final child =
-                    widget.item.children[index];
-
-                return Card(
-                  child: ListTile(
-                    leading: Icon(
-                      child.type == TreeItemType.folder
-                          ? Icons.folder
-                          : Icons.table_chart,
-                    ),
-
-                    title: Text(
-                      child.name,
-                    ),
-
-                    subtitle:
-                        child.type == TreeItemType.table
-                            ? Text(
-                                "${child.rows.length} rows • ${child.columns.length} columns",
-                              )
-                            : null,
-
-                    trailing: const Icon(
-                      Icons.chevron_right,
-                    ),
-
-                    onTap: () {
-                      openItem(child);
-                    },
-                  ),
-                );
-              },
             ),
-
-      // --------------------------------------------------------
-      // ADD BUTTON
-      // --------------------------------------------------------
-
-      floatingActionButton: FloatingActionButton(
-        onPressed: createItem,
-        child: const Icon(
-          Icons.add,
-        ),
-      ),
-    );
-  }
-}  TreeItem.folder(
-    this.name,
-  )   : type = TreeItemType.folder,
-        children = [],
-        columns = [],
-        rows = [];
-
-  TreeItem.table(
-    this.name,
-  )   : type = TreeItemType.table,
-        children = [],
-        columns = [
-          TableColumnDefinition("Name"),
-          TableColumnDefinition("IP"),
-          TableColumnDefinition("Username"),
-          TableColumnDefinition("Password"),
-          TableColumnDefinition("Version"),
-          TableColumnDefinition("Description"),
-        ],
-        rows = [];
-}
-
-class TreePage extends StatefulWidget {
-  final TreeItem item;
-  final VoidCallback? onDelete;
-
-  const TreePage({
-    super.key,
-    required this.item,
-    this.onDelete,
-  });
-
-  @override
-  State<TreePage> createState() => _TreePageState();
-}
-
-class _TreePageState extends State<TreePage> {
-  // ------------------------------------------------------------
-  // CREATE ITEM
-  // ------------------------------------------------------------
-
-  void createItem() {
-    showModalBottomSheet(
-      context: context,
-      builder: (context) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                leading: const Icon(
-                  Icons.create_new_folder_outlined,
-                ),
-                title: const Text(
-                  "Create Folder",
-                ),
-                onTap: () {
-                  Navigator.pop(context);
-                  createFolder();
-                },
-              ),
-              ListTile(
-                leading: const Icon(
-                  Icons.table_chart_outlined,
-                ),
-                title: const Text(
-                  "Create Table",
-                ),
-                onTap: () {
-                  Navigator.pop(context);
-                  createTable();
-                },
-              ),
-              const SizedBox(height: 10),
-            ],
           ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+              },
+              child: const Text("Cancel"),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                for (final column in widget.table.columns) {
+                  row.values[column.name] =
+                      controllers[column.name]!.text;
+                }
+
+                Navigator.pop(dialogContext);
+
+                setState(() {});
+              },
+              child: const Text("Save"),
+            ),
+          ],
+        );
+      },
+    ).then((_) {
+      for (final controller in controllers.values) {
+        controller.dispose();
+      }
+    });
+  }
+
+  // ------------------------------------------------------------
+  // DELETE RECORD
+  // ------------------------------------------------------------
+
+  void deleteRow(int index) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text("Delete Record"),
+          content: const Text(
+            "Are you sure you want to delete this record?",
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+              },
+              child: const Text("Cancel"),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                setState(() {
+                  widget.table.rows.removeAt(index);
+                });
+
+                Navigator.pop(dialogContext);
+              },
+              child: const Text("Delete"),
+            ),
+          ],
         );
       },
     );
   }
 
   // ------------------------------------------------------------
-  // CREATE FOLDER
+  // ADD FIELD
   // ------------------------------------------------------------
 
-  void createFolder() {
+  void addColumn() {
     final controller = TextEditingController();
 
     showDialog(
       context: context,
-      builder: (context) {
+      builder: (dialogContext) {
         return AlertDialog(
-          title: const Text(
-            "Create Folder",
-          ),
+          title: const Text("Add Field"),
           content: TextField(
             controller: controller,
             autofocus: true,
             decoration: const InputDecoration(
-              labelText: "Folder name",
+              labelText: "Field name",
+              hintText: "Example: Volume",
+              border: OutlineInputBorder(),
             ),
           ),
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.pop(context);
+                Navigator.pop(dialogContext);
               },
-              child: const Text(
-                "Cancel",
-              ),
+              child: const Text("Cancel"),
             ),
             ElevatedButton(
               onPressed: () {
@@ -646,17 +179,36 @@ class _TreePageState extends State<TreePage> {
                   return;
                 }
 
-                setState(() {
-                  widget.item.children.add(
-                    TreeItem.folder(name),
+                final exists = widget.table.columns.any(
+                  (column) =>
+                      column.name.toLowerCase() ==
+                      name.toLowerCase(),
+                );
+
+                if (exists) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        "A field with this name already exists.",
+                      ),
+                    ),
                   );
+                  return;
+                }
+
+                setState(() {
+                  widget.table.columns.add(
+                    TableColumnDefinition(name),
+                  );
+
+                  for (final row in widget.table.rows) {
+                    row.values[name] = '';
+                  }
                 });
 
-                Navigator.pop(context);
+                Navigator.pop(dialogContext);
               },
-              child: const Text(
-                "Create",
-              ),
+              child: const Text("Add Field"),
             ),
           ],
         );
@@ -667,19 +219,263 @@ class _TreePageState extends State<TreePage> {
   }
 
   // ------------------------------------------------------------
-  // CREATE TABLE
+  // RENAME FIELD
   // ------------------------------------------------------------
 
-  void createTable() {
-    final controller = TextEditingController();
+  void renameColumn(
+    TableColumnDefinition column,
+  ) {
+    final oldName = column.name;
+
+    final controller = TextEditingController(
+      text: oldName,
+    );
 
     showDialog(
       context: context,
-      builder: (context) {
+      builder: (dialogContext) {
         return AlertDialog(
-          title: const Text(
-            "Create Table",
+          title: const Text("Rename Field"),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            decoration: const InputDecoration(
+              labelText: "Field name",
+              border: OutlineInputBorder(),
+            ),
           ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+              },
+              child: const Text("Cancel"),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final newName = controller.text.trim();
+
+                if (newName.isEmpty) {
+                  return;
+                }
+
+                if (newName != oldName) {
+                  final exists = widget.table.columns.any(
+                    (item) =>
+                        item != column &&
+                        item.name.toLowerCase() ==
+                            newName.toLowerCase(),
+                  );
+
+                  if (exists) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          "A field with this name already exists.",
+                        ),
+                      ),
+                    );
+                    return;
+                  }
+                }
+
+                setState(() {
+                  for (final row in widget.table.rows) {
+                    final value =
+                        row.values[oldName] ?? '';
+
+                    row.values.remove(oldName);
+                    row.values[newName] = value;
+                  }
+
+                  column.name = newName;
+                });
+
+                Navigator.pop(dialogContext);
+              },
+              child: const Text("Save"),
+            ),
+          ],
+        );
+      },
+    ).then((_) {
+      controller.dispose();
+    });
+  }
+
+  // ------------------------------------------------------------
+  // DELETE FIELD
+  // ------------------------------------------------------------
+
+  void deleteColumn(
+    TableColumnDefinition column,
+  ) {
+    if (widget.table.columns.length <= 1) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            "At least one field must remain.",
+          ),
+        ),
+      );
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text("Delete Field"),
+          content: Text(
+            'Delete field "${column.name}"?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+              },
+              child: const Text("Cancel"),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                setState(() {
+                  final columnName = column.name;
+
+                  widget.table.columns.remove(column);
+
+                  for (final row in widget.table.rows) {
+                    row.values.remove(columnName);
+                  }
+                });
+
+                Navigator.pop(dialogContext);
+              },
+              child: const Text("Delete"),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // ------------------------------------------------------------
+  // MOVE FIELD
+  // ------------------------------------------------------------
+
+  void moveColumn(
+    TableColumnDefinition column,
+    int newIndex,
+  ) {
+    final columns = widget.table.columns;
+
+    final oldIndex = columns.indexOf(column);
+
+    if (oldIndex == -1) {
+      return;
+    }
+
+    if (newIndex < 0 || newIndex >= columns.length) {
+      return;
+    }
+
+    if (oldIndex == newIndex) {
+      return;
+    }
+
+    setState(() {
+      columns.removeAt(oldIndex);
+      columns.insert(newIndex, column);
+    });
+  }
+
+  // ------------------------------------------------------------
+  // FIELD MENU
+  // ------------------------------------------------------------
+
+  void showColumnMenu(
+    TableColumnDefinition column,
+  ) {
+    final index = widget.table.columns.indexOf(column);
+
+    showModalBottomSheet(
+      context: context,
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.edit),
+                title: const Text("Rename Field"),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  renameColumn(column);
+                },
+              ),
+              ListTile(
+                leading: const Icon(
+                  Icons.arrow_upward,
+                ),
+                enabled: index > 0,
+                title: const Text("Move Up"),
+                onTap: index > 0
+                    ? () {
+                        Navigator.pop(sheetContext);
+                        moveColumn(
+                          column,
+                          index - 1,
+                        );
+                      }
+                    : null,
+              ),
+              ListTile(
+                leading: const Icon(
+                  Icons.arrow_downward,
+                ),
+                enabled: index <
+                    widget.table.columns.length - 1,
+                title: const Text("Move Down"),
+                onTap: index <
+                        widget.table.columns.length - 1
+                    ? () {
+                        Navigator.pop(sheetContext);
+                        moveColumn(
+                          column,
+                          index + 1,
+                        );
+                      }
+                    : null,
+              ),
+              ListTile(
+                leading: const Icon(
+                  Icons.delete_outline,
+                ),
+                title: const Text("Delete Field"),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  deleteColumn(column);
+                },
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
+  }  // ------------------------------------------------------------
+  // RENAME TABLE
+  // ------------------------------------------------------------
+
+  void renameTable() {
+    final controller = TextEditingController(
+      text: widget.table.name,
+    );
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text("Rename Table"),
           content: TextField(
             controller: controller,
             autofocus: true,
@@ -690,11 +486,9 @@ class _TreePageState extends State<TreePage> {
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.pop(context);
+                Navigator.pop(dialogContext);
               },
-              child: const Text(
-                "Cancel",
-              ),
+              child: const Text("Cancel"),
             ),
             ElevatedButton(
               onPressed: () {
@@ -705,16 +499,12 @@ class _TreePageState extends State<TreePage> {
                 }
 
                 setState(() {
-                  widget.item.children.add(
-                    TreeItem.table(name),
-                  );
+                  widget.table.name = name;
                 });
 
-                Navigator.pop(context);
+                Navigator.pop(dialogContext);
               },
-              child: const Text(
-                "Create",
-              ),
+              child: const Text("Save"),
             ),
           ],
         );
@@ -725,139 +515,24 @@ class _TreePageState extends State<TreePage> {
   }
 
   // ------------------------------------------------------------
-  // OPEN ITEM
+  // DELETE TABLE
   // ------------------------------------------------------------
 
-  void openItem(TreeItem item) {
-    if (item.type == TreeItemType.table) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) {
-            return TablePage(
-              table: item,
-              onDelete: () {
-                final index =
-                    widget.item.children.indexOf(item);
-
-                if (index != -1) {
-                  widget.item.children.removeAt(index);
-                }
-              },
-            );
-          },
-        ),
-      ).then((_) {
-        if (mounted) {
-          setState(() {});
-        }
-      });
-
-      return;
-    }
-
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) {
-          return TreePage(
-            item: item,
-            onDelete: () {
-              final index =
-                  widget.item.children.indexOf(item);
-
-              if (index != -1) {
-                widget.item.children.removeAt(index);
-              }
-            },
-          );
-        },
-      ),
-    ).then((_) {
-      if (mounted) {
-        setState(() {});
-      }
-    });
-  }
-
-  // ------------------------------------------------------------
-  // RENAME ITEM
-  // ------------------------------------------------------------
-
-  void renameItem() {
-    final controller = TextEditingController(
-      text: widget.item.name,
-    );
-
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text(
-            "Rename",
-          ),
-          content: TextField(
-            controller: controller,
-            autofocus: true,
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
-              child: const Text(
-                "Cancel",
-              ),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                final name = controller.text.trim();
-
-                if (name.isEmpty) {
-                  return;
-                }
-
-                setState(() {
-                  widget.item.name = name;
-                });
-
-                Navigator.pop(context);
-              },
-              child: const Text(
-                "Save",
-              ),
-            ),
-          ],
-        );
-      },
-    ).then((_) {
-      controller.dispose();
-    });
-  }
-
-  // ------------------------------------------------------------
-  // DELETE FOLDER
-  // ------------------------------------------------------------
-
-  void deleteFolder() {
+  void deleteTable() {
     showDialog(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          title: const Text(
-            "Delete Folder",
-          ),
+          title: const Text("Delete Table"),
           content: Text(
-            'Delete "${widget.item.name}" and everything inside it?',
+            'Delete "${widget.table.name}" and all its records?',
           ),
           actions: [
             TextButton(
               onPressed: () {
                 Navigator.pop(dialogContext);
               },
-              child: const Text(
-                "Cancel",
-              ),
+              child: const Text("Cancel"),
             ),
             ElevatedButton(
               onPressed: () {
@@ -869,13 +544,133 @@ class _TreePageState extends State<TreePage> {
                   Navigator.pop(context);
                 }
               },
-              child: const Text(
-                "Delete",
-              ),
+              child: const Text("Delete"),
             ),
           ],
         );
       },
+    );
+  }
+
+  // ------------------------------------------------------------
+  // RECORD CARD
+  // ------------------------------------------------------------
+
+  Widget buildRowCard(
+    TableRowData row,
+    int rowIndex,
+  ) {
+    return Card(
+      margin: const EdgeInsets.only(
+        bottom: 16,
+      ),
+      child: Padding(
+        padding: const EdgeInsets.only(
+          top: 8,
+          bottom: 8,
+        ),
+        child: Column(
+          children: [
+            ...widget.table.columns.map(
+              (column) {
+                final value =
+                    row.values[column.name] ?? '';
+
+                final isPassword = column.name
+                    .toLowerCase()
+                    .contains("password");
+
+                final displayValue =
+                    isPassword && value.isNotEmpty
+                        ? "••••••••"
+                        : value.isEmpty
+                            ? "—"
+                            : value;
+
+                return InkWell(
+                  onTap: () {
+                    editRow(row);
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 13,
+                    ),
+                    child: Row(
+                      crossAxisAlignment:
+                          CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          flex: 4,
+                          child: Text(
+                            column.name,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          flex: 6,
+                          child: Text(
+                            displayValue,
+                            textAlign: TextAlign.end,
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () {
+                            showColumnMenu(column);
+                          },
+                          icon: const Icon(
+                            Icons.more_vert,
+                            size: 20,
+                          ),
+                          tooltip: "Field options",
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+            const Divider(height: 1),
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 8,
+              ),
+              child: Row(
+                mainAxisAlignment:
+                    MainAxisAlignment.end,
+                children: [
+                  TextButton.icon(
+                    onPressed: () {
+                      editRow(row);
+                    },
+                    icon: const Icon(Icons.edit),
+                    label: const Text("Edit"),
+                  ),
+                  TextButton.icon(
+                    onPressed: () {
+                      deleteRow(rowIndex);
+                    },
+                    icon: const Icon(
+                      Icons.delete_outline,
+                    ),
+                    label: const Text("Delete"),
+                  ),
+                  TextButton.icon(
+                    onPressed: addColumn,
+                    icon: const Icon(
+                      Icons.add_box_outlined,
+                    ),
+                    label: const Text("Add Field"),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -885,493 +680,120 @@ class _TreePageState extends State<TreePage> {
 
   @override
   Widget build(BuildContext context) {
+    final columns = widget.table.columns;
+
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          widget.item.name,
+          widget.table.name,
         ),
         actions: [
           IconButton(
-            onPressed: renameItem,
-            icon: const Icon(
-              Icons.edit,
-            ),
-            tooltip: "Rename",
+            onPressed: renameTable,
+            icon: const Icon(Icons.edit),
+            tooltip: "Rename Table",
           ),
           if (widget.onDelete != null)
             IconButton(
-              onPressed: deleteFolder,
+              onPressed: deleteTable,
               icon: const Icon(
                 Icons.delete_outline,
               ),
-              tooltip: "Delete Folder",
+              tooltip: "Delete Table",
             ),
+          PopupMenuButton<String>(
+            onSelected: (value) {
+              if (value == "add_field") {
+                addColumn();
+              }
+            },
+            itemBuilder: (context) {
+              return const [
+                PopupMenuItem<String>(
+                  value: "add_field",
+                  child: Text("Add Field"),
+                ),
+              ];
+            },
+          ),
         ],
       ),
-      body: widget.item.children.isEmpty
+      body: columns.isEmpty
           ? Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.folder_open,
-                    size: 80,
-                    color: Theme.of(context)
-                        .colorScheme
-                        .primary,
-                  ),
-                  const SizedBox(height: 20),
-                  const Text(
-                    "Folder is empty",
-                    style: TextStyle(
-                      fontSize: 18,
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  ElevatedButton.icon(
-                    onPressed: createItem,
-                    icon: const Icon(
-                      Icons.add,
-                    ),
-                    label: const Text(
-                      "Create",
-                    ),
-                  ),
-                ],
+              child: ElevatedButton.icon(
+                onPressed: addColumn,
+                icon: const Icon(Icons.add),
+                label: const Text("Add Field"),
               ),
             )
-          : ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: widget.item.children.length,
-              itemBuilder: (context, index) {
-                final child =
-                    widget.item.children[index];
-
-                return Card(
-                  child: ListTile(
-                    leading: Icon(
-                      child.type ==
-                              TreeItemType.folder
-                          ? Icons.folder
-                          : Icons.table_chart,
+          : widget.table.rows.isEmpty
+              ? Center(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.table_chart_outlined,
+                          size: 80,
+                        ),
+                        const SizedBox(height: 20),
+                        const Text(
+                          "No records yet",
+                          style: TextStyle(
+                            fontSize: 18,
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            ElevatedButton.icon(
+                              onPressed: addRow,
+                              icon: const Icon(
+                                Icons.add,
+                              ),
+                              label: const Text(
+                                "Add Record",
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            OutlinedButton.icon(
+                              onPressed: addColumn,
+                              icon: const Icon(
+                                Icons.view_column_outlined,
+                              ),
+                              label: const Text(
+                                "Add Field",
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
-                    title: Text(
-                      child.name,
-                    ),
-                    subtitle:
-                        child.type ==
-                                TreeItemType.table
-                            ? Text(
-                                "${child.rows.length} rows • ${child.columns.length} columns",
-                              )
-                            : null,
-                    trailing: const Icon(
-                      Icons.chevron_right,
-                    ),
-                    onTap: () {
-                      openItem(child);
-                    },
                   ),
-                );
-              },
-            ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: createItem,
-        child: const Icon(
-          Icons.add,
-        ),
-      ),
-    );
-  }
-}  String name;
-
-  final TreeItemType type;
-
-  final List<TreeItem> children;
-
-  // این لیست فقط الگوی اولیه جدول است.
-  // رکوردها از آن کپی مستقل می‌گیرند.
-  final List<TableColumnDefinition> columns;
-
-  final List<TableRowData> rows;
-
-  TreeItem.folder(
-    this.name,
-  )   : type = TreeItemType.folder,
-        children = [],
-        columns = [],
-        rows = [];
-
-  TreeItem.table(
-    this.name,
-  )   : type = TreeItemType.table,
-        children = [],
-        columns = [
-          TableColumnDefinition("Name"),
-          TableColumnDefinition("IP"),
-          TableColumnDefinition("Username"),
-          TableColumnDefinition("Password"),
-          TableColumnDefinition("Version"),
-          TableColumnDefinition("Description"),
-        ],
-        rows = [];
-}
-
-class TreePage extends StatefulWidget {
-  final TreeItem item;
-
-  const TreePage({
-    super.key,
-    required this.item,
-  });
-
-  @override
-  State<TreePage> createState() => _TreePageState();
-}
-
-class _TreePageState extends State<TreePage> {
-  // ------------------------------------------------------------
-  // CREATE ITEM
-  // ------------------------------------------------------------
-
-  void createItem() {
-    showModalBottomSheet(
-      context: context,
-      builder: (context) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                leading: const Icon(
-                  Icons.create_new_folder_outlined,
+                )
+              : ListView.builder(
+                  padding: const EdgeInsets.fromLTRB(
+                    16,
+                    16,
+                    16,
+                    120,
+                  ),
+                  itemCount:
+                      widget.table.rows.length,
+                  itemBuilder: (context, index) {
+                    return buildRowCard(
+                      widget.table.rows[index],
+                      index,
+                    );
+                  },
                 ),
-                title: const Text(
-                  "Create Folder",
-                ),
-                onTap: () {
-                  Navigator.pop(context);
-                  createFolder();
-                },
-              ),
-              ListTile(
-                leading: const Icon(
-                  Icons.table_chart_outlined,
-                ),
-                title: const Text(
-                  "Create Table",
-                ),
-                onTap: () {
-                  Navigator.pop(context);
-                  createTable();
-                },
-              ),
-              const SizedBox(height: 10),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  // ------------------------------------------------------------
-  // CREATE FOLDER
-  // ------------------------------------------------------------
-
-  void createFolder() {
-    final controller = TextEditingController();
-
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text(
-            "Create Folder",
-          ),
-          content: TextField(
-            controller: controller,
-            autofocus: true,
-            decoration: const InputDecoration(
-              labelText: "Folder name",
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
-              child: const Text(
-                "Cancel",
-              ),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                final name = controller.text.trim();
-
-                if (name.isEmpty) {
-                  return;
-                }
-
-                setState(() {
-                  widget.item.children.add(
-                    TreeItem.folder(name),
-                  );
-                });
-
-                Navigator.pop(context);
-              },
-              child: const Text(
-                "Create",
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  // ------------------------------------------------------------
-  // CREATE TABLE
-  // ------------------------------------------------------------
-
-  void createTable() {
-    final controller = TextEditingController();
-
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text(
-            "Create Table",
-          ),
-          content: TextField(
-            controller: controller,
-            autofocus: true,
-            decoration: const InputDecoration(
-              labelText: "Table name",
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
-              child: const Text(
-                "Cancel",
-              ),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                final name = controller.text.trim();
-
-                if (name.isEmpty) {
-                  return;
-                }
-
-                setState(() {
-                  widget.item.children.add(
-                    TreeItem.table(name),
-                  );
-                });
-
-                Navigator.pop(context);
-              },
-              child: const Text(
-                "Create",
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  // ------------------------------------------------------------
-  // OPEN ITEM
-  // ------------------------------------------------------------
-
-  void openItem(TreeItem item) {
-    if (item.type == TreeItemType.table) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) {
-            return TablePage(
-              table: item,
-            );
-          },
-        ),
-      ).then((_) {
-        if (mounted) {
-          setState(() {});
-        }
-      });
-
-      return;
-    }
-
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) {
-          return TreePage(
-            item: item,
-          );
-        },
-      ),
-    ).then((_) {
-      if (mounted) {
-        setState(() {});
-      }
-    });
-  }
-
-  // ------------------------------------------------------------
-  // RENAME ITEM
-  // ------------------------------------------------------------
-
-  void renameItem() {
-    final controller = TextEditingController(
-      text: widget.item.name,
-    );
-
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text(
-            "Rename",
-          ),
-          content: TextField(
-            controller: controller,
-            autofocus: true,
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
-              child: const Text(
-                "Cancel",
-              ),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                final name = controller.text.trim();
-
-                if (name.isEmpty) {
-                  return;
-                }
-
-                setState(() {
-                  widget.item.name = name;
-                });
-
-                Navigator.pop(context);
-              },
-              child: const Text(
-                "Save",
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  // ------------------------------------------------------------
-  // BUILD
-  // ------------------------------------------------------------
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          widget.item.name,
-        ),
-        actions: [
-          IconButton(
-            onPressed: renameItem,
-            icon: const Icon(
-              Icons.edit,
-            ),
-            tooltip: "Rename",
-          ),
-        ],
-      ),
-      body: widget.item.children.isEmpty
-          ? Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.folder_open,
-                    size: 80,
-                    color: Theme.of(context)
-                        .colorScheme
-                        .primary,
-                  ),
-                  const SizedBox(height: 20),
-                  const Text(
-                    "Folder is empty",
-                    style: TextStyle(
-                      fontSize: 18,
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  ElevatedButton.icon(
-                    onPressed: createItem,
-                    icon: const Icon(
-                      Icons.add,
-                    ),
-                    label: const Text(
-                      "Create",
-                    ),
-                  ),
-                ],
-              ),
-            )
-          : ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: widget.item.children.length,
-              itemBuilder: (context, index) {
-                final child =
-                    widget.item.children[index];
-
-                return Card(
-                  child: ListTile(
-                    leading: Icon(
-                      child.type ==
-                              TreeItemType.folder
-                          ? Icons.folder
-                          : Icons.table_chart,
-                    ),
-                    title: Text(
-                      child.name,
-                    ),
-                    subtitle:
-                        child.type ==
-                                TreeItemType.table
-                            ? Text(
-                                "${child.rows.length} rows • ${child.columns.length} default columns",
-                              )
-                            : null,
-                    trailing: const Icon(
-                      Icons.chevron_right,
-                    ),
-                    onTap: () {
-                      openItem(child);
-                    },
-                  ),
-                );
-              },
-            ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: createItem,
-        child: const Icon(
-          Icons.add,
-        ),
+      floatingActionButton:
+          FloatingActionButton.extended(
+        onPressed: addRow,
+        icon: const Icon(Icons.add),
+        label: const Text("Add Record"),
       ),
     );
   }
