@@ -92,6 +92,7 @@ class _TablePageState extends State<TablePage> {
                 }
 
                 Navigator.pop(dialogContext);
+
                 setState(() {});
               },
               child: const Text("Save"),
@@ -280,8 +281,7 @@ class _TablePageState extends State<TablePage> {
 
                 setState(() {
                   for (final row in widget.table.rows) {
-                    final value =
-                        row.values[oldName] ?? '';
+                    final value = row.values[oldName] ?? '';
 
                     row.values.remove(oldName);
                     row.values[newName] = value;
@@ -336,13 +336,11 @@ class _TablePageState extends State<TablePage> {
             ),
             ElevatedButton(
               onPressed: () {
-                final columnName = column.name;
-
                 setState(() {
                   widget.table.columns.remove(column);
 
                   for (final row in widget.table.rows) {
-                    row.values.remove(columnName);
+                    row.values.remove(column.name);
                   }
                 });
 
@@ -407,13 +405,12 @@ class _TablePageState extends State<TablePage> {
                 title: const Text("Rename Field"),
                 onTap: () {
                   Navigator.pop(sheetContext);
+
                   renameColumn(column);
                 },
               ),
               ListTile(
-                leading: const Icon(
-                  Icons.arrow_upward,
-                ),
+                leading: const Icon(Icons.arrow_upward),
                 enabled: index > 0,
                 title: const Text("Move Up"),
                 onTap: index > 0
@@ -428,9 +425,7 @@ class _TablePageState extends State<TablePage> {
                     : null,
               ),
               ListTile(
-                leading: const Icon(
-                  Icons.arrow_downward,
-                ),
+                leading: const Icon(Icons.arrow_downward),
                 enabled:
                     index <
                     widget.table.columns.length - 1,
@@ -455,6 +450,7 @@ class _TablePageState extends State<TablePage> {
                 title: const Text("Delete Field"),
                 onTap: () {
                   Navigator.pop(sheetContext);
+
                   deleteColumn(column);
                 },
               ),
@@ -555,7 +551,8 @@ class _TablePageState extends State<TablePage> {
       },
     );
   }
-    // ------------------------------------------------------------
+
+  // ------------------------------------------------------------
   // RECORD CARD
   // ------------------------------------------------------------
 
@@ -612,7 +609,9 @@ class _TablePageState extends State<TablePage> {
                             ),
                           ),
                         ),
-                        const SizedBox(width: 12),
+                        const SizedBox(
+                          width: 12,
+                        ),
                         Expanded(
                           flex: 6,
                           child: Text(
@@ -649,7 +648,9 @@ class _TablePageState extends State<TablePage> {
                     onPressed: () {
                       editRow(row);
                     },
-                    icon: const Icon(Icons.edit),
+                    icon: const Icon(
+                      Icons.edit,
+                    ),
                     label: const Text("Edit"),
                   ),
                   TextButton.icon(
@@ -676,8 +677,7 @@ class _TablePageState extends State<TablePage> {
       ),
     );
   }
-
-  // ------------------------------------------------------------
+    // ------------------------------------------------------------
   // BUILD
   // ------------------------------------------------------------
 
@@ -693,9 +693,12 @@ class _TablePageState extends State<TablePage> {
         actions: [
           IconButton(
             onPressed: renameTable,
-            icon: const Icon(Icons.edit),
+            icon: const Icon(
+              Icons.edit,
+            ),
             tooltip: "Rename Table",
           ),
+
           if (widget.onDelete != null)
             IconButton(
               onPressed: deleteTable,
@@ -704,6 +707,7 @@ class _TablePageState extends State<TablePage> {
               ),
               tooltip: "Delete Table",
             ),
+
           PopupMenuButton<String>(
             onSelected: (value) {
               if (value == "add_field") {
@@ -714,19 +718,26 @@ class _TablePageState extends State<TablePage> {
               return const [
                 PopupMenuItem<String>(
                   value: "add_field",
-                  child: Text("Add Field"),
+                  child: Text(
+                    "Add Field",
+                  ),
                 ),
               ];
             },
           ),
         ],
       ),
+
       body: columns.isEmpty
           ? Center(
               child: ElevatedButton.icon(
                 onPressed: addColumn,
-                icon: const Icon(Icons.add),
-                label: const Text("Add Field"),
+                icon: const Icon(
+                  Icons.add,
+                ),
+                label: const Text(
+                  "Add Field",
+                ),
               ),
             )
           : widget.table.rows.isEmpty
@@ -740,14 +751,22 @@ class _TablePageState extends State<TablePage> {
                           Icons.table_chart_outlined,
                           size: 80,
                         ),
-                        const SizedBox(height: 20),
+
+                        const SizedBox(
+                          height: 20,
+                        ),
+
                         const Text(
                           "No records yet",
                           style: TextStyle(
                             fontSize: 18,
                           ),
                         ),
-                        const SizedBox(height: 20),
+
+                        const SizedBox(
+                          height: 20,
+                        ),
+
                         Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
@@ -760,7 +779,11 @@ class _TablePageState extends State<TablePage> {
                                 "Add Record",
                               ),
                             ),
-                            const SizedBox(width: 12),
+
+                            const SizedBox(
+                              width: 12,
+                            ),
+
                             OutlinedButton.icon(
                               onPressed: addColumn,
                               icon: const Icon(
@@ -792,11 +815,15 @@ class _TablePageState extends State<TablePage> {
                     );
                   },
                 ),
-      floatingActionButton:
-          FloatingActionButton.extended(
+
+      floatingActionButton: FloatingActionButton.extended(
         onPressed: addRow,
-        icon: const Icon(Icons.add),
-        label: const Text("Add Record"),
+        icon: const Icon(
+          Icons.add,
+        ),
+        label: const Text(
+          "Add Record",
+        ),
       ),
     );
   }
