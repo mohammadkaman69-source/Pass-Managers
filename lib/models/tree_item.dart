@@ -13,10 +13,8 @@ class TreeItem {
 
   final List<TreeItem> children;
 
-  // Template اصلی Table
   final List<TableColumnDefinition> columns;
 
-  // Recordهای Table
   final List<TableRowData> rows;
 
   TreeItem.folder(
@@ -31,12 +29,46 @@ class TreeItem {
   )   : type = TreeItemType.table,
         children = [],
         columns = [
-          TableColumnDefinition("Name"),
-          TableColumnDefinition("IP"),
-          TableColumnDefinition("Username"),
-          TableColumnDefinition("Password"),
-          TableColumnDefinition("Version"),
-          TableColumnDefinition("Description"),
+          TableColumnDefinition('Name'),
+          TableColumnDefinition('IP'),
+          TableColumnDefinition('Username'),
+          TableColumnDefinition('Password'),
+          TableColumnDefinition('Version'),
+          TableColumnDefinition('Description'),
         ],
         rows = [];
+
+  TreeItem copy() {
+    if (type == TreeItemType.folder) {
+      final copied = TreeItem.folder(name);
+
+      copied.children.addAll(
+        children.map(
+          (child) => child.copy(),
+        ),
+      );
+
+      return copied;
+    }
+
+    final copied = TreeItem.table(name);
+
+    copied.columns
+      ..clear()
+      ..addAll(
+        columns.map(
+          (column) => column.copy(),
+        ),
+      );
+
+    copied.rows
+      ..clear()
+      ..addAll(
+        rows.map(
+          (row) => row.copy(),
+        ),
+      );
+
+    return copied;
+  }
 }
