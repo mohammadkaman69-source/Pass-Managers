@@ -2,69 +2,9 @@ import 'package:flutter/material.dart';
 
 import 'table_page.dart';
 
-enum TreeItemType {
-  folder,
-  table,
-}
+export '../models/vault_models.dart';
 
-class TableColumnDefinition {
-  String name;
-
-  TableColumnDefinition(this.name);
-}
-
-class TableRowData {
-  final List<TableColumnDefinition> columns;
-  final Map<String, String> values;
-
-  TableRowData({
-    required List<TableColumnDefinition> columns,
-    Map<String, String>? values,
-  })  : columns = columns
-            .map(
-              (column) => TableColumnDefinition(column.name),
-            )
-            .toList(),
-        values = values != null
-            ? Map<String, String>.from(values)
-            : {
-                for (final column in columns)
-                  column.name: '',
-              };
-}
-
-class TreeItem {
-  String name;
-
-  final TreeItemType type;
-
-  final List<TreeItem> children;
-
-  final List<TableColumnDefinition> columns;
-
-  final List<TableRowData> rows;
-
-  TreeItem.folder(
-    this.name,
-  )   : type = TreeItemType.folder,
-        children = [],
-        columns = [],
-        rows = [];
-
-  TreeItem.table(
-    this.name,
-  )   : type = TreeItemType.table,
-        children = [],
-        columns = [
-          TableColumnDefinition("Name"),
-          TableColumnDefinition("IP"),
-          TableColumnDefinition("Username"),
-          TableColumnDefinition("Password"),
-          TableColumnDefinition("Version"),
-          TableColumnDefinition("Description"),
-        ],
-        rows = [];
-}
+import '../models/vault_models.dart';
 
 class TreePage extends StatefulWidget {
   final TreeItem item;
@@ -113,7 +53,9 @@ class _TreePageState extends State<TreePage> {
                   createTable();
                 },
               ),
-              const SizedBox(height: 10),
+              const SizedBox(
+                height: 10,
+              ),
             ],
           ),
         );
@@ -170,7 +112,9 @@ class _TreePageState extends State<TreePage> {
           ],
         );
       },
-    );
+    ).then((_) {
+      controller.dispose();
+    });
   }
 
   void createTable() {
@@ -222,7 +166,9 @@ class _TreePageState extends State<TreePage> {
           ],
         );
       },
-    );
+    ).then((_) {
+      controller.dispose();
+    });
   }
     void openItem(TreeItem item) {
     final index = widget.item.children.indexOf(item);
@@ -287,6 +233,9 @@ class _TreePageState extends State<TreePage> {
           content: TextField(
             controller: controller,
             autofocus: true,
+            decoration: const InputDecoration(
+              labelText: "Name",
+            ),
           ),
           actions: [
             TextButton(
@@ -318,7 +267,9 @@ class _TreePageState extends State<TreePage> {
           ],
         );
       },
-    );
+    ).then((_) {
+      controller.dispose();
+    });
   }
 
   void deleteFolder() {
@@ -386,7 +337,7 @@ class _TreePageState extends State<TreePage> {
             ),
         ],
       ),
-      body: widget.item.children.isEmpty
+            body: widget.item.children.isEmpty
           ? Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -398,14 +349,18 @@ class _TreePageState extends State<TreePage> {
                         .colorScheme
                         .primary,
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(
+                    height: 20,
+                  ),
                   const Text(
                     "Folder is empty",
                     style: TextStyle(
                       fontSize: 18,
                     ),
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(
+                    height: 20,
+                  ),
                   ElevatedButton.icon(
                     onPressed: createItem,
                     icon: const Icon(
@@ -425,24 +380,24 @@ class _TreePageState extends State<TreePage> {
                 final child =
                     widget.item.children[index];
 
+                final isTable =
+                    child.type == TreeItemType.table;
+
                 return Card(
                   child: ListTile(
                     leading: Icon(
-                      child.type ==
-                              TreeItemType.folder
-                          ? Icons.folder
-                          : Icons.table_chart,
+                      isTable
+                          ? Icons.table_chart
+                          : Icons.folder,
                     ),
                     title: Text(
                       child.name,
                     ),
-                    subtitle:
-                        child.type ==
-                                TreeItemType.table
-                            ? Text(
-                                "${child.rows.length} rows • ${child.columns.length} default columns",
-                              )
-                            : null,
+                    subtitle: isTable
+                        ? Text(
+                            "${child.rows.length} rows • ${child.columns.length} default columns",
+                          )
+                        : null,
                     trailing: const Icon(
                       Icons.chevron_right,
                     ),
@@ -453,7 +408,7 @@ class _TreePageState extends State<TreePage> {
                 );
               },
             ),
-            floatingActionButton: FloatingActionButton(
+      floatingActionButton: FloatingActionButton(
         onPressed: createItem,
         child: const Icon(
           Icons.add,
