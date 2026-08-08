@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import 'table_page.dart';
 
 enum TreeItemType {
@@ -18,23 +19,29 @@ class TableRowData {
 
   TableRowData({
     required List<TableColumnDefinition> columns,
+    Map<String, String>? values,
   })  : columns = columns
             .map(
               (column) => TableColumnDefinition(column.name),
             )
             .toList(),
-        values = {
-          for (final column in columns) column.name: '',
-        };
+        values = values != null
+            ? Map<String, String>.from(values)
+            : {
+                for (final column in columns)
+                  column.name: '',
+              };
 }
 
 class TreeItem {
   String name;
 
   final TreeItemType type;
+
   final List<TreeItem> children;
 
   final List<TableColumnDefinition> columns;
+
   final List<TableRowData> rows;
 
   TreeItem.folder(
@@ -49,12 +56,12 @@ class TreeItem {
   )   : type = TreeItemType.table,
         children = [],
         columns = [
-          TableColumnDefinition('Name'),
-          TableColumnDefinition('IP'),
-          TableColumnDefinition('Username'),
-          TableColumnDefinition('Password'),
-          TableColumnDefinition('Version'),
-          TableColumnDefinition('Description'),
+          TableColumnDefinition("Name"),
+          TableColumnDefinition("IP"),
+          TableColumnDefinition("Username"),
+          TableColumnDefinition("Password"),
+          TableColumnDefinition("Version"),
+          TableColumnDefinition("Description"),
         ],
         rows = [];
 }
@@ -87,7 +94,7 @@ class _TreePageState extends State<TreePage> {
                   Icons.create_new_folder_outlined,
                 ),
                 title: const Text(
-                  'Create Folder',
+                  "Create Folder",
                 ),
                 onTap: () {
                   Navigator.pop(context);
@@ -99,7 +106,7 @@ class _TreePageState extends State<TreePage> {
                   Icons.table_chart_outlined,
                 ),
                 title: const Text(
-                  'Create Table',
+                  "Create Table",
                 ),
                 onTap: () {
                   Navigator.pop(context);
@@ -119,25 +126,25 @@ class _TreePageState extends State<TreePage> {
 
     showDialog(
       context: context,
-      builder: (dialogContext) {
+      builder: (context) {
         return AlertDialog(
           title: const Text(
-            'Create Folder',
+            "Create Folder",
           ),
           content: TextField(
             controller: controller,
             autofocus: true,
             decoration: const InputDecoration(
-              labelText: 'Folder name',
+              labelText: "Folder name",
             ),
           ),
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.pop(dialogContext);
+                Navigator.pop(context);
               },
               child: const Text(
-                'Cancel',
+                "Cancel",
               ),
             ),
             ElevatedButton(
@@ -154,10 +161,10 @@ class _TreePageState extends State<TreePage> {
                   );
                 });
 
-                Navigator.pop(dialogContext);
+                Navigator.pop(context);
               },
               child: const Text(
-                'Create',
+                "Create",
               ),
             ),
           ],
@@ -171,25 +178,25 @@ class _TreePageState extends State<TreePage> {
 
     showDialog(
       context: context,
-      builder: (dialogContext) {
+      builder: (context) {
         return AlertDialog(
           title: const Text(
-            'Create Table',
+            "Create Table",
           ),
           content: TextField(
             controller: controller,
             autofocus: true,
             decoration: const InputDecoration(
-              labelText: 'Table name',
+              labelText: "Table name",
             ),
           ),
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.pop(dialogContext);
+                Navigator.pop(context);
               },
               child: const Text(
-                'Cancel',
+                "Cancel",
               ),
             ),
             ElevatedButton(
@@ -206,10 +213,10 @@ class _TreePageState extends State<TreePage> {
                   );
                 });
 
-                Navigator.pop(dialogContext);
+                Navigator.pop(context);
               },
               child: const Text(
-                'Create',
+                "Create",
               ),
             ),
           ],
@@ -217,17 +224,8 @@ class _TreePageState extends State<TreePage> {
       },
     );
   }
-
-  void openItem(TreeItem item) {
+    void openItem(TreeItem item) {
     final index = widget.item.children.indexOf(item);
-
-    void removeItem() {
-      if (index >= 0 &&
-          index < widget.item.children.length &&
-          identical(widget.item.children[index], item)) {
-        widget.item.children.removeAt(index);
-      }
-    }
 
     if (item.type == TreeItemType.table) {
       Navigator.push(
@@ -236,7 +234,11 @@ class _TreePageState extends State<TreePage> {
           builder: (context) {
             return TablePage(
               table: item,
-              onDelete: removeItem,
+              onDelete: () {
+                if (index != -1) {
+                  widget.item.children.removeAt(index);
+                }
+              },
             );
           },
         ),
@@ -255,7 +257,11 @@ class _TreePageState extends State<TreePage> {
         builder: (context) {
           return TreePage(
             item: item,
-            onDelete: removeItem,
+            onDelete: () {
+              if (index != -1) {
+                widget.item.children.removeAt(index);
+              }
+            },
           );
         },
       ),
@@ -273,10 +279,10 @@ class _TreePageState extends State<TreePage> {
 
     showDialog(
       context: context,
-      builder: (dialogContext) {
+      builder: (context) {
         return AlertDialog(
           title: const Text(
-            'Rename',
+            "Rename",
           ),
           content: TextField(
             controller: controller,
@@ -285,10 +291,10 @@ class _TreePageState extends State<TreePage> {
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.pop(dialogContext);
+                Navigator.pop(context);
               },
               child: const Text(
-                'Cancel',
+                "Cancel",
               ),
             ),
             ElevatedButton(
@@ -303,10 +309,10 @@ class _TreePageState extends State<TreePage> {
                   widget.item.name = name;
                 });
 
-                Navigator.pop(dialogContext);
+                Navigator.pop(context);
               },
               child: const Text(
-                'Save',
+                "Save",
               ),
             ),
           ],
@@ -315,21 +321,16 @@ class _TreePageState extends State<TreePage> {
     );
   }
 
-  void deleteCurrentItem() {
-    final isFolder =
-        widget.item.type == TreeItemType.folder;
-
+  void deleteFolder() {
     showDialog(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          title: Text(
-            isFolder ? 'Delete Folder' : 'Delete Table',
+          title: const Text(
+            "Delete Folder",
           ),
           content: Text(
-            isFolder
-                ? 'Delete "${widget.item.name}" and everything inside it?'
-                : 'Delete "${widget.item.name}" and all its records?',
+            'Delete "${widget.item.name}" and everything inside it?',
           ),
           actions: [
             TextButton(
@@ -337,7 +338,7 @@ class _TreePageState extends State<TreePage> {
                 Navigator.pop(dialogContext);
               },
               child: const Text(
-                'Cancel',
+                "Cancel",
               ),
             ),
             ElevatedButton(
@@ -351,7 +352,7 @@ class _TreePageState extends State<TreePage> {
                 }
               },
               child: const Text(
-                'Delete',
+                "Delete",
               ),
             ),
           ],
@@ -362,9 +363,6 @@ class _TreePageState extends State<TreePage> {
 
   @override
   Widget build(BuildContext context) {
-    final isFolder =
-        widget.item.type == TreeItemType.folder;
-
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -376,17 +374,15 @@ class _TreePageState extends State<TreePage> {
             icon: const Icon(
               Icons.edit,
             ),
-            tooltip: 'Rename',
+            tooltip: "Rename",
           ),
           if (widget.onDelete != null)
             IconButton(
-              onPressed: deleteCurrentItem,
+              onPressed: deleteFolder,
               icon: const Icon(
                 Icons.delete_outline,
               ),
-              tooltip: isFolder
-                  ? 'Delete Folder'
-                  : 'Delete Table',
+              tooltip: "Delete Folder",
             ),
         ],
       ),
@@ -396,20 +392,16 @@ class _TreePageState extends State<TreePage> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(
-                    isFolder
-                        ? Icons.folder_open
-                        : Icons.table_chart_outlined,
+                    Icons.folder_open,
                     size: 80,
                     color: Theme.of(context)
                         .colorScheme
                         .primary,
                   ),
                   const SizedBox(height: 20),
-                  Text(
-                    isFolder
-                        ? 'Folder is empty'
-                        : 'Table is empty',
-                    style: const TextStyle(
+                  const Text(
+                    "Folder is empty",
+                    style: TextStyle(
                       fontSize: 18,
                     ),
                   ),
@@ -420,7 +412,7 @@ class _TreePageState extends State<TreePage> {
                       Icons.add,
                     ),
                     label: const Text(
-                      'Create',
+                      "Create",
                     ),
                   ),
                 ],
@@ -448,8 +440,7 @@ class _TreePageState extends State<TreePage> {
                         child.type ==
                                 TreeItemType.table
                             ? Text(
-                                '${child.rows.length} rows • '
-                                '${child.columns.length} columns',
+                                "${child.rows.length} rows • ${child.columns.length} default columns",
                               )
                             : null,
                     trailing: const Icon(
@@ -462,7 +453,7 @@ class _TreePageState extends State<TreePage> {
                 );
               },
             ),
-      floatingActionButton: FloatingActionButton(
+            floatingActionButton: FloatingActionButton(
         onPressed: createItem,
         child: const Icon(
           Icons.add,
