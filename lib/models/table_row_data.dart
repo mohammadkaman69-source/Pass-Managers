@@ -2,6 +2,7 @@ import 'table_column_definition.dart';
 
 class TableRowData {
   final List<TableColumnDefinition> columns;
+
   final Map<String, String> values;
 
   TableRowData({
@@ -9,9 +10,7 @@ class TableRowData {
     Map<String, String>? values,
   })  : columns = columns
             .map(
-              (column) => TableColumnDefinition(
-                column.name,
-              ),
+              (column) => column.copy(),
             )
             .toList(),
         values = values != null
@@ -20,4 +19,11 @@ class TableRowData {
                 for (final column in columns)
                   column.name: '',
               };
+
+  TableRowData copy() {
+    return TableRowData(
+      columns: columns,
+      values: values,
+    );
+  }
 }
