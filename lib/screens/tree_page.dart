@@ -1,10 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../models/tree_item.dart';
 import 'table_page.dart';
-
-export '../models/vault_models.dart';
-
-import '../models/vault_models.dart';
 
 class TreePage extends StatefulWidget {
   final TreeItem item;
