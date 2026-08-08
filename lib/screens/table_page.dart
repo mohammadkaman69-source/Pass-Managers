@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
-import '../models/vault_models.dart';
+import '../models/tree_item.dart';
+import '../models/table_row_data.dart';
+import '../models/table_column_definition.dart';
 
 class TablePage extends StatefulWidget {
   final TreeItem table;
