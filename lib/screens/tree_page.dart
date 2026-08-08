@@ -19,14 +19,18 @@ class TableRowData {
 
   TableRowData({
     required List<TableColumnDefinition> columns,
+    Map<String, String>? values,
   })  : columns = columns
             .map(
               (column) => TableColumnDefinition(column.name),
             )
             .toList(),
-        values = {
-          for (final column in columns) column.name: '',
-        };
+        values = values != null
+            ? Map<String, String>.from(values)
+            : {
+                for (final column in columns)
+                  column.name: '',
+              };
 }
 
 class TreeItem {
@@ -36,7 +40,8 @@ class TreeItem {
 
   final List<TreeItem> children;
 
-  // Default fields used when creating a new record.
+  // این لیست فقط الگوی اولیه جدول است.
+  // رکوردها از آن کپی مستقل می‌گیرند.
   final List<TableColumnDefinition> columns;
 
   final List<TableRowData> rows;
@@ -76,6 +81,10 @@ class TreePage extends StatefulWidget {
 }
 
 class _TreePageState extends State<TreePage> {
+  // ------------------------------------------------------------
+  // CREATE ITEM
+  // ------------------------------------------------------------
+
   void createItem() {
     showModalBottomSheet(
       context: context,
@@ -115,6 +124,10 @@ class _TreePageState extends State<TreePage> {
       },
     );
   }
+
+  // ------------------------------------------------------------
+  // CREATE FOLDER
+  // ------------------------------------------------------------
 
   void createFolder() {
     final controller = TextEditingController();
@@ -168,6 +181,10 @@ class _TreePageState extends State<TreePage> {
     );
   }
 
+  // ------------------------------------------------------------
+  // CREATE TABLE
+  // ------------------------------------------------------------
+
   void createTable() {
     final controller = TextEditingController();
 
@@ -220,6 +237,10 @@ class _TreePageState extends State<TreePage> {
     );
   }
 
+  // ------------------------------------------------------------
+  // OPEN ITEM
+  // ------------------------------------------------------------
+
   void openItem(TreeItem item) {
     if (item.type == TreeItemType.table) {
       Navigator.push(
@@ -255,6 +276,10 @@ class _TreePageState extends State<TreePage> {
       }
     });
   }
+
+  // ------------------------------------------------------------
+  // RENAME ITEM
+  // ------------------------------------------------------------
 
   void renameItem() {
     final controller = TextEditingController(
@@ -304,6 +329,10 @@ class _TreePageState extends State<TreePage> {
       },
     );
   }
+
+  // ------------------------------------------------------------
+  // BUILD
+  // ------------------------------------------------------------
 
   @override
   Widget build(BuildContext context) {
@@ -376,7 +405,7 @@ class _TreePageState extends State<TreePage> {
                         child.type ==
                                 TreeItemType.table
                             ? Text(
-                                "${child.rows.length} rows",
+                                "${child.rows.length} rows • ${child.columns.length} default columns",
                               )
                             : null,
                     trailing: const Icon(
