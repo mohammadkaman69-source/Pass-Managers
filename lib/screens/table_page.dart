@@ -15,6 +15,10 @@ class TablePage extends StatefulWidget {
 }
 
 class _TablePageState extends State<TablePage> {
+  // ------------------------------------------------------------
+  // ADD RECORD
+  // ------------------------------------------------------------
+
   void addRow() {
     setState(() {
       widget.table.rows.add(
@@ -24,6 +28,10 @@ class _TablePageState extends State<TablePage> {
       );
     });
   }
+
+  // ------------------------------------------------------------
+  // EDIT RECORD
+  // ------------------------------------------------------------
 
   void editRow(TableRowData row) {
     final controllers = <String, TextEditingController>{};
@@ -38,15 +46,13 @@ class _TablePageState extends State<TablePage> {
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          title: const Text("Edit Row"),
+          title: const Text("Edit Record"),
           content: SizedBox(
             width: 500,
             child: SingleChildScrollView(
               child: Column(
                 children: widget.table.columns.map(
                   (column) {
-                    final controller = controllers[column.name]!;
-
                     final isPassword = column.name
                         .toLowerCase()
                         .contains("password");
@@ -56,7 +62,7 @@ class _TablePageState extends State<TablePage> {
                         bottom: 14,
                       ),
                       child: TextField(
-                        controller: controller,
+                        controller: controllers[column.name],
                         obscureText: isPassword,
                         decoration: InputDecoration(
                           labelText: column.name,
@@ -99,14 +105,18 @@ class _TablePageState extends State<TablePage> {
     });
   }
 
+  // ------------------------------------------------------------
+  // DELETE RECORD
+  // ------------------------------------------------------------
+
   void deleteRow(int index) {
     showDialog(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          title: const Text("Delete Row"),
+          title: const Text("Delete Record"),
           content: const Text(
-            "Are you sure you want to delete this row?",
+            "Are you sure you want to delete this record?",
           ),
           actions: [
             TextButton(
@@ -131,6 +141,10 @@ class _TablePageState extends State<TablePage> {
     );
   }
 
+  // ------------------------------------------------------------
+  // ADD FIELD
+  // ------------------------------------------------------------
+
   void addColumn() {
     final controller = TextEditingController();
 
@@ -138,12 +152,13 @@ class _TablePageState extends State<TablePage> {
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          title: const Text("Add Column"),
+          title: const Text("Add Field"),
           content: TextField(
             controller: controller,
             autofocus: true,
             decoration: const InputDecoration(
-              labelText: "Column name",
+              labelText: "Field name",
+              hintText: "Example: Volume",
               border: OutlineInputBorder(),
             ),
           ),
@@ -172,7 +187,7 @@ class _TablePageState extends State<TablePage> {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
                       content: Text(
-                        "A column with this name already exists.",
+                        "A field with this name already exists.",
                       ),
                     ),
                   );
@@ -191,7 +206,7 @@ class _TablePageState extends State<TablePage> {
 
                 Navigator.pop(dialogContext);
               },
-              child: const Text("Add"),
+              child: const Text("Add Field"),
             ),
           ],
         );
@@ -200,6 +215,10 @@ class _TablePageState extends State<TablePage> {
       controller.dispose();
     });
   }
+
+  // ------------------------------------------------------------
+  // RENAME FIELD
+  // ------------------------------------------------------------
 
   void renameColumn(
     TableColumnDefinition column,
@@ -214,12 +233,12 @@ class _TablePageState extends State<TablePage> {
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          title: const Text("Rename Column"),
+          title: const Text("Rename Field"),
           content: TextField(
             controller: controller,
             autofocus: true,
             decoration: const InputDecoration(
-              labelText: "Column name",
+              labelText: "Field name",
               border: OutlineInputBorder(),
             ),
           ),
@@ -247,11 +266,10 @@ class _TablePageState extends State<TablePage> {
                   );
 
                   if (exists) {
-                    ScaffoldMessenger.of(context)
-                        .showSnackBar(
+                    ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
                         content: Text(
-                          "A column with this name already exists.",
+                          "A field with this name already exists.",
                         ),
                       ),
                     );
@@ -282,6 +300,10 @@ class _TablePageState extends State<TablePage> {
     });
   }
 
+  // ------------------------------------------------------------
+  // DELETE FIELD
+  // ------------------------------------------------------------
+
   void deleteColumn(
     TableColumnDefinition column,
   ) {
@@ -289,7 +311,7 @@ class _TablePageState extends State<TablePage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            "At least one column must remain.",
+            "At least one field must remain.",
           ),
         ),
       );
@@ -300,9 +322,9 @@ class _TablePageState extends State<TablePage> {
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          title: const Text("Delete Column"),
+          title: const Text("Delete Field"),
           content: Text(
-            'Delete column "${column.name}"?',
+            'Delete field "${column.name}"?',
           ),
           actions: [
             TextButton(
@@ -331,6 +353,10 @@ class _TablePageState extends State<TablePage> {
     );
   }
 
+  // ------------------------------------------------------------
+  // MOVE FIELD
+  // ------------------------------------------------------------
+
   void moveColumn(
     TableColumnDefinition column,
     int newIndex,
@@ -357,6 +383,10 @@ class _TablePageState extends State<TablePage> {
     });
   }
 
+  // ------------------------------------------------------------
+  // FIELD MENU
+  // ------------------------------------------------------------
+
   void showColumnMenu(
     TableColumnDefinition column,
   ) {
@@ -377,6 +407,7 @@ class _TablePageState extends State<TablePage> {
                   renameColumn(column);
                 },
               ),
+
               ListTile(
                 leading: const Icon(Icons.arrow_upward),
                 enabled: index > 0,
@@ -384,6 +415,7 @@ class _TablePageState extends State<TablePage> {
                 onTap: index > 0
                     ? () {
                         Navigator.pop(sheetContext);
+
                         moveColumn(
                           column,
                           index - 1,
@@ -391,6 +423,7 @@ class _TablePageState extends State<TablePage> {
                       }
                     : null,
               ),
+
               ListTile(
                 leading: const Icon(Icons.arrow_downward),
                 enabled:
@@ -402,6 +435,7 @@ class _TablePageState extends State<TablePage> {
                             widget.table.columns.length - 1
                         ? () {
                             Navigator.pop(sheetContext);
+
                             moveColumn(
                               column,
                               index + 1,
@@ -409,6 +443,7 @@ class _TablePageState extends State<TablePage> {
                           }
                         : null,
               ),
+
               ListTile(
                 leading: const Icon(
                   Icons.delete_outline,
@@ -416,9 +451,11 @@ class _TablePageState extends State<TablePage> {
                 title: const Text("Delete Field"),
                 onTap: () {
                   Navigator.pop(sheetContext);
+
                   deleteColumn(column);
                 },
               ),
+
               const SizedBox(height: 8),
             ],
           ),
@@ -426,6 +463,10 @@ class _TablePageState extends State<TablePage> {
       },
     );
   }
+
+  // ------------------------------------------------------------
+  // RENAME TABLE
+  // ------------------------------------------------------------
 
   void renameTable() {
     final controller = TextEditingController(
@@ -475,69 +516,9 @@ class _TablePageState extends State<TablePage> {
     });
   }
 
-  Widget buildFieldRow(
-    TableColumnDefinition column,
-    String value,
-  ) {
-    final isPassword = column.name
-        .toLowerCase()
-        .contains("password");
-
-    final displayValue =
-        isPassword && value.isNotEmpty
-            ? "••••••••"
-            : value.isEmpty
-                ? "—"
-                : value;
-
-    return InkWell(
-      onTap: () {
-        if (widget.table.rows.isNotEmpty) {
-          editRow(widget.table.rows.first);
-        }
-      },
-      child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 13,
-        ),
-        child: Row(
-          crossAxisAlignment:
-              CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              flex: 4,
-              child: Text(
-                column.name,
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              flex: 6,
-              child: Text(
-                displayValue,
-                textAlign: TextAlign.end,
-              ),
-            ),
-            const SizedBox(width: 4),
-            IconButton(
-              onPressed: () {
-                showColumnMenu(column);
-              },
-              icon: const Icon(
-                Icons.more_vert,
-                size: 20,
-              ),
-              tooltip: "Field options",
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  // ------------------------------------------------------------
+  // RECORD CARD
+  // ------------------------------------------------------------
 
   Widget buildRowCard(
     TableRowData row,
@@ -559,10 +540,9 @@ class _TablePageState extends State<TablePage> {
                 final value =
                     row.values[column.name] ?? '';
 
-                final isPassword =
-                    column.name
-                        .toLowerCase()
-                        .contains("password");
+                final isPassword = column.name
+                    .toLowerCase()
+                    .contains("password");
 
                 final displayValue =
                     isPassword && value.isNotEmpty
@@ -576,8 +556,7 @@ class _TablePageState extends State<TablePage> {
                     editRow(row);
                   },
                   child: Padding(
-                    padding:
-                        const EdgeInsets.symmetric(
+                    padding: const EdgeInsets.symmetric(
                       horizontal: 16,
                       vertical: 13,
                     ),
@@ -589,36 +568,33 @@ class _TablePageState extends State<TablePage> {
                           flex: 4,
                           child: Text(
                             column.name,
-                            style:
-                                const TextStyle(
-                              fontWeight:
-                                  FontWeight.bold,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
                         ),
+
                         const SizedBox(
                           width: 12,
                         ),
+
                         Expanded(
                           flex: 6,
                           child: Text(
                             displayValue,
-                            textAlign:
-                                TextAlign.end,
+                            textAlign: TextAlign.end,
                           ),
                         ),
+
                         IconButton(
                           onPressed: () {
-                            showColumnMenu(
-                              column,
-                            );
+                            showColumnMenu(column);
                           },
                           icon: const Icon(
                             Icons.more_vert,
                             size: 20,
                           ),
-                          tooltip:
-                              "Field options",
+                          tooltip: "Field options",
                         ),
                       ],
                     ),
@@ -626,10 +602,11 @@ class _TablePageState extends State<TablePage> {
                 );
               },
             ),
+
             const Divider(height: 1),
+
             Padding(
-              padding:
-                  const EdgeInsets.symmetric(
+              padding: const EdgeInsets.symmetric(
                 horizontal: 8,
               ),
               child: Row(
@@ -643,9 +620,9 @@ class _TablePageState extends State<TablePage> {
                     icon: const Icon(
                       Icons.edit,
                     ),
-                    label:
-                        const Text("Edit"),
+                    label: const Text("Edit"),
                   ),
+
                   TextButton.icon(
                     onPressed: () {
                       deleteRow(rowIndex);
@@ -653,8 +630,7 @@ class _TablePageState extends State<TablePage> {
                     icon: const Icon(
                       Icons.delete_outline,
                     ),
-                    label:
-                        const Text("Delete"),
+                    label: const Text("Delete"),
                   ),
                 ],
               ),
@@ -664,6 +640,10 @@ class _TablePageState extends State<TablePage> {
       ),
     );
   }
+
+  // ------------------------------------------------------------
+  // BUILD
+  // ------------------------------------------------------------
 
   @override
   Widget build(BuildContext context) {
@@ -682,16 +662,17 @@ class _TablePageState extends State<TablePage> {
             ),
             tooltip: "Rename Table",
           ),
+
           PopupMenuButton<String>(
             onSelected: (value) {
-              if (value == "add_column") {
+              if (value == "add_field") {
                 addColumn();
               }
             },
             itemBuilder: (context) {
               return const [
                 PopupMenuItem<String>(
-                  value: "add_column",
+                  value: "add_field",
                   child: Text(
                     "Add Field",
                   ),
@@ -701,71 +682,98 @@ class _TablePageState extends State<TablePage> {
           ),
         ],
       ),
+
       body: columns.isEmpty
-          ? const Center(
-              child: Text(
-                "No fields",
+          ? Center(
+              child: ElevatedButton.icon(
+                onPressed: addColumn,
+                icon: const Icon(Icons.add),
+                label: const Text("Add Field"),
               ),
             )
           : widget.table.rows.isEmpty
               ? Center(
                   child: SingleChildScrollView(
-                    padding:
-                        const EdgeInsets.all(24),
+                    padding: const EdgeInsets.all(24),
                     child: Column(
-                      mainAxisSize:
-                          MainAxisSize.min,
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         const Icon(
                           Icons.table_chart_outlined,
                           size: 80,
                         ),
+
                         const SizedBox(
                           height: 20,
                         ),
+
                         const Text(
-                          "Table is empty",
+                          "No records yet",
                           style: TextStyle(
                             fontSize: 18,
                           ),
                         ),
+
                         const SizedBox(
                           height: 20,
                         ),
-                        ElevatedButton.icon(
-                          onPressed: addRow,
-                          icon: const Icon(
-                            Icons.add,
-                          ),
-                          label: const Text(
-                            "Add Row",
-                          ),
+
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            ElevatedButton.icon(
+                              onPressed: addRow,
+                              icon: const Icon(
+                                Icons.add,
+                              ),
+                              label: const Text(
+                                "Add Record",
+                              ),
+                            ),
+
+                            const SizedBox(
+                              width: 12,
+                            ),
+
+                            OutlinedButton.icon(
+                              onPressed: addColumn,
+                              icon: const Icon(
+                                Icons.view_column_outlined,
+                              ),
+                              label: const Text(
+                                "Add Field",
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
                   ),
                 )
               : ListView.builder(
-                  padding:
-                      const EdgeInsets.all(16),
+                  padding: const EdgeInsets.fromLTRB(
+                    16,
+                    16,
+                    16,
+                    120,
+                  ),
                   itemCount:
                       widget.table.rows.length,
-                  itemBuilder:
-                      (context, index) {
+                  itemBuilder: (context, index) {
                     return buildRowCard(
                       widget.table.rows[index],
                       index,
                     );
                   },
                 ),
-      floatingActionButton:
-          FloatingActionButton.extended(
+
+      floatingActionButton: FloatingActionButton.extended(
         onPressed: addRow,
         icon: const Icon(
           Icons.add,
         ),
         label: const Text(
-          "Add Row",
+          "Add Record",
         ),
       ),
     );
