@@ -14,11 +14,17 @@ class TableColumnDefinition {
 }
 
 class TableRowData {
+  final List<TableColumnDefinition> columns;
   final Map<String, String> values;
 
   TableRowData({
     required List<TableColumnDefinition> columns,
-  }) : values = {
+  })  : columns = columns
+            .map(
+              (column) => TableColumnDefinition(column.name),
+            )
+            .toList(),
+        values = {
           for (final column in columns) column.name: '',
         };
 }
@@ -30,6 +36,7 @@ class TreeItem {
 
   final List<TreeItem> children;
 
+  // Default fields used when creating a new record.
   final List<TableColumnDefinition> columns;
 
   final List<TableRowData> rows;
@@ -369,7 +376,7 @@ class _TreePageState extends State<TreePage> {
                         child.type ==
                                 TreeItemType.table
                             ? Text(
-                                "${child.rows.length} rows • ${child.columns.length} columns",
+                                "${child.rows.length} rows",
                               )
                             : null,
                     trailing: const Icon(
