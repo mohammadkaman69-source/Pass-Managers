@@ -23,7 +23,9 @@ class _TablePageState extends State<TablePage> {
     setState(() {
       widget.table.rows.add(
         TableRowData(
-          columns: widget.table.columns,
+          columns: List<TableColumnDefinition>.from(
+            widget.table.columns,
+          ),
         ),
       );
     });
@@ -336,10 +338,12 @@ class _TablePageState extends State<TablePage> {
             ElevatedButton(
               onPressed: () {
                 setState(() {
+                  final columnName = column.name;
+
                   widget.table.columns.remove(column);
 
                   for (final row in widget.table.rows) {
-                    row.values.remove(column.name);
+                    row.values.remove(columnName);
                   }
                 });
 
