@@ -632,6 +632,14 @@ class _TablePageState extends State<TablePage> {
                     ),
                     label: const Text("Delete"),
                   ),
+
+                  TextButton.icon(
+                    onPressed: addColumn,
+                    icon: const Icon(
+                      Icons.add_box_outlined,
+                    ),
+                    label: const Text("Add Field"),
+                  ),
                 ],
               ),
             ),
@@ -718,33 +726,14 @@ class _TablePageState extends State<TablePage> {
                           height: 20,
                         ),
 
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            ElevatedButton.icon(
-                              onPressed: addRow,
-                              icon: const Icon(
-                                Icons.add,
-                              ),
-                              label: const Text(
-                                "Add Record",
-                              ),
-                            ),
-
-                            const SizedBox(
-                              width: 12,
-                            ),
-
-                            OutlinedButton.icon(
-                              onPressed: addColumn,
-                              icon: const Icon(
-                                Icons.view_column_outlined,
-                              ),
-                              label: const Text(
-                                "Add Field",
-                              ),
-                            ),
-                          ],
+                        ElevatedButton.icon(
+                          onPressed: addRow,
+                          icon: const Icon(
+                            Icons.add,
+                          ),
+                          label: const Text(
+                            "Add Record",
+                          ),
                         ),
                       ],
                     ),
@@ -779,3 +768,9 @@ class _TablePageState extends State<TablePage> {
     );
   }
 }
+
+این نسخه فقط همان رفتار را تغییر می‌دهد و بقیه ساختار "table_page.dart" قبلی حفظ شده است.
+
+یک نکته: من "Add Field" را در نوار پایین هر Record گذاشتم، همان‌طور که گفتی. در AppBar هم گزینه "Add Field" قبلی را عمداً نگه داشتم تا ساختار قبلی حذف نشود؛ اگر بعداً بخواهی فقط یک محل برای Add Field داشته باشیم، آن را جداگانه تغییر می‌دهیم.
+
+بعد از جایگذاری، اول "flutter analyze" را اجرا کن. اگر سبز شد، Commit/Push کن و تست کن: ساخت Table → Add Record → مشاهده Add Field کنار Edit/Delete → Add Field → اضافه شدن Field به رکورد موجود.
