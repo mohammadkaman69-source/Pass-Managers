@@ -1,8 +1,11 @@
 import '../database/app_database.dart';
+import '../security/security_manager.dart';
 
 class TreeRepository {
-  final AppDatabase _database =
-      AppDatabase.instance;
+  final AppDatabase _database = AppDatabase.instance;
+
+  final SecurityManager _securityManager =
+      SecurityManager();
 
   Future<List<Map<String, dynamic>>> getItems({
     int? parentId,
@@ -112,8 +115,7 @@ class TreeRepository {
     );
 
     for (final child in children) {
-      final childId =
-          child['id'] as int;
+      final childId = child['id'] as int;
 
       await _deleteItemRecursive(
         db,
@@ -129,8 +131,7 @@ class TreeRepository {
     );
 
     for (final row in rows) {
-      final rowId =
-          row['id'] as int;
+      final rowId = row['id'] as int;
 
       await _deleteRowRecursive(
         db,
@@ -189,8 +190,7 @@ class TreeRepository {
 
     return db.transaction(
       (txn) async {
-        final fieldId =
-            await txn.insert(
+        final fieldId = await txn.insert(
           'table_fields',
           {
             'row_id': rowId,
@@ -201,11 +201,14 @@ class TreeRepository {
           },
         );
 
+        final encryptedValue =
+            await _encryptValue(value);
+
         await txn.insert(
           'table_values',
           {
             'field_id': fieldId,
-            'value': value,
+            'value': encryptedValue,
           },
         );
 
@@ -241,12 +244,30 @@ class TreeRepository {
   ) async {
     final db = await _database.database;
 
-    return db.query(
+    final records = await db.query(
       'table_values',
       where: 'field_id = ?',
       whereArgs: [fieldId],
       orderBy: 'id ASC',
     );
+
+    final decryptedRecords =
+        <Map<String, dynamic>>[];
+
+    for (final record in records) {
+      final encryptedValue =
+          record['value'] as String;
+
+      final decryptedValue =
+          await _decryptValue(encryptedValue);
+
+      decryptedRecords.add({
+        ...record,
+        'value': decryptedValue,
+      });
+    }
+
+    return decryptedRecords;
   }
 
   Future<void> updateFieldValue({
@@ -257,8 +278,10 @@ class TreeRepository {
 
     await db.transaction(
       (txn) async {
-        final existing =
-            await txn.query(
+        final encryptedValue =
+            await _encryptValue(value);
+
+        final existing = await txn.query(
           'table_values',
           columns: ['id'],
           where: 'field_id = ?',
@@ -271,7 +294,7 @@ class TreeRepository {
             'table_values',
             {
               'field_id': fieldId,
-              'value': value,
+              'value': encryptedValue,
             },
           );
         } else {
@@ -281,15 +304,14 @@ class TreeRepository {
           await txn.update(
             'table_values',
             {
-              'value': value,
+              'value': encryptedValue,
             },
             where: 'id = ?',
             whereArgs: [valueId],
           );
         }
 
-        final field =
-            await txn.query(
+        final field = await txn.query(
           'table_fields',
           columns: ['row_id'],
           where: 'id = ?',
@@ -352,8 +374,7 @@ class TreeRepository {
 
     await db.transaction(
       (txn) async {
-        final field =
-            await txn.query(
+        final field = await txn.query(
           'table_fields',
           columns: [
             'row_id',
@@ -520,5 +541,55 @@ class TreeRepository {
       where: 'id = ?',
       whereArgs: [rowId],
     );
+  }
+
+  Future<String> _encryptValue(
+    String value,
+  ) async {
+    if (!_securityManager.isUnlocked) {
+      throw StateError(
+        'Security manager is locked.',
+      );
+    }
+
+    final key =
+        _securityManager.encryptionKey;
+
+    try {
+      final crypto =
+          _securityManager.cryptoService;
+
+      return crypto.encrypt(
+        plainText: value,
+        key: crypto.secretKeyFromBytes(key),
+      );
+    } finally {
+      key.fillRange(0, key.length, 0);
+    }
+  }
+
+  Future<String> _decryptValue(
+    String encryptedValue,
+  ) async {
+    if (!_securityManager.isUnlocked) {
+      throw StateError(
+        'Security manager is locked.',
+      );
+    }
+
+    final key =
+        _securityManager.encryptionKey;
+
+    try {
+      final crypto =
+          _securityManager.cryptoService;
+
+      return crypto.decrypt(
+        encryptedText: encryptedValue,
+        key: crypto.secretKeyFromBytes(key),
+      );
+    } finally {
+      key.fillRange(0, key.length, 0);
+    }
   }
 }
