@@ -205,6 +205,10 @@ class _HomePageState extends State<HomePage> {
                     _itemIds[item] = id;
                   });
 
+                  if (!dialogContext.mounted) {
+                    return;
+                  }
+
                   Navigator.pop(
                     dialogContext,
                   );
@@ -296,6 +300,10 @@ class _HomePageState extends State<HomePage> {
                     items.add(item);
                     _itemIds[item] = id;
                   });
+
+                  if (!dialogContext.mounted) {
+                    return;
+                  }
 
                   Navigator.pop(
                     dialogContext,
@@ -391,6 +399,10 @@ class _HomePageState extends State<HomePage> {
                   setState(() {
                     item.name = name;
                   });
+
+                  if (!dialogContext.mounted) {
+                    return;
+                  }
 
                   Navigator.pop(
                     dialogContext,
@@ -594,15 +606,6 @@ class _HomePageState extends State<HomePage> {
       }
     });
 
-    // The ID is intentionally retained
-    // in _itemIds for the next persistence
-    // stage.
-    //
-    // Nested Folder/Table persistence
-    // will be connected when TreePage is
-    // migrated to TreeRepository.
-    //
-    // Do not remove this mapping.
     if (id != null) {
       _itemIds[item] = id;
     }
