@@ -261,7 +261,9 @@ class TreeRepository {
           record['value'] as String;
 
       final decryptedValue =
-          await _decryptValue(encryptedValue);
+          await _decryptValue(
+        encryptedValue,
+      );
 
       decryptedRecords.add({
         ...record,
@@ -558,15 +560,19 @@ class TreeRepository {
         _securityManager.encryptionKey;
 
     try {
-      final crypto =
-          _securityManager.cryptoService;
+      final secretKey =
+          SecretKey(key);
 
-      return crypto.encrypt(
+      return await _securityManager.cryptoService.encrypt(
         plainText: value,
-        key: SecretKey(key),
+        key: secretKey,
       );
     } finally {
-      key.fillRange(0, key.length, 0);
+      key.fillRange(
+        0,
+        key.length,
+        0,
+      );
     }
   }
 
@@ -583,15 +589,19 @@ class TreeRepository {
         _securityManager.encryptionKey;
 
     try {
-      final crypto =
-          _securityManager.cryptoService;
+      final secretKey =
+          SecretKey(key);
 
-      return crypto.decrypt(
+      return await _securityManager.cryptoService.decrypt(
         encryptedText: encryptedValue,
-        key: SecretKey(key),
+        key: secretKey,
       );
     } finally {
-      key.fillRange(0, key.length, 0);
+      key.fillRange(
+        0,
+        key.length,
+        0,
+      );
     }
   }
 }
