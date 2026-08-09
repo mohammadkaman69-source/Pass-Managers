@@ -4,11 +4,23 @@ class TreeRepository {
   final AppDatabase _database =
       AppDatabase.instance;
 
-  Future<List<Map<String, dynamic>>> getItems() async {
+  Future<List<Map<String, dynamic>>> getItems({
+    int? parentId,
+  }) async {
     final db = await _database.database;
+
+    if (parentId == null) {
+      return db.query(
+        'tree_items',
+        where: 'parent_id IS NULL',
+        orderBy: 'id ASC',
+      );
+    }
 
     return db.query(
       'tree_items',
+      where: 'parent_id = ?',
+      whereArgs: [parentId],
       orderBy: 'id ASC',
     );
   }
@@ -92,8 +104,7 @@ class TreeRepository {
     dynamic db,
     int itemId,
   ) async {
-    final children =
-        await db.query(
+    final children = await db.query(
       'tree_items',
       columns: ['id'],
       where: 'parent_id = ?',
@@ -110,8 +121,7 @@ class TreeRepository {
       );
     }
 
-    final rows =
-        await db.query(
+    final rows = await db.query(
       'table_rows',
       columns: ['id'],
       where: 'table_item_id = ?',
@@ -291,12 +301,14 @@ class TreeRepository {
           final rowId =
               field.first['row_id'] as int;
 
+          final now =
+              DateTime.now()
+                  .millisecondsSinceEpoch;
+
           await txn.update(
             'table_fields',
             {
-              'updated_at':
-                  DateTime.now()
-                      .millisecondsSinceEpoch,
+              'updated_at': now,
             },
             where: 'id = ?',
             whereArgs: [fieldId],
@@ -305,9 +317,7 @@ class TreeRepository {
           await txn.update(
             'table_rows',
             {
-              'updated_at':
-                  DateTime.now()
-                      .millisecondsSinceEpoch,
+              'updated_at': now,
             },
             where: 'id = ?',
             whereArgs: [rowId],
@@ -376,6 +386,10 @@ class TreeRepository {
           whereArgs: [fieldId],
         );
 
+        final now =
+            DateTime.now()
+                .millisecondsSinceEpoch;
+
         await txn.rawUpdate(
           '''
           UPDATE table_fields
@@ -385,8 +399,7 @@ class TreeRepository {
             AND position > ?
           ''',
           [
-            DateTime.now()
-                .millisecondsSinceEpoch,
+            now,
             rowId,
             deletedPosition,
           ],
@@ -395,9 +408,7 @@ class TreeRepository {
         await txn.update(
           'table_rows',
           {
-            'updated_at':
-                DateTime.now()
-                    .millisecondsSinceEpoch,
+            'updated_at': now,
           },
           where: 'id = ?',
           whereArgs: [rowId],
@@ -427,9 +438,7 @@ class TreeRepository {
               'updated_at': now,
             },
             where: 'id = ?',
-            whereArgs: [
-              fieldIds[i],
-            ],
+            whereArgs: [fieldIds[i]],
           );
         }
 
@@ -442,16 +451,13 @@ class TreeRepository {
           'table_fields',
           columns: ['row_id'],
           where: 'id = ?',
-          whereArgs: [
-            fieldIds.first,
-          ],
+          whereArgs: [fieldIds.first],
           limit: 1,
         );
 
         if (firstField.isNotEmpty) {
           final rowId =
-              firstField.first['row_id']
-                  as int;
+              firstField.first['row_id'] as int;
 
           await txn.update(
             'table_rows',
@@ -485,8 +491,7 @@ class TreeRepository {
     dynamic db,
     int rowId,
   ) async {
-    final fields =
-        await db.query(
+    final fields = await db.query(
       'table_fields',
       columns: ['id'],
       where: 'row_id = ?',
