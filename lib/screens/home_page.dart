@@ -1,55 +1,73 @@
 import 'package:flutter/material.dart';
 
-import '../security/security_manager.dart';
-import 'home_page.dart';
+import '../models/tree_item.dart';
+import '../repositories/tree_repository.dart';
+import 'table_page.dart';
+import 'tree_page.dart';
 
-class LoginPage extends StatefulWidget {
-  const LoginPage({
+class HomePage extends StatefulWidget {
+  const HomePage({
     super.key,
   });
 
   @override
-  State<LoginPage> createState() => _LoginPageState();
+  State<HomePage> createState() => _HomePageState();
 }
 
-class _LoginPageState extends State<LoginPage> {
-  final TextEditingController passwordController =
-      TextEditingController();
+class _HomePageState extends State<HomePage> {
+  final TreeRepository _repository = TreeRepository();
 
-  final TextEditingController confirmController =
-      TextEditingController();
+  final List<TreeItem> items = [];
 
-  final SecurityManager _securityManager =
-      SecurityManager();
+  final Map<TreeItem, int> _itemIds = {};
 
-  bool createMode = false;
   bool _isLoading = true;
-  bool _isSubmitting = false;
 
   @override
   void initState() {
     super.initState();
-    _checkPasswordStatus();
+    _loadItems();
   }
 
-  @override
-  void dispose() {
-    passwordController.dispose();
-    confirmController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _checkPasswordStatus() async {
+  Future<void> _loadItems() async {
     try {
-      final exists =
-          await _securityManager.isMasterPasswordConfigured();
+      final rows = await _repository.getItems();
+
+      final loadedItems = <TreeItem>[];
+      final loadedIds = <TreeItem, int>{};
+
+      for (final row in rows) {
+        final id = row['id'] as int;
+        final name = row['name'] as String;
+        final type = row['type'] as String;
+
+        final item = type == 'table'
+            ? TreeItem.table(
+                name,
+                id: id,
+              )
+            : TreeItem.folder(
+                name,
+                id: id,
+              );
+
+        loadedItems.add(item);
+        loadedIds[item] = id;
+      }
 
       if (!mounted) {
         return;
       }
 
       setState(() {
-        createMode = !exists;
+        items
+          ..clear()
+          ..addAll(loadedItems);
+
+        _itemIds
+          ..clear()
+          ..addAll(loadedIds);
+
         _isLoading = false;
       });
     } catch (error) {
@@ -61,98 +79,13 @@ class _LoginPageState extends State<LoginPage> {
         _isLoading = false;
       });
 
-      _showMessage(
-        'Failed to check security status: $error',
+      _showError(
+        'Failed to load data: $error',
       );
     }
   }
 
-  bool _validatePassword(String password) {
-    if (password.length < 8) {
-      return false;
-    }
-
-    final hasLetter =
-        RegExp(r'[A-Za-z]').hasMatch(password);
-
-    final hasNumber =
-        RegExp(r'[0-9]').hasMatch(password);
-
-    return hasLetter && hasNumber;
-  }
-
-  Future<void> _submit() async {
-    if (_isSubmitting) {
-      return;
-    }
-
-    final password =
-        passwordController.text;
-
-    if (password.isEmpty) {
-      _showMessage(
-        'Enter Master Password',
-      );
-      return;
-    }
-
-    if (createMode) {
-      if (!_validatePassword(password)) {
-        _showMessage(
-          'Password must be at least 8 characters and contain letters and numbers',
-        );
-        return;
-      }
-
-      if (password != confirmController.text) {
-        _showMessage(
-          'Passwords do not match',
-        );
-        return;
-      }
-    }
-
-    setState(() {
-      _isSubmitting = true;
-    });
-
-    try {
-      if (createMode) {
-        await _securityManager.setupMasterPassword(
-          password,
-        );
-
-        _openHome();
-        return;
-      }
-
-      final unlocked =
-          await _securityManager.unlock(
-        password,
-      );
-
-      if (!unlocked) {
-        _showMessage(
-          'Wrong Master Password',
-        );
-        return;
-      }
-
-      _openHome();
-    } catch (error) {
-      _showMessage(
-        'Security operation failed: $error',
-      );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isSubmitting = false;
-        });
-      }
-    }
-  }
-
-  void _showMessage(String message) {
+  void _showError(String message) {
     if (!mounted) {
       return;
     }
@@ -164,126 +97,471 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  void _openHome() {
-    if (!mounted) {
+  void createItem() {
+    showModalBottomSheet(
+      context: context,
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(
+                  Icons.create_new_folder_outlined,
+                ),
+                title: const Text(
+                  'Create Folder',
+                ),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  createFolder();
+                },
+              ),
+              ListTile(
+                leading: const Icon(
+                  Icons.table_chart_outlined,
+                ),
+                title: const Text(
+                  'Create Table',
+                ),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  createTable();
+                },
+              ),
+              const SizedBox(height: 10),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<String?> _askName({
+    required String title,
+    required String label,
+    String? initialValue,
+  }) async {
+    final controller = TextEditingController(
+      text: initialValue ?? '',
+    );
+
+    final result = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Text(title),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            decoration: InputDecoration(
+              labelText: label,
+              border: const OutlineInputBorder(),
+            ),
+            onSubmitted: (_) {
+              final value = controller.text.trim();
+
+              if (value.isNotEmpty) {
+                Navigator.pop(
+                  dialogContext,
+                  value,
+                );
+              }
+            },
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+              },
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final value = controller.text.trim();
+
+                if (value.isEmpty) {
+                  return;
+                }
+
+                Navigator.pop(
+                  dialogContext,
+                  value,
+                );
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        );
+      },
+    );
+
+    controller.dispose();
+
+    return result;
+  }
+
+  Future<void> createFolder() async {
+    final name = await _askName(
+      title: 'Create Folder',
+      label: 'Folder name',
+    );
+
+    if (name == null || name.isEmpty) {
       return;
     }
 
-    Navigator.pushReplacement(
+    try {
+      final id = await _repository.createFolder(
+        name: name,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      final item = TreeItem.folder(
+        name,
+        id: id,
+      );
+
+      setState(() {
+        items.add(item);
+        _itemIds[item] = id;
+      });
+    } catch (error) {
+      _showError(
+        'Failed to create folder: $error',
+      );
+    }
+  }
+
+  Future<void> createTable() async {
+    final name = await _askName(
+      title: 'Create Table',
+      label: 'Table name',
+    );
+
+    if (name == null || name.isEmpty) {
+      return;
+    }
+
+    try {
+      final id = await _repository.createTable(
+        name: name,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      final item = TreeItem.table(
+        name,
+        id: id,
+      );
+
+      setState(() {
+        items.add(item);
+        _itemIds[item] = id;
+      });
+    } catch (error) {
+      _showError(
+        'Failed to create table: $error',
+      );
+    }
+  }
+
+  Future<void> renameItem(
+    TreeItem item,
+  ) async {
+    final id = _itemIds[item];
+
+    if (id == null) {
+      return;
+    }
+
+    final name = await _askName(
+      title: 'Rename',
+      label: 'Name',
+      initialValue: item.name,
+    );
+
+    if (name == null || name.isEmpty) {
+      return;
+    }
+
+    try {
+      await _repository.renameItem(
+        id: id,
+        name: name,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        item.name = name;
+      });
+    } catch (error) {
+      _showError(
+        'Failed to rename item: $error',
+      );
+    }
+  }
+
+  Future<void> deleteItem(
+    TreeItem item,
+  ) async {
+    final id = _itemIds[item];
+
+    if (id == null) {
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Delete'),
+          content: Text(
+            'Delete "${item.name}" and everything inside it?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(
+                  dialogContext,
+                  false,
+                );
+              },
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(
+                  dialogContext,
+                  true,
+                );
+              },
+              child: const Text('Delete'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) {
+      return;
+    }
+
+    try {
+      await _repository.deleteItem(id);
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        items.remove(item);
+        _itemIds.remove(item);
+      });
+    } catch (error) {
+      _showError(
+        'Failed to delete item: $error',
+      );
+    }
+  }
+
+  void showItemMenu(
+    TreeItem item,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.edit),
+                title: const Text('Rename'),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  renameItem(item);
+                },
+              ),
+              ListTile(
+                leading: const Icon(
+                  Icons.delete_outline,
+                ),
+                title: const Text('Delete'),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  deleteItem(item);
+                },
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void openItem(TreeItem item) {
+    final id = _itemIds[item];
+
+    if (id == null) {
+      return;
+    }
+
+    if (item.type == TreeItemType.table) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) {
+            return TablePage(
+              table: item,
+              tableId: id,
+              onDelete: () {
+                if (!mounted) {
+                  return;
+                }
+
+                setState(() {
+                  items.remove(item);
+                  _itemIds.remove(item);
+                });
+              },
+            );
+          },
+        ),
+      ).then((_) {
+        if (mounted) {
+          setState(() {});
+        }
+      });
+
+      return;
+    }
+
+    Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => const HomePage(),
+        builder: (_) {
+          return TreePage(
+            item: item,
+            itemId: id,
+            onDelete: () async {
+              await _repository.deleteItem(id);
+
+              if (!mounted) {
+                return;
+              }
+
+              setState(() {
+                items.remove(item);
+                _itemIds.remove(item);
+              });
+            },
+          );
+        },
       ),
-    );
+    ).then((_) {
+      if (mounted) {
+        setState(() {});
+      }
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
-      return const Scaffold(
-        body: Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
-    }
-
     return Scaffold(
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(30),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  'Pass Managers',
-                  style: TextStyle(
-                    fontSize: 32,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 30),
-                TextField(
-                  controller: passwordController,
-                  obscureText: true,
-                  enabled: !_isSubmitting,
-                  textInputAction: createMode
-                      ? TextInputAction.next
-                      : TextInputAction.done,
-                  onSubmitted: (_) {
-                    if (!createMode) {
-                      _submit();
-                    }
-                  },
-                  decoration:
-                      const InputDecoration(
-                    labelText: 'Master Password',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                if (createMode) ...[
-                  const SizedBox(height: 20),
-                  TextField(
-                    controller: confirmController,
-                    obscureText: true,
-                    enabled: !_isSubmitting,
-                    textInputAction:
-                        TextInputAction.done,
-                    onSubmitted: (_) {
-                      _submit();
-                    },
-                    decoration:
-                        const InputDecoration(
-                      labelText:
-                          'Confirm Master Password',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 25),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed:
-                        _isSubmitting ? null : _submit,
-                    child: _isSubmitting
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child:
-                                CircularProgressIndicator(
-                              strokeWidth: 2,
-                            ),
-                          )
-                        : Text(
-                            createMode
-                                ? 'Create'
-                                : 'Login',
-                          ),
-                  ),
-                ),
-                if (!createMode) ...[
-                  const SizedBox(height: 25),
-                  const Text(
-                    'Forgot Password?',
-                    style: TextStyle(
-                      color: Colors.grey,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Password recovery will be available soon',
-                    style: TextStyle(
-                      color: Colors.grey,
-                      fontSize: 12,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ],
-            ),
-          ),
+      appBar: AppBar(
+        title: const Text(
+          'Pass Managers',
         ),
+      ),
+      body: _isLoading
+          ? const Center(
+              child: CircularProgressIndicator(),
+            )
+          : items.isEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.folder_open,
+                        size: 80,
+                      ),
+                      const SizedBox(height: 20),
+                      const Text(
+                        'No items created yet',
+                        style: TextStyle(
+                          fontSize: 18,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      ElevatedButton.icon(
+                        onPressed: createItem,
+                        icon: const Icon(Icons.add),
+                        label: const Text('Create'),
+                      ),
+                    ],
+                  ),
+                )
+              : ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: items.length,
+                  itemBuilder: (context, index) {
+                    final item = items[index];
+
+                    final isTable =
+                        item.type == TreeItemType.table;
+
+                    return Card(
+                      child: ListTile(
+                        leading: Icon(
+                          isTable
+                              ? Icons.table_chart
+                              : Icons.folder,
+                        ),
+                        title: Text(item.name),
+                        subtitle: isTable
+                            ? Text(
+                                '${item.rows.length} rows • '
+                                '${item.columns.length} columns',
+                              )
+                            : null,
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              onPressed: () {
+                                showItemMenu(item);
+                              },
+                              icon: const Icon(
+                                Icons.more_vert,
+                              ),
+                              tooltip: 'Options',
+                            ),
+                            const Icon(
+                              Icons.chevron_right,
+                            ),
+                          ],
+                        ),
+                        onTap: () {
+                          openItem(item);
+                        },
+                      ),
+                    );
+                  },
+                ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: createItem,
+        child: const Icon(Icons.add),
       ),
     );
   }
