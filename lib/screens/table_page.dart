@@ -20,74 +20,67 @@ class TablePage extends StatefulWidget {
   });
 
   @override
-  State<TablePage> createState() =>
-      _TablePageState();
+  State<TablePage> createState() => _TablePageState();
 }
 
-class _TablePageState
-    extends State<TablePage> {
-  final TreeRepository _repository =
-      TreeRepository();
+class _TablePageState extends State<TablePage> {
+  final TreeRepository _repository = TreeRepository();
 
   bool _isLoading = true;
+
+  final Map<TableRowData, int> _rowIds = {};
 
   @override
   void initState() {
     super.initState();
-
     _loadRows();
+  }
+
+  void _showError(String message) {
+    if (!mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+      ),
+    );
   }
 
   Future<void> _loadRows() async {
     try {
-      final rowRecords =
-          await _repository.getRows(
+      final rowRecords = await _repository.getRows(
         widget.tableId,
       );
 
-      final loadedRows =
-          <TableRowData>[];
+      final loadedRows = <TableRowData>[];
+      final loadedIds = <TableRowData, int>{};
 
-      for (final rowRecord
-          in rowRecords) {
-        final rowId =
-            rowRecord['id'] as int;
+      for (final rowRecord in rowRecords) {
+        final rowId = rowRecord['id'] as int;
 
         final fieldRecords =
-            await _repository
-                .getFields(rowId);
+            await _repository.getFields(rowId);
 
-        final columns =
-            <TableColumnDefinition>[];
+        final columns = <TableColumnDefinition>[];
+        final values = <String, String>{};
 
-        final values =
-            <String, String>{};
-
-        for (final fieldRecord
-            in fieldRecords) {
-          final fieldId =
-              fieldRecord['id'] as int;
-
-          final name =
-              fieldRecord['name'] as String;
+        for (final fieldRecord in fieldRecords) {
+          final fieldId = fieldRecord['id'] as int;
+          final name = fieldRecord['name'] as String;
 
           final valueRecords =
-              await _repository
-                  .getValues(fieldId);
+              await _repository.getValues(fieldId);
 
           var value = '';
 
-          if (valueRecords
-              .isNotEmpty) {
-            value =
-                valueRecords.first['value']
-                    as String;
+          if (valueRecords.isNotEmpty) {
+            value = valueRecords.first['value'] as String;
           }
 
           columns.add(
-            TableColumnDefinition(
-              name,
-            ),
+            TableColumnDefinition(name),
           );
 
           values[name] = value;
@@ -95,25 +88,23 @@ class _TablePageState
 
         if (columns.isEmpty) {
           columns.addAll(
-            widget.table.columns
-                .map(
+            widget.table.columns.map(
               (column) => column.copy(),
             ),
           );
 
-          for (final column
-              in columns) {
-            values[column.name] =
-                '';
+          for (final column in columns) {
+            values[column.name] = '';
           }
         }
 
-        loadedRows.add(
-          TableRowData(
-            columns: columns,
-            values: values,
-          ),
+        final row = TableRowData(
+          columns: columns,
+          values: values,
         );
+
+        loadedRows.add(row);
+        loadedIds[row] = rowId;
       }
 
       if (!mounted) {
@@ -125,6 +116,10 @@ class _TablePageState
           ..clear()
           ..addAll(loadedRows);
 
+        _rowIds
+          ..clear()
+          ..addAll(loadedIds);
+
         _isLoading = false;
       });
     } catch (error) {
@@ -136,44 +131,30 @@ class _TablePageState
         _isLoading = false;
       });
 
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Failed to load table: $error',
-          ),
-        ),
+      _showError(
+        'Failed to load table: $error',
       );
     }
   }
 
   Future<void> addRow() async {
     try {
-      final rowId =
-          await _repository.createRow(
+      final rowId = await _repository.createRow(
         tableId: widget.tableId,
       );
 
-      final row =
-          TableRowData(
-        columns:
-            widget.table.columns,
+      final row = TableRowData(
+        columns: widget.table.columns,
       );
 
-      for (var i = 0;
-          i < row.columns.length;
-          i++) {
-        await _repository
-            .createField(
+      for (var i = 0; i < row.columns.length; i++) {
+        final column = row.columns[i];
+
+        await _repository.createField(
           rowId: rowId,
-          name:
-              row.columns[i].name,
+          name: column.name,
           position: i,
-          value:
-              row.values[
-                      row.columns[i].name] ??
-                  '',
+          value: row.values[column.name] ?? '',
         );
       }
 
@@ -183,20 +164,11 @@ class _TablePageState
 
       setState(() {
         widget.table.rows.add(row);
+        _rowIds[row] = rowId;
       });
     } catch (error) {
-      if (!mounted) {
-        return;
-      }
-
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Failed to add record: $error',
-          ),
-        ),
+      _showError(
+        'Failed to add record: $error',
       );
     }
   }
@@ -207,57 +179,41 @@ class _TablePageState
     final controllers =
         <String, TextEditingController>{};
 
-    for (final column
-        in row.columns) {
+    for (final column in row.columns) {
       controllers[column.name] =
           TextEditingController(
-        text:
-            row.values[column.name] ??
-                '',
+        text: row.values[column.name] ?? '',
       );
     }
 
-    await showDialog(
+    final result = await showDialog<bool>(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          title: const Text(
-            'Edit Record',
-          ),
+          title: const Text('Edit Record'),
           content: SizedBox(
             width: 500,
-            child:
-                SingleChildScrollView(
+            child: SingleChildScrollView(
               child: Column(
-                children:
-                    row.columns.map(
+                children: row.columns.map(
                   (column) {
-                    final isPassword =
-                        column.name
-                            .toLowerCase()
-                            .contains(
-                              'password',
-                            );
+                    final isPassword = column.name
+                        .toLowerCase()
+                        .contains('password');
 
                     return Padding(
-                      padding:
-                          const EdgeInsets
-                              .only(
+                      padding: const EdgeInsets.only(
                         bottom: 14,
                       ),
                       child: TextField(
                         controller:
-                            controllers[
-                                column.name],
-                        obscureText:
-                            isPassword,
+                            controllers[column.name],
+                        obscureText: isPassword,
                         decoration:
                             const InputDecoration(
-                          border:
-                              OutlineInputBorder(),
+                          border: OutlineInputBorder(),
                         ).copyWith(
-                          labelText:
-                              column.name,
+                          labelText: column.name,
                         ),
                       ),
                     );
@@ -271,121 +227,74 @@ class _TablePageState
               onPressed: () {
                 Navigator.pop(
                   dialogContext,
+                  false,
                 );
               },
-              child: const Text(
-                'Cancel',
-              ),
+              child: const Text('Cancel'),
             ),
             ElevatedButton(
-              onPressed: () async {
-                try {
-                  for (final column
-                      in row.columns) {
-                    final value =
-                        controllers[
-                                column.name]!
-                            .text;
-
-                    row.values[
-                            column.name] =
-                        value;
-                  }
-
-                  /*
-                   * The current row object does not
-                   * carry SQLite field IDs.
-                   *
-                   * Reloading after save guarantees
-                   * that the UI and database remain
-                   * synchronized.
-                   */
-                  await _saveRow(
-                    row,
-                  );
-
-                  if (!mounted) {
-                    return;
-                  }
-
-                  Navigator.pop(
-                    dialogContext,
-                  );
-
-                  setState(() {});
-                } catch (error) {
-                  if (!mounted) {
-                    return;
-                  }
-
-                  ScaffoldMessenger.of(
-                    context,
-                  ).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        'Failed to save record: $error',
-                      ),
-                    ),
-                  );
+              onPressed: () {
+                for (final column in row.columns) {
+                  row.values[column.name] =
+                      controllers[column.name]!.text;
                 }
+
+                Navigator.pop(
+                  dialogContext,
+                  true,
+                );
               },
-              child: const Text(
-                'Save',
-              ),
+              child: const Text('Save'),
             ),
           ],
         );
       },
     );
 
-    for (final controller
-        in controllers.values) {
+    for (final controller in controllers.values) {
       controller.dispose();
+    }
+
+    if (result != true) {
+      return;
+    }
+
+    try {
+      await _saveRow(row);
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {});
+    } catch (error) {
+      _showError(
+        'Failed to save record: $error',
+      );
     }
   }
 
   Future<void> _saveRow(
     TableRowData row,
   ) async {
-    final rowRecords =
-        await _repository.getRows(
-      widget.tableId,
-    );
+    final rowId = _rowIds[row];
 
-    /*
-     * Rows are loaded in the same database
-     * order as widget.table.rows.
-     */
-    final index =
-        widget.table.rows.indexOf(row);
-
-    if (index < 0 ||
-        index >= rowRecords.length) {
-      return;
+    if (rowId == null) {
+      throw StateError(
+        'Row ID was not found.',
+      );
     }
 
-    final rowId =
-        rowRecords[index]['id'] as int;
-
     final fieldRecords =
-        await _repository.getFields(
-      rowId,
-    );
+        await _repository.getFields(rowId);
 
-    for (final fieldRecord
-        in fieldRecords) {
-      final fieldId =
-          fieldRecord['id'] as int;
+    for (final fieldRecord in fieldRecords) {
+      final fieldId = fieldRecord['id'] as int;
+      final fieldName = fieldRecord['name'] as String;
 
-      final fieldName =
-          fieldRecord['name'] as String;
+      final value = row.values[fieldName] ?? '';
 
-      final value =
-          row.values[fieldName] ??
-              '';
-
-      await _repository
-          .updateFieldValue(
+      await _repository.updateFieldValue(
         fieldId: fieldId,
         value: value,
       );
@@ -395,14 +304,16 @@ class _TablePageState
   Future<void> deleteRow(
     int index,
   ) async {
-    final confirmed =
-        await showDialog<bool>(
+    if (index < 0 ||
+        index >= widget.table.rows.length) {
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          title: const Text(
-            'Delete Record',
-          ),
+          title: const Text('Delete Record'),
           content: const Text(
             'Are you sure you want to delete this record?',
           ),
@@ -414,9 +325,7 @@ class _TablePageState
                   false,
                 );
               },
-              child: const Text(
-                'Cancel',
-              ),
+              child: const Text('Cancel'),
             ),
             ElevatedButton(
               onPressed: () {
@@ -425,9 +334,7 @@ class _TablePageState
                   true,
                 );
               },
-              child: const Text(
-                'Delete',
-              ),
+              child: const Text('Delete'),
             ),
           ],
         );
@@ -438,45 +345,30 @@ class _TablePageState
       return;
     }
 
+    final row = widget.table.rows[index];
+    final rowId = _rowIds[row];
+
+    if (rowId == null) {
+      _showError(
+        'Row ID was not found.',
+      );
+      return;
+    }
+
     try {
-      final rowRecords =
-          await _repository.getRows(
-        widget.tableId,
-      );
-
-      if (index < 0 ||
-          index >= rowRecords.length) {
-        return;
-      }
-
-      final rowId =
-          rowRecords[index]['id'] as int;
-
-      await _repository.deleteRow(
-        rowId,
-      );
+      await _repository.deleteRow(rowId);
 
       if (!mounted) {
         return;
       }
 
       setState(() {
-        widget.table.rows
-            .removeAt(index);
+        widget.table.rows.removeAt(index);
+        _rowIds.remove(row);
       });
     } catch (error) {
-      if (!mounted) {
-        return;
-      }
-
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Failed to delete record: $error',
-          ),
-        ),
+      _showError(
+        'Failed to delete record: $error',
       );
     }
   }
@@ -484,144 +376,43 @@ class _TablePageState
   Future<void> addColumn(
     TableRowData row,
   ) async {
-    final controller =
-        TextEditingController();
+    final controller = TextEditingController();
 
-    await showDialog(
+    final name = await showDialog<String>(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          title: const Text(
-            'Add Field',
-          ),
+          title: const Text('Add Field'),
           content: TextField(
             controller: controller,
             autofocus: true,
-            decoration:
-                const InputDecoration(
+            decoration: const InputDecoration(
               labelText: 'Field name',
-              hintText:
-                  'Example: Volume',
-              border:
-                  OutlineInputBorder(),
+              hintText: 'Example: Volume',
+              border: OutlineInputBorder(),
             ),
           ),
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.pop(
-                  dialogContext,
-                );
+                Navigator.pop(dialogContext);
               },
-              child: const Text(
-                'Cancel',
-              ),
+              child: const Text('Cancel'),
             ),
             ElevatedButton(
-              onPressed: () async {
-                final name =
-                    controller.text.trim();
+              onPressed: () {
+                final value = controller.text.trim();
 
-                if (name.isEmpty) {
+                if (value.isEmpty) {
                   return;
                 }
 
-                final exists =
-                    row.columns.any(
-                  (column) =>
-                      column.name
-                          .toLowerCase() ==
-                      name.toLowerCase(),
+                Navigator.pop(
+                  dialogContext,
+                  value,
                 );
-
-                if (exists) {
-                  ScaffoldMessenger.of(
-                    context,
-                  ).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        'A field with this name already exists in this record.',
-                      ),
-                    ),
-                  );
-
-                  return;
-                }
-
-                try {
-                  final rowRecords =
-                      await _repository
-                          .getRows(
-                    widget.tableId,
-                  );
-
-                  final rowIndex =
-                      widget.table.rows
-                          .indexOf(row);
-
-                  if (rowIndex <
-                          0 ||
-                      rowIndex >=
-                          rowRecords
-                              .length) {
-                    return;
-                  }
-
-                  final rowId =
-                      rowRecords[rowIndex]
-                          ['id'] as int;
-
-                  final position =
-                      row.columns.length;
-
-                  await _repository
-                      .createField(
-                    rowId: rowId,
-                    name: name,
-                    position:
-                        position,
-                  );
-
-                  if (!mounted) {
-                    return;
-                  }
-
-                  setState(() {
-                    row.columns.add(
-                      TableColumnDefinition(
-                        name,
-                      ),
-                    );
-
-                    row.values[name] =
-                        '';
-                  });
-
-                  if (dialogContext
-                      .mounted) {
-                    Navigator.pop(
-                      dialogContext,
-                    );
-                  }
-                } catch (error) {
-                  if (!mounted) {
-                    return;
-                  }
-
-                  ScaffoldMessenger.of(
-                    context,
-                  ).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        'Failed to add field: $error',
-                      ),
-                    ),
-                  );
-                }
               },
-              child: const Text(
-                'Add Field',
-              ),
+              child: const Text('Add Field'),
             ),
           ],
         );
@@ -629,197 +420,105 @@ class _TablePageState
     );
 
     controller.dispose();
+
+    if (name == null || name.isEmpty) {
+      return;
+    }
+
+    final exists = row.columns.any(
+      (column) =>
+          column.name.toLowerCase() ==
+          name.toLowerCase(),
+    );
+
+    if (exists) {
+      _showError(
+        'A field with this name already exists in this record.',
+      );
+      return;
+    }
+
+    final rowId = _rowIds[row];
+
+    if (rowId == null) {
+      _showError(
+        'Row ID was not found.',
+      );
+      return;
+    }
+
+    try {
+      final position = row.columns.length;
+
+      await _repository.createField(
+        rowId: rowId,
+        name: name,
+        position: position,
+        value: '',
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        row.columns.add(
+          TableColumnDefinition(name),
+        );
+
+        row.values[name] = '';
+      });
+    } catch (error) {
+      _showError(
+        'Failed to add field: $error',
+      );
+    }
   }
 
   Future<void> renameColumn(
     TableRowData row,
     TableColumnDefinition column,
   ) async {
-    final oldName =
-        column.name;
+    final oldName = column.name;
 
-    final controller =
-        TextEditingController(
+    final controller = TextEditingController(
       text: oldName,
     );
 
-    await showDialog(
+    final newName = await showDialog<String>(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          title: const Text(
-            'Rename Field',
-          ),
+          title: const Text('Rename Field'),
           content: TextField(
             controller: controller,
             autofocus: true,
-            decoration:
-                const InputDecoration(
-              labelText:
-                  'Field name',
-              border:
-                  OutlineInputBorder(),
+            decoration: const InputDecoration(
+              labelText: 'Field name',
+              border: OutlineInputBorder(),
             ),
           ),
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.pop(
-                  dialogContext,
-                );
+                Navigator.pop(dialogContext);
               },
-              child: const Text(
-                'Cancel',
-              ),
+              child: const Text('Cancel'),
             ),
             ElevatedButton(
-              onPressed: () async {
-                final newName =
-                    controller.text.trim();
+              onPressed: () {
+                final value = controller.text.trim();
 
-                if (newName.isEmpty) {
+                if (value.isEmpty) {
                   return;
                 }
 
-                if (newName !=
-                    oldName) {
-                  final exists =
-                      row.columns.any(
-                    (item) =>
-                        item != column &&
-                        item.name
-                                .toLowerCase() ==
-                            newName
-                                .toLowerCase(),
-                  );
-
-                  if (exists) {
-                    ScaffoldMessenger
-                            .of(context)
-                        .showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                          'A field with this name already exists in this record.',
-                        ),
-                      ),
-                    );
-
-                    return;
-                  }
-                }
-
-                try {
-                  final rowRecords =
-                      await _repository
-                          .getRows(
-                    widget.tableId,
-                  );
-
-                  final rowIndex =
-                      widget.table.rows
-                          .indexOf(row);
-
-                  if (rowIndex <
-                          0 ||
-                      rowIndex >=
-                          rowRecords
-                              .length) {
-                    return;
-                  }
-
-                  final rowId =
-                      rowRecords[rowIndex]
-                          ['id'] as int;
-
-                  final fieldRecords =
-                      await _repository
-                          .getFields(
-                    rowId,
-                  );
-
-                  final fieldIndex =
-                      row.columns
-                          .indexOf(
-                    column,
-                  );
-
-                  if (fieldIndex <
-                          0 ||
-                      fieldIndex >=
-                          fieldRecords
-                              .length) {
-                    return;
-                  }
-
-                  final fieldId =
-                      fieldRecords[
-                              fieldIndex]
-                          ['id'] as int;
-
-                  final value =
-                      row.values[
-                              oldName] ??
-                          '';
-
-                  await _repository
-                      .renameField(
-                    fieldId:
-                        fieldId,
-                    name:
-                        newName,
-                  );
-
-                  await _repository
-                      .updateFieldValue(
-                    fieldId:
-                        fieldId,
-                    value:
-                        value,
-                  );
-
-                  if (!mounted) {
-                    return;
-                  }
-
-                  setState(() {
-                    row.values
-                        .remove(
-                      oldName,
-                    );
-
-                    row.values[
-                            newName] =
-                        value;
-
-                    column.name =
-                        newName;
-                  });
-
-                  if (dialogContext
-                      .mounted) {
-                    Navigator.pop(
-                      dialogContext,
-                    );
-                  }
-                } catch (error) {
-                  if (!mounted) {
-                    return;
-                  }
-
-                  ScaffoldMessenger.of(
-                    context,
-                  ).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        'Failed to rename field: $error',
-                      ),
-                    ),
-                  );
-                }
+                Navigator.pop(
+                  dialogContext,
+                  value,
+                );
               },
-              child: const Text(
-                'Save',
-              ),
+              child: const Text('Save'),
             ),
           ],
         );
@@ -827,6 +526,78 @@ class _TablePageState
     );
 
     controller.dispose();
+
+    if (newName == null ||
+        newName.isEmpty ||
+        newName == oldName) {
+      return;
+    }
+
+    final exists = row.columns.any(
+      (item) =>
+          item != column &&
+          item.name.toLowerCase() ==
+              newName.toLowerCase(),
+    );
+
+    if (exists) {
+      _showError(
+        'A field with this name already exists in this record.',
+      );
+      return;
+    }
+
+    final rowId = _rowIds[row];
+
+    if (rowId == null) {
+      _showError(
+        'Row ID was not found.',
+      );
+      return;
+    }
+
+    try {
+      final fieldRecords =
+          await _repository.getFields(rowId);
+
+      final fieldIndex = row.columns.indexOf(column);
+
+      if (fieldIndex < 0 ||
+          fieldIndex >= fieldRecords.length) {
+        throw StateError(
+          'Field ID was not found.',
+        );
+      }
+
+      final fieldId =
+          fieldRecords[fieldIndex]['id'] as int;
+
+      final value = row.values[oldName] ?? '';
+
+      await _repository.renameField(
+        fieldId: fieldId,
+        name: newName,
+      );
+
+      await _repository.updateFieldValue(
+        fieldId: fieldId,
+        value: value,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        row.values.remove(oldName);
+        row.values[newName] = value;
+        column.name = newName;
+      });
+    } catch (error) {
+      _showError(
+        'Failed to rename field: $error',
+      );
+    }
   }
 
   Future<void> deleteColumn(
@@ -834,26 +605,17 @@ class _TablePageState
     TableColumnDefinition column,
   ) async {
     if (row.columns.length <= 1) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
-        const SnackBar(
-          content: Text(
-            'At least one field must remain in this record.',
-          ),
-        ),
+      _showError(
+        'At least one field must remain in this record.',
       );
-
       return;
     }
 
-    final confirmed =
-        await showDialog<bool>(
+    final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          title: const Text(
-            'Delete Field',
-          ),
+          title: const Text('Delete Field'),
           content: Text(
             'Delete field "${column.name}" from this record?',
           ),
@@ -865,9 +627,7 @@ class _TablePageState
                   false,
                 );
               },
-              child: const Text(
-                'Cancel',
-              ),
+              child: const Text('Cancel'),
             ),
             ElevatedButton(
               onPressed: () {
@@ -876,9 +636,7 @@ class _TablePageState
                   true,
                 );
               },
-              child: const Text(
-                'Delete',
-              ),
+              child: const Text('Delete'),
             ),
           ],
         );
@@ -889,78 +647,47 @@ class _TablePageState
       return;
     }
 
+    final rowId = _rowIds[row];
+
+    if (rowId == null) {
+      _showError(
+        'Row ID was not found.',
+      );
+      return;
+    }
+
     try {
-      final rowRecords =
-          await _repository.getRows(
-        widget.tableId,
-      );
-
-      final rowIndex =
-          widget.table.rows.indexOf(row);
-
-      if (rowIndex < 0 ||
-          rowIndex >=
-              rowRecords.length) {
-        return;
-      }
-
-      final rowId =
-          rowRecords[rowIndex]['id']
-              as int;
-
       final fieldRecords =
-          await _repository.getFields(
-        rowId,
-      );
+          await _repository.getFields(rowId);
 
       final columnIndex =
-          row.columns.indexOf(
-        column,
-      );
+          row.columns.indexOf(column);
 
       if (columnIndex < 0 ||
-          columnIndex >=
-              fieldRecords.length) {
-        return;
+          columnIndex >= fieldRecords.length) {
+        throw StateError(
+          'Field ID was not found.',
+        );
       }
 
       final fieldId =
-          fieldRecords[columnIndex]
-              ['id'] as int;
+          fieldRecords[columnIndex]['id'] as int;
 
-      await _repository.deleteField(
-        fieldId,
-      );
+      await _repository.deleteField(fieldId);
 
       if (!mounted) {
         return;
       }
 
       setState(() {
-        final columnName =
-            column.name;
+        final columnName = column.name;
 
-        row.columns.remove(
-          column,
-        );
-
-        row.values.remove(
-          columnName,
-        );
+        row.columns.remove(column);
+        row.values.remove(columnName);
       });
     } catch (error) {
-      if (!mounted) {
-        return;
-      }
-
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Failed to delete field: $error',
-          ),
-        ),
+      _showError(
+        'Failed to delete field: $error',
       );
     }
   }
@@ -970,11 +697,9 @@ class _TablePageState
     TableColumnDefinition column,
     int newIndex,
   ) async {
-    final columns =
-        row.columns;
+    final columns = row.columns;
 
-    final oldIndex =
-        columns.indexOf(column);
+    final oldIndex = columns.indexOf(column);
 
     if (oldIndex == -1) {
       return;
@@ -989,54 +714,39 @@ class _TablePageState
       return;
     }
 
+    final rowId = _rowIds[row];
+
+    if (rowId == null) {
+      _showError(
+        'Row ID was not found.',
+      );
+      return;
+    }
+
     try {
-      final rowRecords =
-          await _repository.getRows(
-        widget.tableId,
-      );
-
-      final rowIndex =
-          widget.table.rows.indexOf(row);
-
-      if (rowIndex < 0 ||
-          rowIndex >= rowRecords.length) {
-        return;
-      }
-
-      final rowId =
-          rowRecords[rowIndex]['id']
-              as int;
-
       final fieldRecords =
-          await _repository.getFields(
-        rowId,
-      );
+          await _repository.getFields(rowId);
 
-      if (fieldRecords.length !=
-          columns.length) {
-        return;
+      if (fieldRecords.length != columns.length) {
+        throw StateError(
+          'Database fields and UI fields are out of sync.',
+        );
       }
 
-      final fieldIds =
-          fieldRecords
-              .map(
-                (field) =>
-                    field['id'] as int,
-              )
-              .toList();
+      final fieldIds = fieldRecords
+          .map(
+            (field) => field['id'] as int,
+          )
+          .toList();
 
-      final movedId =
-          fieldIds.removeAt(
-        oldIndex,
-      );
+      final movedId = fieldIds.removeAt(oldIndex);
 
       fieldIds.insert(
         newIndex,
         movedId,
       );
 
-      await _repository
-          .updateFieldPositions(
+      await _repository.updateFieldPositions(
         fieldIds,
       );
 
@@ -1045,9 +755,7 @@ class _TablePageState
       }
 
       setState(() {
-        columns.removeAt(
-          oldIndex,
-        );
+        columns.removeAt(oldIndex);
 
         columns.insert(
           newIndex,
@@ -1055,18 +763,8 @@ class _TablePageState
         );
       });
     } catch (error) {
-      if (!mounted) {
-        return;
-      }
-
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Failed to move field: $error',
-          ),
-        ),
+      _showError(
+        'Failed to move field: $error',
       );
     }
   }
@@ -1075,28 +773,20 @@ class _TablePageState
     TableRowData row,
     TableColumnDefinition column,
   ) {
-    final index =
-        row.columns.indexOf(column);
+    final index = row.columns.indexOf(column);
 
     showModalBottomSheet(
       context: context,
       builder: (sheetContext) {
         return SafeArea(
           child: Column(
-            mainAxisSize:
-                MainAxisSize.min,
+            mainAxisSize: MainAxisSize.min,
             children: [
               ListTile(
-                leading: const Icon(
-                  Icons.edit,
-                ),
-                title: const Text(
-                  'Rename Field',
-                ),
+                leading: const Icon(Icons.edit),
+                title: const Text('Rename Field'),
                 onTap: () {
-                  Navigator.pop(
-                    sheetContext,
-                  );
+                  Navigator.pop(sheetContext);
 
                   renameColumn(
                     row,
@@ -1109,9 +799,7 @@ class _TablePageState
                   Icons.arrow_upward,
                 ),
                 enabled: index > 0,
-                title: const Text(
-                  'Move Up',
-                ),
+                title: const Text('Move Up'),
                 onTap: index > 0
                     ? () {
                         Navigator.pop(
@@ -1130,39 +818,31 @@ class _TablePageState
                 leading: const Icon(
                   Icons.arrow_downward,
                 ),
-                enabled: index <
-                    row.columns.length -
-                        1,
-                title: const Text(
-                  'Move Down',
-                ),
-                onTap: index <
-                        row.columns.length -
-                            1
-                    ? () {
-                        Navigator.pop(
-                          sheetContext,
-                        );
+                enabled:
+                    index < row.columns.length - 1,
+                title: const Text('Move Down'),
+                onTap:
+                    index < row.columns.length - 1
+                        ? () {
+                            Navigator.pop(
+                              sheetContext,
+                            );
 
-                        moveColumn(
-                          row,
-                          column,
-                          index + 1,
-                        );
-                      }
-                    : null,
+                            moveColumn(
+                              row,
+                              column,
+                              index + 1,
+                            );
+                          }
+                        : null,
               ),
               ListTile(
                 leading: const Icon(
                   Icons.delete_outline,
                 ),
-                title: const Text(
-                  'Delete Field',
-                ),
+                title: const Text('Delete Field'),
                 onTap: () {
-                  Navigator.pop(
-                    sheetContext,
-                  );
+                  Navigator.pop(sheetContext);
 
                   deleteColumn(
                     row,
@@ -1170,9 +850,7 @@ class _TablePageState
                   );
                 },
               ),
-              const SizedBox(
-                height: 8,
-              ),
+              const SizedBox(height: 8),
             ],
           ),
         );
@@ -1181,90 +859,71 @@ class _TablePageState
   }
 
   Future<void> renameTable() async {
-    final controller =
-        TextEditingController(
+    final name = await _askTableName();
+
+    if (name == null || name.isEmpty) {
+      return;
+    }
+
+    try {
+      await _repository.renameItem(
+        id: widget.tableId,
+        name: name,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        widget.table.name = name;
+      });
+    } catch (error) {
+      _showError(
+        'Failed to rename table: $error',
+      );
+    }
+  }
+
+  Future<String?> _askTableName() async {
+    final controller = TextEditingController(
       text: widget.table.name,
     );
 
-    await showDialog(
+    final result = await showDialog<String>(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          title: const Text(
-            'Rename Table',
-          ),
+          title: const Text('Rename Table'),
           content: TextField(
             controller: controller,
             autofocus: true,
-            decoration:
-                const InputDecoration(
-              labelText:
-                  'Table name',
+            decoration: const InputDecoration(
+              labelText: 'Table name',
+              border: OutlineInputBorder(),
             ),
           ),
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.pop(
-                  dialogContext,
-                );
+                Navigator.pop(dialogContext);
               },
-              child: const Text(
-                'Cancel',
-              ),
+              child: const Text('Cancel'),
             ),
             ElevatedButton(
-              onPressed: () async {
-                final name =
-                    controller.text.trim();
+              onPressed: () {
+                final value = controller.text.trim();
 
-                if (name.isEmpty) {
+                if (value.isEmpty) {
                   return;
                 }
 
-                try {
-                  await _repository
-                      .renameItem(
-                    id:
-                        widget.tableId,
-                    name:
-                        name,
-                  );
-
-                  if (!mounted) {
-                    return;
-                  }
-
-                  setState(() {
-                    widget.table.name =
-                        name;
-                  });
-
-                  if (dialogContext
-                      .mounted) {
-                    Navigator.pop(
-                      dialogContext,
-                    );
-                  }
-                } catch (error) {
-                  if (!mounted) {
-                    return;
-                  }
-
-                  ScaffoldMessenger.of(
-                    context,
-                  ).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        'Failed to rename table: $error',
-                      ),
-                    ),
-                  );
-                }
+                Navigator.pop(
+                  dialogContext,
+                  value,
+                );
               },
-              child: const Text(
-                'Save',
-              ),
+              child: const Text('Save'),
             ),
           ],
         );
@@ -1272,17 +931,16 @@ class _TablePageState
     );
 
     controller.dispose();
+
+    return result;
   }
 
   Future<void> deleteTable() async {
-    final confirmed =
-        await showDialog<bool>(
+    final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          title: const Text(
-            'Delete Table',
-          ),
+          title: const Text('Delete Table'),
           content: Text(
             'Delete "${widget.table.name}" and all its records?',
           ),
@@ -1294,9 +952,7 @@ class _TablePageState
                   false,
                 );
               },
-              child: const Text(
-                'Cancel',
-              ),
+              child: const Text('Cancel'),
             ),
             ElevatedButton(
               onPressed: () {
@@ -1305,9 +961,7 @@ class _TablePageState
                   true,
                 );
               },
-              child: const Text(
-                'Delete',
-              ),
+              child: const Text('Delete'),
             ),
           ],
         );
@@ -1331,18 +985,8 @@ class _TablePageState
 
       Navigator.pop(context);
     } catch (error) {
-      if (!mounted) {
-        return;
-      }
-
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Failed to delete table: $error',
-          ),
-        ),
+      _showError(
+        'Failed to delete table: $error',
       );
     }
   }
@@ -1352,13 +996,11 @@ class _TablePageState
     int rowIndex,
   ) {
     return Card(
-      margin:
-          const EdgeInsets.only(
+      margin: const EdgeInsets.only(
         bottom: 16,
       ),
       child: Padding(
-        padding:
-            const EdgeInsets.only(
+        padding: const EdgeInsets.only(
           top: 8,
           bottom: 8,
         ),
@@ -1367,20 +1009,14 @@ class _TablePageState
             ...row.columns.map(
               (column) {
                 final value =
-                    row.values[
-                            column.name] ??
-                        '';
+                    row.values[column.name] ?? '';
 
-                final isPassword =
-                    column.name
-                        .toLowerCase()
-                        .contains(
-                          'password',
-                        );
+                final isPassword = column.name
+                    .toLowerCase()
+                    .contains('password');
 
                 final displayValue =
-                    isPassword &&
-                            value.isNotEmpty
+                    isPassword && value.isNotEmpty
                         ? '••••••••'
                         : value.isEmpty
                             ? '—'
@@ -1391,39 +1027,30 @@ class _TablePageState
                     editRow(row);
                   },
                   child: Padding(
-                    padding:
-                        const EdgeInsets
-                            .symmetric(
+                    padding: const EdgeInsets.symmetric(
                       horizontal: 16,
                       vertical: 13,
                     ),
                     child: Row(
                       crossAxisAlignment:
-                          CrossAxisAlignment
-                              .start,
+                          CrossAxisAlignment.start,
                       children: [
                         Expanded(
                           flex: 4,
                           child: Text(
                             column.name,
-                            style:
-                                const TextStyle(
+                            style: const TextStyle(
                               fontWeight:
-                                  FontWeight
-                                      .bold,
+                                  FontWeight.bold,
                             ),
                           ),
                         ),
-                        const SizedBox(
-                          width: 12,
-                        ),
+                        const SizedBox(width: 12),
                         Expanded(
                           flex: 6,
                           child: Text(
                             displayValue,
-                            textAlign:
-                                TextAlign
-                                    .end,
+                            textAlign: TextAlign.end,
                           ),
                         ),
                         IconButton(
@@ -1433,13 +1060,11 @@ class _TablePageState
                               column,
                             );
                           },
-                          icon:
-                              const Icon(
+                          icon: const Icon(
                             Icons.more_vert,
                             size: 20,
                           ),
-                          tooltip:
-                              'Field options',
+                          tooltip: 'Field options',
                         ),
                       ],
                     ),
@@ -1447,60 +1072,38 @@ class _TablePageState
                 );
               },
             ),
-            const Divider(
-              height: 1,
-            ),
+            const Divider(height: 1),
             Padding(
-              padding:
-                  const EdgeInsets
-                      .symmetric(
+              padding: const EdgeInsets.symmetric(
                 horizontal: 8,
               ),
               child: Wrap(
-                alignment:
-                    WrapAlignment.end,
+                alignment: WrapAlignment.end,
                 children: [
                   TextButton.icon(
                     onPressed: () {
                       editRow(row);
                     },
-                    icon: const Icon(
-                      Icons.edit,
-                    ),
-                    label:
-                        const Text(
-                      'Edit',
-                    ),
+                    icon: const Icon(Icons.edit),
+                    label: const Text('Edit'),
                   ),
                   TextButton.icon(
                     onPressed: () {
-                      deleteRow(
-                        rowIndex,
-                      );
+                      deleteRow(rowIndex);
                     },
-                    icon:
-                        const Icon(
-                      Icons
-                          .delete_outline,
+                    icon: const Icon(
+                      Icons.delete_outline,
                     ),
-                    label:
-                        const Text(
-                      'Delete',
-                    ),
+                    label: const Text('Delete'),
                   ),
                   TextButton.icon(
                     onPressed: () {
                       addColumn(row);
                     },
-                    icon:
-                        const Icon(
-                      Icons
-                          .add_box_outlined,
+                    icon: const Icon(
+                      Icons.add_box_outlined,
                     ),
-                    label:
-                        const Text(
-                      'Add Field',
-                    ),
+                    label: const Text('Add Field'),
                   ),
                 ],
               ),
@@ -1512,85 +1115,53 @@ class _TablePageState
   }
 
   @override
-  Widget build(
-    BuildContext context,
-  ) {
+  Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          widget.table.name,
-        ),
+        title: Text(widget.table.name),
         actions: [
           IconButton(
             onPressed: renameTable,
-            icon: const Icon(
-              Icons.edit,
-            ),
-            tooltip:
-                'Rename Table',
+            icon: const Icon(Icons.edit),
+            tooltip: 'Rename Table',
           ),
           if (widget.onDelete != null)
             IconButton(
-              onPressed:
-                  deleteTable,
+              onPressed: deleteTable,
               icon: const Icon(
-                Icons
-                    .delete_outline,
+                Icons.delete_outline,
               ),
-              tooltip:
-                  'Delete Table',
+              tooltip: 'Delete Table',
             ),
         ],
       ),
       body: _isLoading
           ? const Center(
-              child:
-                  CircularProgressIndicator(),
+              child: CircularProgressIndicator(),
             )
-          : widget.table.rows
-                  .isEmpty
+          : widget.table.rows.isEmpty
               ? Center(
-                  child:
-                      SingleChildScrollView(
-                    padding:
-                        const EdgeInsets
-                            .all(
-                      24,
-                    ),
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(24),
                     child: Column(
-                      mainAxisSize:
-                          MainAxisSize
-                              .min,
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         const Icon(
-                          Icons
-                              .table_chart_outlined,
+                          Icons.table_chart_outlined,
                           size: 80,
                         ),
-                        const SizedBox(
-                          height: 20,
-                        ),
+                        const SizedBox(height: 20),
                         const Text(
                           'No records yet',
-                          style:
-                              TextStyle(
-                            fontSize:
-                                18,
+                          style: TextStyle(
+                            fontSize: 18,
                           ),
                         ),
-                        const SizedBox(
-                          height: 20,
-                        ),
-                        ElevatedButton
-                            .icon(
-                          onPressed:
-                              addRow,
-                          icon:
-                              const Icon(
-                            Icons.add,
-                          ),
-                          label:
-                              const Text(
+                        const SizedBox(height: 20),
+                        ElevatedButton.icon(
+                          onPressed: addRow,
+                          icon: const Icon(Icons.add),
+                          label: const Text(
                             'Add Record',
                           ),
                         ),
@@ -1599,38 +1170,26 @@ class _TablePageState
                   ),
                 )
               : ListView.builder(
-                  padding:
-                      const EdgeInsets
-                          .fromLTRB(
+                  padding: const EdgeInsets.fromLTRB(
                     16,
                     16,
                     16,
                     120,
                   ),
-                  itemCount: widget
-                      .table
-                      .rows
-                      .length,
-                  itemBuilder:
-                      (context, index) {
+                  itemCount:
+                      widget.table.rows.length,
+                  itemBuilder: (context, index) {
                     return buildRowCard(
-                      widget.table
-                          .rows[index],
+                      widget.table.rows[index],
                       index,
                     );
                   },
                 ),
       floatingActionButton:
-          FloatingActionButton
-              .extended(
+          FloatingActionButton.extended(
         onPressed: addRow,
-        icon: const Icon(
-          Icons.add,
-        ),
-        label:
-            const Text(
-          'Add Record',
-        ),
+        icon: const Icon(Icons.add),
+        label: const Text('Add Record'),
       ),
     );
   }
