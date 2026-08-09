@@ -1,430 +1,640 @@
-import '../database/app_database.dart';
+import 'package:flutter/material.dart';
 
-class TreeRepository {
-  final AppDatabase _database =
-      AppDatabase.instance;
+import '../models/tree_item.dart';
+import '../repositories/tree_repository.dart';
+import 'table_page.dart';
 
-  Future<List<Map<String, dynamic>>> getItems({
-    int? parentId,
-  }) async {
-    final db = await _database.database;
+class TreePage extends StatefulWidget {
+  final TreeItem item;
 
-    if (parentId == null) {
-      return db.query(
-        'tree_items',
-        where: 'parent_id IS NULL',
-        orderBy: 'id ASC',
-      );
-    }
+  final int? itemId;
 
-    return db.query(
-      'tree_items',
-      where: 'parent_id = ?',
-      whereArgs: [parentId],
-      orderBy: 'id ASC',
-    );
+  final VoidCallback? onDelete;
+
+  const TreePage({
+    super.key,
+    required this.item,
+    this.itemId,
+    this.onDelete,
+  });
+
+  @override
+  State<TreePage> createState() => _TreePageState();
+}
+
+class _TreePageState extends State<TreePage> {
+  final TreeRepository _repository = TreeRepository();
+
+  final Map<TreeItem, int> _itemIds = {};
+
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadChildren();
   }
 
-  Future<int> createFolder({
-    required String name,
-    int? parentId,
-  }) async {
-    final db = await _database.database;
-
-    final now =
-        DateTime.now().millisecondsSinceEpoch;
-
-    return db.insert(
-      'tree_items',
-      {
-        'parent_id': parentId,
-        'name': name,
-        'type': 'folder',
-        'created_at': now,
-        'updated_at': now,
-      },
-    );
-  }
-
-  Future<int> createTable({
-    required String name,
-    int? parentId,
-  }) async {
-    final db = await _database.database;
-
-    final now =
-        DateTime.now().millisecondsSinceEpoch;
-
-    return db.insert(
-      'tree_items',
-      {
-        'parent_id': parentId,
-        'name': name,
-        'type': 'table',
-        'created_at': now,
-        'updated_at': now,
-      },
-    );
-  }
-
-  Future<void> renameItem({
-    required int id,
-    required String name,
-  }) async {
-    final db = await _database.database;
-
-    final now =
-        DateTime.now().millisecondsSinceEpoch;
-
-    await db.update(
-      'tree_items',
-      {
-        'name': name,
-        'updated_at': now,
-      },
-      where: 'id = ?',
-      whereArgs: [id],
-    );
-  }
-
-  Future<void> deleteItem(
-    int id,
-  ) async {
-    final db = await _database.database;
-
-    await db.transaction(
-      (txn) async {
-        await _deleteItemRecursive(
-          txn,
-          id,
-        );
-      },
-    );
-  }
-
-  Future<void> _deleteItemRecursive(
-    dynamic db,
-    int itemId,
-  ) async {
-    final children =
-        await db.query(
-      'tree_items',
-      columns: ['id', 'type'],
-      where: 'parent_id = ?',
-      whereArgs: [itemId],
-    );
-
-    for (final child in children) {
-      final childId =
-          child['id'] as int;
-
-      await _deleteItemRecursive(
-        db,
-        childId,
-      );
-    }
-
-    final rows =
-        await db.query(
-      'table_rows',
-      columns: ['id'],
-      where: 'table_item_id = ?',
-      whereArgs: [itemId],
-    );
-
-    for (final row in rows) {
-      final rowId =
-          row['id'] as int;
-
-      final fields =
-          await db.query(
-        'table_fields',
-        columns: ['id'],
-        where: 'row_id = ?',
-        whereArgs: [rowId],
+  Future<void> _loadChildren() async {
+    try {
+      final rows = await _repository.getItems(
+        parentId: widget.itemId,
       );
 
-      for (final field in fields) {
-        final fieldId =
-            field['id'] as int;
+      final loadedItems = <TreeItem>[];
+      final loadedIds = <TreeItem, int>{};
 
-        await db.delete(
-          'table_values',
-          where: 'field_id = ?',
-          whereArgs: [fieldId],
-        );
+      for (final row in rows) {
+        final id = row['id'] as int;
+        final name = row['name'] as String;
+        final type = row['type'] as String;
+
+        final item = type == 'table'
+            ? TreeItem.table(
+                name,
+                id: id,
+                parentId: widget.itemId,
+              )
+            : TreeItem.folder(
+                name,
+                id: id,
+                parentId: widget.itemId,
+              );
+
+        loadedItems.add(item);
+        loadedIds[item] = id;
       }
 
-      await db.delete(
-        'table_fields',
-        where: 'row_id = ?',
-        whereArgs: [rowId],
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        widget.item.children
+          ..clear()
+          ..addAll(loadedItems);
+
+        _itemIds
+          ..clear()
+          ..addAll(loadedIds);
+
+        _isLoading = false;
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _isLoading = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Failed to load folder: $error',
+          ),
+        ),
       );
     }
-
-    await db.delete(
-      'table_rows',
-      where: 'table_item_id = ?',
-      whereArgs: [itemId],
-    );
-
-    await db.delete(
-      'tree_items',
-      where: 'id = ?',
-      whereArgs: [itemId],
-    );
   }
 
-  Future<List<Map<String, dynamic>>> getRows(
-    int tableId,
-  ) async {
-    final db = await _database.database;
-
-    return db.query(
-      'table_rows',
-      where: 'table_item_id = ?',
-      whereArgs: [tableId],
-      orderBy: 'id ASC',
-    );
-  }
-
-  Future<int> createRow({
-    required int tableId,
-  }) async {
-    final db = await _database.database;
-
-    final now =
-        DateTime.now().millisecondsSinceEpoch;
-
-    return db.insert(
-      'table_rows',
-      {
-        'table_item_id': tableId,
-        'created_at': now,
-        'updated_at': now,
+  void createItem() {
+    showModalBottomSheet(
+      context: context,
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(
+                  Icons.create_new_folder_outlined,
+                ),
+                title: const Text(
+                  'Create Folder',
+                ),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  createFolder();
+                },
+              ),
+              ListTile(
+                leading: const Icon(
+                  Icons.table_chart_outlined,
+                ),
+                title: const Text(
+                  'Create Table',
+                ),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  createTable();
+                },
+              ),
+              const SizedBox(height: 10),
+            ],
+          ),
+        );
       },
     );
   }
 
-  Future<List<Map<String, dynamic>>> getFields(
-    int rowId,
-  ) async {
-    final db = await _database.database;
+  void createFolder() {
+    final controller = TextEditingController();
 
-    return db.query(
-      'table_fields',
-      where: 'row_id = ?',
-      whereArgs: [rowId],
-      orderBy: 'position ASC',
-    );
-  }
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text(
+            'Create Folder',
+          ),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            decoration: const InputDecoration(
+              labelText: 'Folder name',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+              },
+              child: const Text(
+                'Cancel',
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                final name = controller.text.trim();
 
-  Future<int> createField({
-    required int rowId,
-    required String name,
-    required int position,
-    String value = '',
-  }) async {
-    final db = await _database.database;
+                if (name.isEmpty) {
+                  return;
+                }
 
-    final now =
-        DateTime.now().millisecondsSinceEpoch;
+                try {
+                  final id = await _repository.createFolder(
+                    parentId: widget.itemId,
+                    name: name,
+                  );
 
-    final fieldId =
-        await db.insert(
-      'table_fields',
-      {
-        'row_id': rowId,
-        'name': name,
-        'position': position,
-        'created_at': now,
-        'updated_at': now,
+                  if (!mounted) {
+                    return;
+                  }
+
+                  final item = TreeItem.folder(
+                    name,
+                    id: id,
+                    parentId: widget.itemId,
+                  );
+
+                  setState(() {
+                    widget.item.children.add(item);
+                    _itemIds[item] = id;
+                  });
+
+                  if (!dialogContext.mounted) {
+                    return;
+                  }
+
+                  Navigator.pop(dialogContext);
+                } catch (error) {
+                  if (!mounted) {
+                    return;
+                  }
+
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        'Failed to create folder: $error',
+                      ),
+                    ),
+                  );
+                }
+              },
+              child: const Text(
+                'Create',
+              ),
+            ),
+          ],
+        );
       },
-    );
+    ).then((_) {
+      controller.dispose();
+    });
+  }
 
-    await db.insert(
-      'table_values',
-      {
-        'field_id': fieldId,
-        'value': value,
+  void createTable() {
+    final controller = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text(
+            'Create Table',
+          ),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            decoration: const InputDecoration(
+              labelText: 'Table name',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+              },
+              child: const Text(
+                'Cancel',
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                final name = controller.text.trim();
+
+                if (name.isEmpty) {
+                  return;
+                }
+
+                try {
+                  final id = await _repository.createTable(
+                    parentId: widget.itemId,
+                    name: name,
+                  );
+
+                  if (!mounted) {
+                    return;
+                  }
+
+                  final item = TreeItem.table(
+                    name,
+                    id: id,
+                    parentId: widget.itemId,
+                  );
+
+                  setState(() {
+                    widget.item.children.add(item);
+                    _itemIds[item] = id;
+                  });
+
+                  if (!dialogContext.mounted) {
+                    return;
+                  }
+
+                  Navigator.pop(dialogContext);
+                } catch (error) {
+                  if (!mounted) {
+                    return;
+                  }
+
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        'Failed to create table: $error',
+                      ),
+                    ),
+                  );
+                }
+              },
+              child: const Text(
+                'Create',
+              ),
+            ),
+          ],
+        );
       },
-    );
-
-    return fieldId;
+    ).then((_) {
+      controller.dispose();
+    });
   }
 
-  Future<List<Map<String, dynamic>>> getValues(
-    int fieldId,
-  ) async {
-    final db = await _database.database;
+  void openItem(TreeItem item) {
+    final itemId = _itemIds[item];
 
-    return db.query(
-      'table_values',
-      where: 'field_id = ?',
-      whereArgs: [fieldId],
-      orderBy: 'id ASC',
-      limit: 1,
-    );
-  }
+    if (itemId == null) {
+      return;
+    }
 
-  Future<void> updateFieldValue({
-    required int fieldId,
-    required String value,
-  }) async {
-    final db = await _database.database;
+    final index = widget.item.children.indexOf(item);
 
-    final existing =
-        await db.query(
-      'table_values',
-      columns: ['id'],
-      where: 'field_id = ?',
-      whereArgs: [fieldId],
-      limit: 1,
-    );
+    if (item.type == TreeItemType.table) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) {
+            return TablePage(
+              table: item,
+              tableId: itemId,
+              onDelete: () {
+                if (index >= 0 &&
+                    index < widget.item.children.length) {
+                  widget.item.children.removeAt(index);
+                }
 
-    if (existing.isEmpty) {
-      await db.insert(
-        'table_values',
-        {
-          'field_id': fieldId,
-          'value': value,
-        },
-      );
+                _itemIds.remove(item);
+              },
+            );
+          },
+        ),
+      ).then((_) {
+        if (!mounted) {
+          return;
+        }
+
+        setState(() {});
+      });
 
       return;
     }
 
-    final valueId =
-        existing.first['id'] as int;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) {
+          return TreePage(
+            item: item,
+            itemId: itemId,
+            onDelete: () {
+              if (index >= 0 &&
+                  index < widget.item.children.length) {
+                widget.item.children.removeAt(index);
+              }
 
-    await db.update(
-      'table_values',
-      {
-        'value': value,
-      },
-      where: 'id = ?',
-      whereArgs: [valueId],
-    );
-
-    await db.update(
-      'table_fields',
-      {
-        'updated_at':
-            DateTime.now()
-                .millisecondsSinceEpoch,
-      },
-      where: 'id = ?',
-      whereArgs: [fieldId],
-    );
-  }
-
-  Future<void> renameField({
-    required int fieldId,
-    required String name,
-  }) async {
-    final db = await _database.database;
-
-    await db.update(
-      'table_fields',
-      {
-        'name': name,
-        'updated_at':
-            DateTime.now()
-                .millisecondsSinceEpoch,
-      },
-      where: 'id = ?',
-      whereArgs: [fieldId],
-    );
-  }
-
-  Future<void> deleteField(
-    int fieldId,
-  ) async {
-    final db = await _database.database;
-
-    await db.transaction(
-      (txn) async {
-        await txn.delete(
-          'table_values',
-          where: 'field_id = ?',
-          whereArgs: [fieldId],
-        );
-
-        await txn.delete(
-          'table_fields',
-          where: 'id = ?',
-          whereArgs: [fieldId],
-        );
-      },
-    );
-  }
-
-  Future<void> updateFieldPositions(
-    List<int> fieldIds,
-  ) async {
-    final db = await _database.database;
-
-    await db.transaction(
-      (txn) async {
-        final now =
-            DateTime.now()
-                .millisecondsSinceEpoch;
-
-        for (var i = 0;
-            i < fieldIds.length;
-            i++) {
-          await txn.update(
-            'table_fields',
-            {
-              'position': i,
-              'updated_at': now,
+              _itemIds.remove(item);
             },
-            where: 'id = ?',
-            whereArgs: [fieldIds[i]],
           );
-        }
-      },
-    );
+        },
+      ),
+    ).then((_) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {});
+    });
   }
 
-  Future<void> deleteRow(
-    int rowId,
-  ) async {
-    final db = await _database.database;
+  Future<void> renameItem() async {
+    final controller = TextEditingController(
+      text: widget.item.name,
+    );
 
-    await db.transaction(
-      (txn) async {
-        final fields =
-            await txn.query(
-          'table_fields',
-          columns: ['id'],
-          where: 'row_id = ?',
-          whereArgs: [rowId],
-        );
+    await showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text(
+            'Rename',
+          ),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+              },
+              child: const Text(
+                'Cancel',
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                final name = controller.text.trim();
 
-        for (final field in fields) {
-          final fieldId =
-              field['id'] as int;
+                if (name.isEmpty) {
+                  return;
+                }
 
-          await txn.delete(
-            'table_values',
-            where: 'field_id = ?',
-            whereArgs: [fieldId],
-          );
-        }
+                try {
+                  final id = widget.itemId;
 
-        await txn.delete(
-          'table_fields',
-          where: 'row_id = ?',
-          whereArgs: [rowId],
-        );
+                  if (id != null) {
+                    await _repository.renameItem(
+                      id: id,
+                      name: name,
+                    );
+                  }
 
-        await txn.delete(
-          'table_rows',
-          where: 'id = ?',
-          whereArgs: [rowId],
+                  if (!mounted) {
+                    return;
+                  }
+
+                  setState(() {
+                    widget.item.name = name;
+                  });
+
+                  if (!dialogContext.mounted) {
+                    return;
+                  }
+
+                  Navigator.pop(dialogContext);
+                } catch (error) {
+                  if (!mounted) {
+                    return;
+                  }
+
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        'Failed to rename folder: $error',
+                      ),
+                    ),
+                  );
+                }
+              },
+              child: const Text(
+                'Save',
+              ),
+            ),
+          ],
         );
       },
+    );
+
+    controller.dispose();
+  }
+
+  Future<void> deleteFolder() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text(
+            'Delete Folder',
+          ),
+          content: Text(
+            'Delete "${widget.item.name}" and everything inside it?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(
+                  dialogContext,
+                  false,
+                );
+              },
+              child: const Text(
+                'Cancel',
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(
+                  dialogContext,
+                  true,
+                );
+              },
+              child: const Text(
+                'Delete',
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) {
+      return;
+    }
+
+    try {
+      final id = widget.itemId;
+
+      if (id != null) {
+        await _repository.deleteItem(id);
+      }
+
+      if (!mounted) {
+        return;
+      }
+
+      widget.onDelete?.call();
+
+      Navigator.pop(context);
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Failed to delete folder: $error',
+          ),
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(
+          widget.item.name,
+        ),
+        actions: [
+          IconButton(
+            onPressed: renameItem,
+            icon: const Icon(
+              Icons.edit,
+            ),
+            tooltip: 'Rename',
+          ),
+          if (widget.onDelete != null)
+            IconButton(
+              onPressed: deleteFolder,
+              icon: const Icon(
+                Icons.delete_outline,
+              ),
+              tooltip: 'Delete Folder',
+            ),
+        ],
+      ),
+      body: _isLoading
+          ? const Center(
+              child: CircularProgressIndicator(),
+            )
+          : widget.item.children.isEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.folder_open,
+                        size: 80,
+                        color: Theme.of(context)
+                            .colorScheme
+                            .primary,
+                      ),
+                      const SizedBox(height: 20),
+                      const Text(
+                        'Folder is empty',
+                        style: TextStyle(
+                          fontSize: 18,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      ElevatedButton.icon(
+                        onPressed: createItem,
+                        icon: const Icon(
+                          Icons.add,
+                        ),
+                        label: const Text(
+                          'Create',
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              : ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount:
+                      widget.item.children.length,
+                  itemBuilder: (context, index) {
+                    final child =
+                        widget.item.children[index];
+
+                    return Card(
+                      child: ListTile(
+                        leading: Icon(
+                          child.type ==
+                                  TreeItemType.folder
+                              ? Icons.folder
+                              : Icons.table_chart,
+                        ),
+                        title: Text(
+                          child.name,
+                        ),
+                        subtitle:
+                            child.type ==
+                                    TreeItemType.table
+                                ? Text(
+                                    '${child.rows.length} rows • '
+                                    '${child.columns.length} default columns',
+                                  )
+                                : null,
+                        trailing: const Icon(
+                          Icons.chevron_right,
+                        ),
+                        onTap: () {
+                          openItem(child);
+                        },
+                      ),
+                    );
+                  },
+                ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: createItem,
+        child: const Icon(
+          Icons.add,
+        ),
+      ),
     );
   }
 }
