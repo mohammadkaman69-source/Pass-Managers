@@ -17,17 +17,17 @@ class _LoginPageState extends State<LoginPage> {
   final TextEditingController confirmController =
       TextEditingController();
 
-  final SecurityManager _securityManager = SecurityManager();
+  final SecurityManager _securityManager =
+      SecurityManager();
 
   bool createMode = false;
   bool isLoading = true;
-  bool obscurePassword = true;
-  bool obscureConfirmPassword = true;
+  bool isSubmitting = false;
 
   @override
   void initState() {
     super.initState();
-    _checkSecurityStatus();
+    checkPasswordStatus();
   }
 
   @override
@@ -37,9 +37,9 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
-  Future<void> _checkSecurityStatus() async {
+  Future<void> checkPasswordStatus() async {
     try {
-      final configured =
+      final exists =
           await _securityManager.isMasterPasswordConfigured();
 
       if (!mounted) {
@@ -47,7 +47,7 @@ class _LoginPageState extends State<LoginPage> {
       }
 
       setState(() {
-        createMode = !configured;
+        createMode = !exists;
         isLoading = false;
       });
     } catch (error) {
@@ -59,13 +59,13 @@ class _LoginPageState extends State<LoginPage> {
         isLoading = false;
       });
 
-      _showMessage(
+      showMessage(
         'Failed to check security status: $error',
       );
     }
   }
 
-  bool _validatePassword(String password) {
+  bool validatePassword(String password) {
     if (password.length < 8) {
       return false;
     }
@@ -79,15 +79,15 @@ class _LoginPageState extends State<LoginPage> {
     return hasLetter && hasNumber;
   }
 
-  Future<void> _submit() async {
-    if (isLoading) {
+  Future<void> submit() async {
+    if (isSubmitting) {
       return;
     }
 
     final password = passwordController.text;
 
     if (password.isEmpty) {
-      _showMessage(
+      showMessage(
         createMode
             ? 'Enter a Master Password'
             : 'Enter Master Password',
@@ -95,81 +95,59 @@ class _LoginPageState extends State<LoginPage> {
       return;
     }
 
+    if (createMode) {
+      if (!validatePassword(password)) {
+        showMessage(
+          'Master Password must be at least 8 characters and contain letters and numbers.',
+        );
+        return;
+      }
+
+      if (password != confirmController.text) {
+        showMessage(
+          'Passwords do not match.',
+        );
+        return;
+      }
+    }
+
     setState(() {
-      isLoading = true;
+      isSubmitting = true;
     });
 
     try {
       if (createMode) {
-        await _createMasterPassword(password);
+        await _securityManager.setupMasterPassword(
+          password,
+        );
+
+        openHome();
       } else {
-        await _unlock(password);
+        final result =
+            await _securityManager.unlock(password);
+
+        if (result) {
+          openHome();
+        } else {
+          showMessage(
+            'Wrong Master Password.',
+          );
+        }
       }
     } catch (error) {
-      if (!mounted) {
-        return;
-      }
-
-      _showMessage(
+      showMessage(
         'Security operation failed: $error',
       );
     } finally {
       if (mounted) {
         setState(() {
-          isLoading = false;
+          isSubmitting = false;
         });
       }
     }
   }
 
-  Future<void> _createMasterPassword(
-    String password,
-  ) async {
-    if (!_validatePassword(password)) {
-      _showMessage(
-        'Master Password must be at least 8 characters '
-        'and contain letters and numbers.',
-      );
-      return;
-    }
-
-    if (password != confirmController.text) {
-      _showMessage(
-        'Master Passwords do not match.',
-      );
-      return;
-    }
-
-    await _securityManager.setupMasterPassword(
-      password,
-    );
-
-    if (!mounted) {
-      return;
-    }
-
-    _showMessage(
-      'Master Password created successfully.',
-    );
-
-    _openHome();
-  }
-
-  Future<void> _unlock(String password) async {
-    final unlocked =
-        await _securityManager.unlock(password);
-
-    if (!unlocked) {
-      _showMessage(
-        'Wrong Master Password.',
-      );
-      return;
-    }
-
-    _openHome();
-  }
-
-  void _showMessage(String message) {
+  void showMessage(String message) {
     if (!mounted) {
       return;
     }
@@ -181,7 +159,7 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  void _openHome() {
+  void openHome() {
     if (!mounted) {
       return;
     }
@@ -196,7 +174,7 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
-    if (isLoading && !createMode) {
+    if (isLoading) {
       return const Scaffold(
         body: Center(
           child: CircularProgressIndicator(),
@@ -219,93 +197,71 @@ class _LoginPageState extends State<LoginPage> {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
+
                 const SizedBox(height: 30),
+
                 TextField(
                   controller: passwordController,
-                  obscureText: obscurePassword,
-                  enabled: !isLoading,
-                  decoration: InputDecoration(
+                  obscureText: true,
+                  enabled: !isSubmitting,
+                  decoration: const InputDecoration(
                     labelText: 'Master Password',
-                    suffixIcon: IconButton(
-                      onPressed: isLoading
-                          ? null
-                          : () {
-                              setState(() {
-                                obscurePassword =
-                                    !obscurePassword;
-                              });
-                            },
-                      icon: Icon(
-                        obscurePassword
-                            ? Icons.visibility
-                            : Icons.visibility_off,
-                      ),
-                    ),
+                    border: OutlineInputBorder(),
                   ),
                 ),
+
                 if (createMode) ...[
                   const SizedBox(height: 20),
+
                   TextField(
                     controller: confirmController,
-                    obscureText: obscureConfirmPassword,
-                    enabled: !isLoading,
-                    decoration: InputDecoration(
-                      labelText:
-                          'Confirm Master Password',
-                      suffixIcon: IconButton(
-                        onPressed: isLoading
-                            ? null
-                            : () {
-                                setState(() {
-                                  obscureConfirmPassword =
-                                      !obscureConfirmPassword;
-                                });
-                              },
-                        icon: Icon(
-                          obscureConfirmPassword
-                              ? Icons.visibility
-                              : Icons.visibility_off,
-                        ),
-                      ),
+                    obscureText: true,
+                    enabled: !isSubmitting,
+                    decoration: const InputDecoration(
+                      labelText: 'Confirm Master Password',
+                      border: OutlineInputBorder(),
                     ),
-                  ),
-                  const SizedBox(height: 20),
-                  const Text(
-                    'Master Password must be at least 8 characters '
-                    'and contain letters and numbers.',
-                    style: TextStyle(
-                      color: Colors.grey,
-                      fontSize: 12,
-                    ),
-                    textAlign: TextAlign.center,
                   ),
                 ],
+
                 const SizedBox(height: 25),
-                ElevatedButton(
-                  onPressed: isLoading ? null : _submit,
-                  child: isLoading
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
+
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed:
+                        isSubmitting ? null : submit,
+                    child: isSubmitting
+                        ? const SizedBox(
+                            width: 22,
+                            height: 22,
+                            child:
+                                CircularProgressIndicator(
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : Text(
+                            createMode
+                                ? 'Create'
+                                : 'Login',
                           ),
-                        )
-                      : Text(
-                          createMode ? 'Create' : 'Login',
-                        ),
+                  ),
                 ),
+
                 if (!createMode) ...[
                   const SizedBox(height: 25),
+
                   const Text(
                     'Forgot Password?',
                     style: TextStyle(
                       color: Colors.grey,
                     ),
                   ),
+
                   const SizedBox(height: 8),
+
                   const Text(
-                    'Password recovery is not available yet.',
+                    'Password recovery will be available soon',
                     style: TextStyle(
                       color: Colors.grey,
                       fontSize: 12,
