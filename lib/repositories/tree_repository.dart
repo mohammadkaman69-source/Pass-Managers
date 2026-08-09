@@ -1,5 +1,4 @@
 import '../database/app_database.dart';
-import '../models/tree_item.dart';
 
 class TreeRepository {
   final AppDatabase _database;
