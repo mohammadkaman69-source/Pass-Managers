@@ -10,33 +10,46 @@ class SecurityManager {
     SecuritySession? securitySession,
     CryptoService? cryptoService,
   })  : _masterPasswordService =
-            masterPasswordService ?? MasterPasswordService(),
+            masterPasswordService ??
+                MasterPasswordService(),
         _securitySession =
-            securitySession ?? SecuritySession.instance,
+            securitySession ??
+                SecuritySession.instance,
         _cryptoService =
             cryptoService ?? CryptoService();
 
-  final MasterPasswordService _masterPasswordService;
+  final MasterPasswordService
+      _masterPasswordService;
+
   final SecuritySession _securitySession;
+
   final CryptoService _cryptoService;
 
-  CryptoService get cryptoService => _cryptoService;
+  CryptoService get cryptoService =>
+      _cryptoService;
 
-  bool get isUnlocked => _securitySession.isUnlocked;
+  bool get isUnlocked =>
+      _securitySession.isUnlocked;
 
-  Future<bool> isMasterPasswordConfigured() {
-    return _masterPasswordService.isMasterPasswordConfigured();
+  Future<bool>
+      isMasterPasswordConfigured() {
+    return _masterPasswordService
+        .isMasterPasswordConfigured();
   }
 
-  Future<void> setupMasterPassword(
-    String masterPassword,
-  ) async {
-    await _masterPasswordService.setupMasterPassword(
-      masterPassword,
+  Future<void> setupMasterPassword({
+    required String masterPassword,
+    required String email,
+  }) async {
+    await _masterPasswordService
+        .setupMasterPassword(
+      masterPassword: masterPassword,
+      email: email,
     );
 
     final key =
-        await _masterPasswordService.deriveEncryptionKey(
+        await _masterPasswordService
+            .deriveEncryptionKey(
       masterPassword,
     );
 
@@ -47,11 +60,17 @@ class SecurityManager {
     }
   }
 
+  Future<String?> getMasterPasswordEmail() {
+    return _masterPasswordService
+        .getMasterPasswordEmail();
+  }
+
   Future<bool> unlock(
     String masterPassword,
   ) async {
     final verified =
-        await _masterPasswordService.verifyMasterPassword(
+        await _masterPasswordService
+            .verifyMasterPassword(
       masterPassword,
     );
 
@@ -60,7 +79,8 @@ class SecurityManager {
     }
 
     final key =
-        await _masterPasswordService.deriveEncryptionKey(
+        await _masterPasswordService
+            .deriveEncryptionKey(
       masterPassword,
     );
 
@@ -87,6 +107,10 @@ class SecurityManager {
   }
 
   void _clearBytes(Uint8List bytes) {
-    bytes.fillRange(0, bytes.length, 0);
+    bytes.fillRange(
+      0,
+      bytes.length,
+      0,
+    );
   }
 }
