@@ -9,29 +9,25 @@ class LoginPage extends StatefulWidget {
   });
 
   @override
-  State<LoginPage> createState() =>
-      _LoginPageState();
+  State<LoginPage> createState() => _LoginPageState();
 }
 
 class _LoginPageState extends State<LoginPage> {
+  final SecurityManager _securityManager =
+      SecurityManager();
+
+  final TextEditingController emailController =
+      TextEditingController();
+
   final TextEditingController passwordController =
       TextEditingController();
 
   final TextEditingController confirmController =
       TextEditingController();
 
-  final TextEditingController recoveryEmailController =
-      TextEditingController();
-
-  final SecurityManager _securityManager =
-      SecurityManager();
-
   bool createMode = false;
   bool _isLoading = true;
   bool _isSubmitting = false;
-
-  bool _obscurePassword = true;
-  bool _obscureConfirmPassword = true;
 
   @override
   void initState() {
@@ -41,9 +37,9 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   void dispose() {
+    emailController.dispose();
     passwordController.dispose();
     confirmController.dispose();
-    recoveryEmailController.dispose();
     super.dispose();
   }
 
@@ -84,26 +80,20 @@ class _LoginPageState extends State<LoginPage> {
     }
 
     final hasLetter =
-        RegExp(r'[A-Za-z]').hasMatch(password);
+        RegExp(r'[A-Za-z]')
+            .hasMatch(password);
 
     final hasNumber =
-        RegExp(r'[0-9]').hasMatch(password);
+        RegExp(r'[0-9]')
+            .hasMatch(password);
 
     return hasLetter && hasNumber;
   }
 
-  bool _validateEmail(
-    String email,
-  ) {
-    final value = email.trim();
-
-    if (value.isEmpty) {
-      return false;
-    }
-
+  bool _validateEmail(String email) {
     return RegExp(
       r'^[^@\s]+@[^@\s]+\.[^@\s]+$',
-    ).hasMatch(value);
+    ).hasMatch(email.trim());
   }
 
   Future<void> _submit() async {
@@ -111,14 +101,33 @@ class _LoginPageState extends State<LoginPage> {
       return;
     }
 
+    final email =
+        emailController.text.trim();
+
     final password =
         passwordController.text;
+
+    if (createMode) {
+      if (email.isEmpty) {
+        _showMessage(
+          'Enter your email address.',
+        );
+        return;
+      }
+
+      if (!_validateEmail(email)) {
+        _showMessage(
+          'Enter a valid email address.',
+        );
+        return;
+      }
+    }
 
     if (password.isEmpty) {
       _showMessage(
         createMode
-            ? 'Enter a Master Password'
-            : 'Enter Master Password',
+            ? 'Enter a Master Password.'
+            : 'Enter Master Password.',
       );
       return;
     }
@@ -131,20 +140,9 @@ class _LoginPageState extends State<LoginPage> {
         return;
       }
 
-      if (password !=
-          confirmController.text) {
+      if (password != confirmController.text) {
         _showMessage(
           'Passwords do not match.',
-        );
-        return;
-      }
-
-      final recoveryEmail =
-          recoveryEmailController.text.trim();
-
-      if (!_validateEmail(recoveryEmail)) {
-        _showMessage(
-          'Enter a valid Recovery Email.',
         );
         return;
       }
@@ -156,12 +154,9 @@ class _LoginPageState extends State<LoginPage> {
 
     try {
       if (createMode) {
-        await _securityManager
-            .setupMasterPassword(
-          password,
-          recoveryEmail:
-              recoveryEmailController.text
-                  .trim(),
+        await _securityManager.setupMasterPassword(
+          email: email,
+          masterPassword: password,
         );
 
         _openHome();
@@ -194,9 +189,7 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  void _showMessage(
-    String message,
-  ) {
+  void _showMessage(String message) {
     if (!mounted) {
       return;
     }
@@ -224,14 +217,11 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   @override
-  Widget build(
-    BuildContext context,
-  ) {
+  Widget build(BuildContext context) {
     if (_isLoading) {
       return const Scaffold(
         body: Center(
-          child:
-              CircularProgressIndicator(),
+          child: CircularProgressIndicator(),
         ),
       );
     }
@@ -239,65 +229,64 @@ class _LoginPageState extends State<LoginPage> {
     return Scaffold(
       body: Center(
         child: Padding(
-          padding:
-              const EdgeInsets.all(30),
+          padding: const EdgeInsets.all(30),
           child: SingleChildScrollView(
             child: Column(
-              mainAxisSize:
-                  MainAxisSize.min,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 const Text(
                   'Pass Managers',
                   style: TextStyle(
                     fontSize: 32,
-                    fontWeight:
-                        FontWeight.bold,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
 
                 const SizedBox(height: 30),
 
+                if (createMode) ...[
+                  TextField(
+                    controller:
+                        emailController,
+                    keyboardType:
+                        TextInputType.emailAddress,
+                    textInputAction:
+                        TextInputAction.next,
+                    enabled: !_isSubmitting,
+                    decoration:
+                        const InputDecoration(
+                      labelText:
+                          'Email Address',
+                      hintText:
+                          'example@email.com',
+                      border:
+                          OutlineInputBorder(),
+                    ),
+                  ),
+
+                  const SizedBox(height: 20),
+                ],
+
                 TextField(
                   controller:
                       passwordController,
-                  obscureText:
-                      _obscurePassword,
-                  enabled:
-                      !_isSubmitting,
+                  obscureText: true,
+                  enabled: !_isSubmitting,
                   textInputAction:
                       createMode
-                          ? TextInputAction
-                              .next
-                          : TextInputAction
-                              .done,
+                          ? TextInputAction.next
+                          : TextInputAction.done,
                   onSubmitted: (_) {
                     if (!createMode) {
                       _submit();
                     }
                   },
                   decoration:
-                      InputDecoration(
+                      const InputDecoration(
                     labelText:
                         'Master Password',
                     border:
-                        const OutlineInputBorder(),
-                    suffixIcon:
-                        IconButton(
-                      onPressed:
-                          _isSubmitting
-                              ? null
-                              : () {
-                                  setState(() {
-                                    _obscurePassword =
-                                        !_obscurePassword;
-                                  });
-                                },
-                      icon: Icon(
-                        _obscurePassword
-                            ? Icons.visibility_outlined
-                            : Icons.visibility_off_outlined,
-                      ),
-                    ),
+                        OutlineInputBorder(),
                   ),
                 ),
 
@@ -307,49 +296,8 @@ class _LoginPageState extends State<LoginPage> {
                   TextField(
                     controller:
                         confirmController,
-                    obscureText:
-                        _obscureConfirmPassword,
-                    enabled:
-                        !_isSubmitting,
-                    textInputAction:
-                        TextInputAction
-                            .next,
-                    decoration:
-                        InputDecoration(
-                      labelText:
-                          'Confirm Master Password',
-                      border:
-                          const OutlineInputBorder(),
-                      suffixIcon:
-                          IconButton(
-                        onPressed:
-                            _isSubmitting
-                                ? null
-                                : () {
-                                    setState(() {
-                                      _obscureConfirmPassword =
-                                          !_obscureConfirmPassword;
-                                    });
-                                  },
-                        icon: Icon(
-                          _obscureConfirmPassword
-                              ? Icons.visibility_outlined
-                              : Icons.visibility_off_outlined,
-                        ),
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 20),
-
-                  TextField(
-                    controller:
-                        recoveryEmailController,
-                    enabled:
-                        !_isSubmitting,
-                    keyboardType:
-                        TextInputType
-                            .emailAddress,
+                    obscureText: true,
+                    enabled: !_isSubmitting,
                     textInputAction:
                         TextInputAction.done,
                     onSubmitted: (_) {
@@ -358,27 +306,13 @@ class _LoginPageState extends State<LoginPage> {
                     decoration:
                         const InputDecoration(
                       labelText:
-                          'Recovery Email',
-                      hintText:
-                          'example@email.com',
+                          'Confirm Master Password',
                       border:
                           OutlineInputBorder(),
                     ),
                   ),
 
-                  const SizedBox(height: 15),
-
-                  const Text(
-                    'This email will be used later for password recovery and verification.',
-                    textAlign:
-                        TextAlign.center,
-                    style: TextStyle(
-                      color: Colors.grey,
-                      fontSize: 12,
-                    ),
-                  ),
-
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 20),
 
                   const Text(
                     'Your Master Password is used to derive the encryption key for your password data.',
@@ -394,30 +328,27 @@ class _LoginPageState extends State<LoginPage> {
                 const SizedBox(height: 25),
 
                 SizedBox(
-                  width:
-                      double.infinity,
+                  width: double.infinity,
                   child:
                       ElevatedButton(
                     onPressed:
                         _isSubmitting
                             ? null
                             : _submit,
-                    child:
-                        _isSubmitting
-                            ? const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child:
-                                    CircularProgressIndicator(
-                                  strokeWidth:
-                                      2,
-                                ),
-                              )
-                            : Text(
-                                createMode
-                                    ? 'Create'
-                                    : 'Login',
-                              ),
+                    child: _isSubmitting
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child:
+                                CircularProgressIndicator(
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : Text(
+                            createMode
+                                ? 'Create'
+                                : 'Login',
+                          ),
                   ),
                 ),
 
@@ -426,8 +357,7 @@ class _LoginPageState extends State<LoginPage> {
 
                   const Text(
                     'Forgot Password?',
-                    style:
-                        TextStyle(
+                    style: TextStyle(
                       color: Colors.grey,
                     ),
                   ),
@@ -436,8 +366,7 @@ class _LoginPageState extends State<LoginPage> {
 
                   const Text(
                     'Password recovery will be available soon.',
-                    style:
-                        TextStyle(
+                    style: TextStyle(
                       color: Colors.grey,
                       fontSize: 12,
                     ),
