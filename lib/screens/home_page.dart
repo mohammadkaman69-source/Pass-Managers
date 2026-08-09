@@ -569,34 +569,19 @@ class _HomePageState extends State<HomePage> {
   }
 
   void openItem(TreeItem item) {
-    final id = _itemIds[item];
+  final id = _itemIds[item];
 
-    if (item.type ==
-        TreeItemType.table) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) {
-            return TablePage(
-              table: item,
-            );
-          },
-        ),
-      ).then((_) {
-        if (mounted) {
-          setState(() {});
-        }
-      });
+  if (id == null) {
+    return;
+  }
 
-      return;
-    }
-
+  if (item.type == TreeItemType.table) {
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) {
-          return TreePage(
-            item: item,
+          return TablePage(
+            table: item,
           );
         },
       ),
@@ -606,9 +591,34 @@ class _HomePageState extends State<HomePage> {
       }
     });
 
-    if (id != null) {
-      _itemIds[item] = id;
+    return;
+  }
+
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (context) {
+        return TreePage(
+          item: item,
+          itemId: id,
+          onDelete: () async {
+            await _repository.deleteItem(id);
+
+            if (mounted) {
+              setState(() {
+                items.remove(item);
+                _itemIds.remove(item);
+              });
+            }
+          },
+        );
+      },
+    ),
+  ).then((_) {
+    if (mounted) {
+      setState(() {});
     }
+  });
   }
 
   @override
