@@ -22,8 +22,8 @@ class MasterPasswordService {
   static const String _verificationKey =
       'master_password_verification';
 
-  static const String _recoveryEmailKey =
-      'master_password_recovery_email';
+  static const String _emailKey =
+      'master_password_email';
 
   static const String _verificationText =
       'pass_managers_master_password_verification_v1';
@@ -40,9 +40,9 @@ class MasterPasswordService {
     return salt != null && verification != null;
   }
 
-  Future<void> setupMasterPassword(
-    String masterPassword, {
-    required String recoveryEmail,
+  Future<void> setupMasterPassword({
+    required String email,
+    required String masterPassword,
   }) async {
     if (masterPassword.isEmpty) {
       throw ArgumentError(
@@ -50,9 +50,9 @@ class MasterPasswordService {
       );
     }
 
-    if (recoveryEmail.trim().isEmpty) {
+    if (email.trim().isEmpty) {
       throw ArgumentError(
-        'Recovery email cannot be empty.',
+        'Email cannot be empty.',
       );
     }
 
@@ -91,8 +91,8 @@ class MasterPasswordService {
     );
 
     await _secureStorage.write(
-      key: _recoveryEmailKey,
-      value: recoveryEmail.trim(),
+      key: _emailKey,
+      value: email.trim(),
     );
   }
 
@@ -169,9 +169,9 @@ class MasterPasswordService {
     return Uint8List.fromList(bytes);
   }
 
-  Future<String?> getRecoveryEmail() async {
+  Future<String?> getMasterPasswordEmail() async {
     return _secureStorage.read(
-      key: _recoveryEmailKey,
+      key: _emailKey,
     );
   }
 
@@ -185,7 +185,7 @@ class MasterPasswordService {
     );
 
     await _secureStorage.delete(
-      key: _recoveryEmailKey,
+      key: _emailKey,
     );
   }
 }
