@@ -18,11 +18,8 @@ class SecurityManager {
         _cryptoService =
             cryptoService ?? CryptoService();
 
-  final MasterPasswordService
-      _masterPasswordService;
-
+  final MasterPasswordService _masterPasswordService;
   final SecuritySession _securitySession;
-
   final CryptoService _cryptoService;
 
   CryptoService get cryptoService =>
@@ -31,20 +28,19 @@ class SecurityManager {
   bool get isUnlocked =>
       _securitySession.isUnlocked;
 
-  Future<bool>
-      isMasterPasswordConfigured() {
+  Future<bool> isMasterPasswordConfigured() {
     return _masterPasswordService
         .isMasterPasswordConfigured();
   }
 
   Future<void> setupMasterPassword({
-    required String masterPassword,
     required String email,
+    required String masterPassword,
   }) async {
     await _masterPasswordService
         .setupMasterPassword(
-      masterPassword: masterPassword,
       email: email,
+      masterPassword: masterPassword,
     );
 
     final key =
@@ -58,11 +54,6 @@ class SecurityManager {
     } finally {
       _clearBytes(key);
     }
-  }
-
-  Future<String?> getMasterPasswordEmail() {
-    return _masterPasswordService
-        .getMasterPasswordEmail();
   }
 
   Future<bool> unlock(
@@ -90,6 +81,11 @@ class SecurityManager {
     } finally {
       _clearBytes(key);
     }
+  }
+
+  Future<String?> getMasterPasswordEmail() {
+    return _masterPasswordService
+        .getMasterPasswordEmail();
   }
 
   void lock() {
