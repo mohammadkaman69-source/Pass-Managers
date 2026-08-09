@@ -25,7 +25,7 @@ class AppDatabase {
 
     return openDatabase(
       path,
-      version: 1,
+      version: 2,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -101,7 +101,7 @@ class AppDatabase {
     int newVersion,
   ) async {
     if (oldVersion < 2) {
-      // Future migration.
+      // Reserved for future database migrations.
     }
   }
 
