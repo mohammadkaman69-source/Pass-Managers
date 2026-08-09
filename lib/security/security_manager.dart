@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import 'crypto_service.dart';
 import 'master_password_service.dart';
 import 'security_session.dart';
 
@@ -7,13 +8,19 @@ class SecurityManager {
   SecurityManager({
     MasterPasswordService? masterPasswordService,
     SecuritySession? securitySession,
+    CryptoService? cryptoService,
   })  : _masterPasswordService =
             masterPasswordService ?? MasterPasswordService(),
         _securitySession =
-            securitySession ?? SecuritySession.instance;
+            securitySession ?? SecuritySession.instance,
+        _cryptoService =
+            cryptoService ?? CryptoService();
 
   final MasterPasswordService _masterPasswordService;
   final SecuritySession _securitySession;
+  final CryptoService _cryptoService;
+
+  CryptoService get cryptoService => _cryptoService;
 
   bool get isUnlocked => _securitySession.isUnlocked;
 
