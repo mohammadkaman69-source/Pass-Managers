@@ -11,13 +11,11 @@ class HomePage extends StatefulWidget {
   });
 
   @override
-  State<HomePage> createState() =>
-      _HomePageState();
+  State<HomePage> createState() => _HomePageState();
 }
 
 class _HomePageState extends State<HomePage> {
-  final TreeRepository _repository =
-      TreeRepository();
+  final TreeRepository _repository = TreeRepository();
 
   final List<TreeItem> items = [];
 
@@ -33,24 +31,25 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _loadItems() async {
     try {
-      final rows =
-          await _repository.getItems();
+      final rows = await _repository.getItems();
 
       final loadedItems = <TreeItem>[];
-      final loadedIds =
-          <TreeItem, int>{};
+      final loadedIds = <TreeItem, int>{};
 
       for (final row in rows) {
         final id = row['id'] as int;
-        final name =
-            row['name'] as String;
-        final type =
-            row['type'] as String;
+        final name = row['name'] as String;
+        final type = row['type'] as String;
 
-        final item =
-            type == 'table'
-                ? TreeItem.table(name)
-                : TreeItem.folder(name);
+        final item = type == 'table'
+            ? TreeItem.table(
+                name,
+                id: id,
+              )
+            : TreeItem.folder(
+                name,
+                id: id,
+              );
 
         loadedItems.add(item);
         loadedIds[item] = id;
@@ -80,16 +79,22 @@ class _HomePageState extends State<HomePage> {
         _isLoading = false;
       });
 
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Failed to load data: $error',
-          ),
-        ),
+      _showError(
+        'Failed to load data: $error',
       );
     }
+  }
+
+  void _showError(String message) {
+    if (!mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+      ),
+    );
   }
 
   void createItem() {
@@ -98,45 +103,33 @@ class _HomePageState extends State<HomePage> {
       builder: (sheetContext) {
         return SafeArea(
           child: Column(
-            mainAxisSize:
-                MainAxisSize.min,
+            mainAxisSize: MainAxisSize.min,
             children: [
               ListTile(
-                leading:
-                    const Icon(
-                  Icons
-                      .create_new_folder_outlined,
+                leading: const Icon(
+                  Icons.create_new_folder_outlined,
                 ),
                 title: const Text(
                   'Create Folder',
                 ),
                 onTap: () {
-                  Navigator.pop(
-                    sheetContext,
-                  );
-
+                  Navigator.pop(sheetContext);
                   createFolder();
                 },
               ),
               ListTile(
-                leading:
-                    const Icon(
+                leading: const Icon(
                   Icons.table_chart_outlined,
                 ),
                 title: const Text(
                   'Create Table',
                 ),
                 onTap: () {
-                  Navigator.pop(
-                    sheetContext,
-                  );
-
+                  Navigator.pop(sheetContext);
                   createTable();
                 },
               ),
-              const SizedBox(
-                height: 10,
-              ),
+              const SizedBox(height: 10),
             ],
           ),
         );
@@ -144,196 +137,138 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  void createFolder() {
-    final controller =
-        TextEditingController();
+  Future<String?> _askName({
+    required String title,
+    required String label,
+    String? initialValue,
+  }) async {
+    final controller = TextEditingController(
+      text: initialValue ?? '',
+    );
 
-    showDialog(
+    final result = await showDialog<String>(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          title: const Text(
-            'Create Folder',
-          ),
+          title: Text(title),
           content: TextField(
             controller: controller,
             autofocus: true,
-            decoration:
-                const InputDecoration(
-              labelText:
-                  'Folder name',
+            decoration: InputDecoration(
+              labelText: label,
+              border: const OutlineInputBorder(),
             ),
+            onSubmitted: (_) {
+              final value = controller.text.trim();
+
+              if (value.isNotEmpty) {
+                Navigator.pop(
+                  dialogContext,
+                  value,
+                );
+              }
+            },
           ),
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.pop(
-                  dialogContext,
-                );
+                Navigator.pop(dialogContext);
               },
-              child: const Text(
-                'Cancel',
-              ),
+              child: const Text('Cancel'),
             ),
             ElevatedButton(
-              onPressed: () async {
-                final name =
-                    controller.text.trim();
+              onPressed: () {
+                final value = controller.text.trim();
 
-                if (name.isEmpty) {
+                if (value.isEmpty) {
                   return;
                 }
 
-                try {
-                  final id =
-                      await _repository
-                          .createFolder(
-                    name: name,
-                  );
-
-                  final item =
-                      TreeItem.folder(
-                    name,
-                  );
-
-                  if (!mounted) {
-                    return;
-                  }
-
-                  setState(() {
-                    items.add(item);
-                    _itemIds[item] = id;
-                  });
-
-                  if (!dialogContext.mounted) {
-                    return;
-                  }
-
-                  Navigator.pop(
-                    dialogContext,
-                  );
-                } catch (error) {
-                  if (!mounted) {
-                    return;
-                  }
-
-                  ScaffoldMessenger.of(
-                    context,
-                  ).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        'Failed to create folder: $error',
-                      ),
-                    ),
-                  );
-                }
+                Navigator.pop(
+                  dialogContext,
+                  value,
+                );
               },
-              child: const Text(
-                'Create',
-              ),
+              child: const Text('Save'),
             ),
           ],
         );
       },
-    ).then((_) {
-      controller.dispose();
-    });
+    );
+
+    controller.dispose();
+
+    return result;
   }
 
-  void createTable() {
-    final controller =
-        TextEditingController();
+  Future<void> createFolder() async {
+    final name = await _askName(
+      title: 'Create Folder',
+      label: 'Folder name',
+    );
 
-    showDialog(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text(
-            'Create Table',
-          ),
-          content: TextField(
-            controller: controller,
-            autofocus: true,
-            decoration:
-                const InputDecoration(
-              labelText:
-                  'Table name',
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(
-                  dialogContext,
-                );
-              },
-              child: const Text(
-                'Cancel',
-              ),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                final name =
-                    controller.text.trim();
+    if (name == null || name.isEmpty) {
+      return;
+    }
 
-                if (name.isEmpty) {
-                  return;
-                }
+    try {
+      final id = await _repository.createFolder(
+        name: name,
+      );
 
-                try {
-                  final id =
-                      await _repository
-                          .createTable(
-                    name: name,
-                  );
+      if (!mounted) {
+        return;
+      }
 
-                  final item =
-                      TreeItem.table(
-                    name,
-                  );
+      final item = TreeItem.folder(
+        name,
+        id: id,
+      );
 
-                  if (!mounted) {
-                    return;
-                  }
+      setState(() {
+        items.add(item);
+        _itemIds[item] = id;
+      });
+    } catch (error) {
+      _showError(
+        'Failed to create folder: $error',
+      );
+    }
+  }
 
-                  setState(() {
-                    items.add(item);
-                    _itemIds[item] = id;
-                  });
+  Future<void> createTable() async {
+    final name = await _askName(
+      title: 'Create Table',
+      label: 'Table name',
+    );
 
-                  if (!dialogContext.mounted) {
-                    return;
-                  }
+    if (name == null || name.isEmpty) {
+      return;
+    }
 
-                  Navigator.pop(
-                    dialogContext,
-                  );
-                } catch (error) {
-                  if (!mounted) {
-                    return;
-                  }
+    try {
+      final id = await _repository.createTable(
+        name: name,
+      );
 
-                  ScaffoldMessenger.of(
-                    context,
-                  ).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        'Failed to create table: $error',
-                      ),
-                    ),
-                  );
-                }
-              },
-              child: const Text(
-                'Create',
-              ),
-            ),
-          ],
-        );
-      },
-    ).then((_) {
-      controller.dispose();
-    });
+      if (!mounted) {
+        return;
+      }
+
+      final item = TreeItem.table(
+        name,
+        id: id,
+      );
+
+      setState(() {
+        items.add(item);
+        _itemIds[item] = id;
+      });
+    } catch (error) {
+      _showError(
+        'Failed to create table: $error',
+      );
+    }
   }
 
   Future<void> renameItem(
@@ -345,94 +280,34 @@ class _HomePageState extends State<HomePage> {
       return;
     }
 
-    final controller =
-        TextEditingController(
-      text: item.name,
+    final name = await _askName(
+      title: 'Rename',
+      label: 'Name',
+      initialValue: item.name,
     );
 
-    await showDialog(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text(
-            'Rename',
-          ),
-          content: TextField(
-            controller: controller,
-            autofocus: true,
-            decoration:
-                const InputDecoration(
-              labelText: 'Name',
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(
-                  dialogContext,
-                );
-              },
-              child: const Text(
-                'Cancel',
-              ),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                final name =
-                    controller.text.trim();
+    if (name == null || name.isEmpty) {
+      return;
+    }
 
-                if (name.isEmpty) {
-                  return;
-                }
+    try {
+      await _repository.renameItem(
+        id: id,
+        name: name,
+      );
 
-                try {
-                  await _repository
-                      .renameItem(
-                    id: id,
-                    name: name,
-                  );
+      if (!mounted) {
+        return;
+      }
 
-                  if (!mounted) {
-                    return;
-                  }
-
-                  setState(() {
-                    item.name = name;
-                  });
-
-                  if (!dialogContext.mounted) {
-                    return;
-                  }
-
-                  Navigator.pop(
-                    dialogContext,
-                  );
-                } catch (error) {
-                  if (!mounted) {
-                    return;
-                  }
-
-                  ScaffoldMessenger.of(
-                    context,
-                  ).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        'Failed to rename item: $error',
-                      ),
-                    ),
-                  );
-                }
-              },
-              child: const Text(
-                'Save',
-              ),
-            ),
-          ],
-        );
-      },
-    );
-
-    controller.dispose();
+      setState(() {
+        item.name = name;
+      });
+    } catch (error) {
+      _showError(
+        'Failed to rename item: $error',
+      );
+    }
   }
 
   Future<void> deleteItem(
@@ -444,14 +319,11 @@ class _HomePageState extends State<HomePage> {
       return;
     }
 
-    final confirmed =
-        await showDialog<bool>(
+    final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          title: const Text(
-            'Delete',
-          ),
+          title: const Text('Delete'),
           content: Text(
             'Delete "${item.name}" and everything inside it?',
           ),
@@ -463,9 +335,7 @@ class _HomePageState extends State<HomePage> {
                   false,
                 );
               },
-              child: const Text(
-                'Cancel',
-              ),
+              child: const Text('Cancel'),
             ),
             ElevatedButton(
               onPressed: () {
@@ -474,9 +344,7 @@ class _HomePageState extends State<HomePage> {
                   true,
                 );
               },
-              child: const Text(
-                'Delete',
-              ),
+              child: const Text('Delete'),
             ),
           ],
         );
@@ -499,18 +367,8 @@ class _HomePageState extends State<HomePage> {
         _itemIds.remove(item);
       });
     } catch (error) {
-      if (!mounted) {
-        return;
-      }
-
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Failed to delete item: $error',
-          ),
-        ),
+      _showError(
+        'Failed to delete item: $error',
       );
     }
   }
@@ -523,44 +381,27 @@ class _HomePageState extends State<HomePage> {
       builder: (sheetContext) {
         return SafeArea(
           child: Column(
-            mainAxisSize:
-                MainAxisSize.min,
+            mainAxisSize: MainAxisSize.min,
             children: [
               ListTile(
-                leading:
-                    const Icon(
-                  Icons.edit,
-                ),
-                title: const Text(
-                  'Rename',
-                ),
+                leading: const Icon(Icons.edit),
+                title: const Text('Rename'),
                 onTap: () {
-                  Navigator.pop(
-                    sheetContext,
-                  );
-
+                  Navigator.pop(sheetContext);
                   renameItem(item);
                 },
               ),
               ListTile(
-                leading:
-                    const Icon(
+                leading: const Icon(
                   Icons.delete_outline,
                 ),
-                title: const Text(
-                  'Delete',
-                ),
+                title: const Text('Delete'),
                 onTap: () {
-                  Navigator.pop(
-                    sheetContext,
-                  );
-
+                  Navigator.pop(sheetContext);
                   deleteItem(item);
                 },
               ),
-              const SizedBox(
-                height: 8,
-              ),
+              const SizedBox(height: 8),
             ],
           ),
         );
@@ -569,19 +410,61 @@ class _HomePageState extends State<HomePage> {
   }
 
   void openItem(TreeItem item) {
-  final id = _itemIds[item];
+    final id = _itemIds[item];
 
-  if (id == null) {
-    return;
-  }
+    if (id == null) {
+      return;
+    }
 
-  if (item.type == TreeItemType.table) {
+    if (item.type == TreeItemType.table) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) {
+            return TablePage(
+              table: item,
+              tableId: id,
+              onDelete: () {
+                if (!mounted) {
+                  return;
+                }
+
+                setState(() {
+                  items.remove(item);
+                  _itemIds.remove(item);
+                });
+              },
+            );
+          },
+        ),
+      ).then((_) {
+        if (mounted) {
+          setState(() {});
+        }
+      });
+
+      return;
+    }
+
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) {
-          return TablePage(
-            table: item,
+        builder: (_) {
+          return TreePage(
+            item: item,
+            itemId: id,
+            onDelete: () async {
+              await _repository.deleteItem(id);
+
+              if (!mounted) {
+                return;
+              }
+
+              setState(() {
+                items.remove(item);
+                _itemIds.remove(item);
+              });
+            },
           );
         },
       ),
@@ -590,41 +473,10 @@ class _HomePageState extends State<HomePage> {
         setState(() {});
       }
     });
-
-    return;
-  }
-
-  Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (context) {
-        return TreePage(
-          item: item,
-          itemId: id,
-          onDelete: () async {
-            await _repository.deleteItem(id);
-
-            if (mounted) {
-              setState(() {
-                items.remove(item);
-                _itemIds.remove(item);
-              });
-            }
-          },
-        );
-      },
-    ),
-  ).then((_) {
-    if (mounted) {
-      setState(() {});
-    }
-  });
   }
 
   @override
-  Widget build(
-    BuildContext context,
-  ) {
+  Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text(
@@ -633,107 +485,70 @@ class _HomePageState extends State<HomePage> {
       ),
       body: _isLoading
           ? const Center(
-              child:
-                  CircularProgressIndicator(),
+              child: CircularProgressIndicator(),
             )
           : items.isEmpty
               ? Center(
                   child: Column(
-                    mainAxisSize:
-                        MainAxisSize.min,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       const Icon(
                         Icons.folder_open,
                         size: 80,
                       ),
-                      const SizedBox(
-                        height: 20,
-                      ),
+                      const SizedBox(height: 20),
                       const Text(
                         'No items created yet',
-                        style:
-                            TextStyle(
+                        style: TextStyle(
                           fontSize: 18,
                         ),
                       ),
-                      const SizedBox(
-                        height: 20,
-                      ),
-                      ElevatedButton
-                          .icon(
-                        onPressed:
-                            createItem,
-                        icon:
-                            const Icon(
-                          Icons.add,
-                        ),
-                        label:
-                            const Text(
-                          'Create',
-                        ),
+                      const SizedBox(height: 20),
+                      ElevatedButton.icon(
+                        onPressed: createItem,
+                        icon: const Icon(Icons.add),
+                        label: const Text('Create'),
                       ),
                     ],
                   ),
                 )
               : ListView.builder(
-                  padding:
-                      const EdgeInsets.all(
-                    16,
-                  ),
-                  itemCount:
-                      items.length,
-                  itemBuilder:
-                      (context, index) {
-                    final item =
-                        items[index];
+                  padding: const EdgeInsets.all(16),
+                  itemCount: items.length,
+                  itemBuilder: (context, index) {
+                    final item = items[index];
 
                     final isTable =
-                        item.type ==
-                            TreeItemType
-                                .table;
+                        item.type == TreeItemType.table;
 
                     return Card(
                       child: ListTile(
                         leading: Icon(
                           isTable
-                              ? Icons
-                                  .table_chart
+                              ? Icons.table_chart
                               : Icons.folder,
                         ),
-                        title: Text(
-                          item.name,
-                        ),
-                        subtitle:
-                            isTable
-                                ? Text(
-                                    '${item.rows.length} rows • '
-                                    '${item.columns.length} columns',
-                                  )
-                                : null,
-                        trailing:
-                            Row(
-                          mainAxisSize:
-                              MainAxisSize
-                                  .min,
+                        title: Text(item.name),
+                        subtitle: isTable
+                            ? Text(
+                                '${item.rows.length} rows • '
+                                '${item.columns.length} columns',
+                              )
+                            : null,
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
                             IconButton(
-                              onPressed:
-                                  () {
-                                showItemMenu(
-                                  item,
-                                );
+                              onPressed: () {
+                                showItemMenu(item);
                               },
-                              icon:
-                                  const Icon(
-                                Icons
-                                    .more_vert,
+                              icon: const Icon(
+                                Icons.more_vert,
                               ),
-                              tooltip:
-                                  'Options',
+                              tooltip: 'Options',
                             ),
                             const Icon(
-                              Icons
-                                  .chevron_right,
+                              Icons.chevron_right,
                             ),
                           ],
                         ),
@@ -744,12 +559,9 @@ class _HomePageState extends State<HomePage> {
                     );
                   },
                 ),
-      floatingActionButton:
-          FloatingActionButton(
+      floatingActionButton: FloatingActionButton(
         onPressed: createItem,
-        child: const Icon(
-          Icons.add,
-        ),
+        child: const Icon(Icons.add),
       ),
     );
   }
