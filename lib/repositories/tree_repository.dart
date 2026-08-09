@@ -1,3 +1,5 @@
+import 'package:sqflite/sqflite.dart';
+
 import '../database/app_database.dart';
 
 class TreeRepository {
@@ -5,8 +7,7 @@ class TreeRepository {
 
   TreeRepository({
     AppDatabase? database,
-  }) : _database =
-            database ?? AppDatabase.instance;
+  }) : _database = database ?? AppDatabase.instance;
 
   Future<int> createFolder({
     int? parentId,
@@ -14,8 +15,7 @@ class TreeRepository {
   }) async {
     final db = await _database.database;
 
-    final now =
-        DateTime.now().millisecondsSinceEpoch;
+    final now = DateTime.now().millisecondsSinceEpoch;
 
     return db.insert(
       'tree_items',
@@ -35,10 +35,9 @@ class TreeRepository {
   }) async {
     final db = await _database.database;
 
-    final now =
-        DateTime.now().millisecondsSinceEpoch;
+    final now = DateTime.now().millisecondsSinceEpoch;
 
-    final tableId = await db.insert(
+    return db.insert(
       'tree_items',
       {
         'parent_id': parentId,
@@ -48,8 +47,6 @@ class TreeRepository {
         'updated_at': now,
       },
     );
-
-    return tableId;
   }
 
   Future<List<Map<String, dynamic>>> getItems({
@@ -79,8 +76,7 @@ class TreeRepository {
   }) async {
     final db = await _database.database;
 
-    final now =
-        DateTime.now().millisecondsSinceEpoch;
+    final now = DateTime.now().millisecondsSinceEpoch;
 
     await db.update(
       'tree_items',
@@ -100,10 +96,31 @@ class TreeRepository {
 
     await db.transaction(
       (txn) async {
-        await _deleteChildren(
-          txn,
-          id,
+        final item = await txn.query(
+          'tree_items',
+          columns: ['id', 'type'],
+          where: 'id = ?',
+          whereArgs: [id],
+          limit: 1,
         );
+
+        if (item.isEmpty) {
+          return;
+        }
+
+        final type = item.first['type'] as String;
+
+        if (type == 'folder') {
+          await _deleteChildren(
+            txn,
+            id,
+          );
+        } else if (type == 'table') {
+          await _deleteTableData(
+            txn,
+            id,
+          );
+        }
 
         await txn.delete(
           'tree_items',
@@ -115,11 +132,10 @@ class TreeRepository {
   }
 
   Future<void> _deleteChildren(
-    dynamic txn,
+    Transaction txn,
     int parentId,
   ) async {
-    final children =
-        await txn.query(
+    final children = await txn.query(
       'tree_items',
       columns: ['id', 'type'],
       where: 'parent_id = ?',
@@ -127,11 +143,8 @@ class TreeRepository {
     );
 
     for (final child in children) {
-      final childId =
-          child['id'] as int;
-
-      final childType =
-          child['type'] as String;
+      final childId = child['id'] as int;
+      final childType = child['type'] as String;
 
       if (childType == 'folder') {
         await _deleteChildren(
@@ -154,11 +167,10 @@ class TreeRepository {
   }
 
   Future<void> _deleteTableData(
-    dynamic txn,
+    Transaction txn,
     int tableId,
   ) async {
-    final rows =
-        await txn.query(
+    final rows = await txn.query(
       'table_rows',
       columns: ['id'],
       where: 'table_item_id = ?',
@@ -166,11 +178,9 @@ class TreeRepository {
     );
 
     for (final row in rows) {
-      final rowId =
-          row['id'] as int;
+      final rowId = row['id'] as int;
 
-      final fields =
-          await txn.query(
+      final fields = await txn.query(
         'table_fields',
         columns: ['id'],
         where: 'row_id = ?',
@@ -178,8 +188,7 @@ class TreeRepository {
       );
 
       for (final field in fields) {
-        final fieldId =
-            field['id'] as int;
+        final fieldId = field['id'] as int;
 
         await txn.delete(
           'table_values',
