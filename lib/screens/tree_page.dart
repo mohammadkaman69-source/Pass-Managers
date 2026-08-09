@@ -1,41 +1,145 @@
 import 'package:flutter/material.dart';
 
 import '../models/tree_item.dart';
+import '../repositories/tree_repository.dart';
 import 'table_page.dart';
 
 class TreePage extends StatefulWidget {
   final TreeItem item;
+
+  final int? itemId;
 
   final VoidCallback? onDelete;
 
   const TreePage({
     super.key,
     required this.item,
+    this.itemId,
     this.onDelete,
   });
 
   @override
-  State<TreePage> createState() => _TreePageState();
+  State<TreePage> createState() =>
+      _TreePageState();
 }
 
-class _TreePageState extends State<TreePage> {
+class _TreePageState
+    extends State<TreePage> {
+  final TreeRepository _repository =
+      TreeRepository();
+
+  final Map<TreeItem, int> _itemIds = {};
+
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _loadChildren();
+  }
+
+  Future<void> _loadChildren() async {
+    try {
+      final rows =
+          await _repository.getItems(
+        parentId: widget.itemId,
+      );
+
+      final loadedItems =
+          <TreeItem>[];
+
+      final loadedIds =
+          <TreeItem, int>{};
+
+      for (final row in rows) {
+        final id =
+            row['id'] as int;
+
+        final name =
+            row['name'] as String;
+
+        final type =
+            row['type'] as String;
+
+        final item =
+            type == 'table'
+                ? TreeItem.table(
+                    name,
+                    id: id,
+                    parentId:
+                        widget.itemId,
+                  )
+                : TreeItem.folder(
+                    name,
+                    id: id,
+                    parentId:
+                        widget.itemId,
+                  );
+
+        loadedItems.add(item);
+
+        loadedIds[item] = id;
+      }
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        widget.item.children
+          ..clear()
+          ..addAll(loadedItems);
+
+        _itemIds
+          ..clear()
+          ..addAll(loadedIds);
+
+        _isLoading = false;
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _isLoading = false;
+      });
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Failed to load folder: $error',
+          ),
+        ),
+      );
+    }
+  }
+
   void createItem() {
     showModalBottomSheet(
       context: context,
-      builder: (context) {
+      builder: (sheetContext) {
         return SafeArea(
           child: Column(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisSize:
+                MainAxisSize.min,
             children: [
               ListTile(
                 leading: const Icon(
-                  Icons.create_new_folder_outlined,
+                  Icons
+                      .create_new_folder_outlined,
                 ),
                 title: const Text(
                   'Create Folder',
                 ),
                 onTap: () {
-                  Navigator.pop(context);
+                  Navigator.pop(
+                    sheetContext,
+                  );
+
                   createFolder();
                 },
               ),
@@ -47,7 +151,10 @@ class _TreePageState extends State<TreePage> {
                   'Create Table',
                 ),
                 onTap: () {
-                  Navigator.pop(context);
+                  Navigator.pop(
+                    sheetContext,
+                  );
+
                   createTable();
                 },
               ),
@@ -62,7 +169,8 @@ class _TreePageState extends State<TreePage> {
   }
 
   void createFolder() {
-    final controller = TextEditingController();
+    final controller =
+        TextEditingController();
 
     showDialog(
       context: context,
@@ -74,34 +182,82 @@ class _TreePageState extends State<TreePage> {
           content: TextField(
             controller: controller,
             autofocus: true,
-            decoration: const InputDecoration(
-              labelText: 'Folder name',
+            decoration:
+                const InputDecoration(
+              labelText:
+                  'Folder name',
             ),
           ),
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.pop(dialogContext);
+                Navigator.pop(
+                  dialogContext,
+                );
               },
               child: const Text(
                 'Cancel',
               ),
             ),
             ElevatedButton(
-              onPressed: () {
-                final name = controller.text.trim();
+              onPressed: () async {
+                final name =
+                    controller.text.trim();
 
                 if (name.isEmpty) {
                   return;
                 }
 
-                setState(() {
-                  widget.item.children.add(
-                    TreeItem.folder(name),
+                try {
+                  final id =
+                      await _repository
+                          .createFolder(
+                    parentId:
+                        widget.itemId,
+                    name: name,
                   );
-                });
 
-                Navigator.pop(dialogContext);
+                  if (!mounted) {
+                    return;
+                  }
+
+                  final item =
+                      TreeItem.folder(
+                    name,
+                    id: id,
+                    parentId:
+                        widget.itemId,
+                  );
+
+                  setState(() {
+                    widget.item.children
+                        .add(item);
+
+                    _itemIds[item] =
+                        id;
+                  });
+
+                  if (dialogContext
+                      .mounted) {
+                    Navigator.pop(
+                      dialogContext,
+                    );
+                  }
+                } catch (error) {
+                  if (!mounted) {
+                    return;
+                  }
+
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        'Failed to create folder: $error',
+                      ),
+                    ),
+                  );
+                }
               },
               child: const Text(
                 'Create',
@@ -116,7 +272,8 @@ class _TreePageState extends State<TreePage> {
   }
 
   void createTable() {
-    final controller = TextEditingController();
+    final controller =
+        TextEditingController();
 
     showDialog(
       context: context,
@@ -128,34 +285,82 @@ class _TreePageState extends State<TreePage> {
           content: TextField(
             controller: controller,
             autofocus: true,
-            decoration: const InputDecoration(
-              labelText: 'Table name',
+            decoration:
+                const InputDecoration(
+              labelText:
+                  'Table name',
             ),
           ),
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.pop(dialogContext);
+                Navigator.pop(
+                  dialogContext,
+                );
               },
               child: const Text(
                 'Cancel',
               ),
             ),
             ElevatedButton(
-              onPressed: () {
-                final name = controller.text.trim();
+              onPressed: () async {
+                final name =
+                    controller.text.trim();
 
                 if (name.isEmpty) {
                   return;
                 }
 
-                setState(() {
-                  widget.item.children.add(
-                    TreeItem.table(name),
+                try {
+                  final id =
+                      await _repository
+                          .createTable(
+                    parentId:
+                        widget.itemId,
+                    name: name,
                   );
-                });
 
-                Navigator.pop(dialogContext);
+                  if (!mounted) {
+                    return;
+                  }
+
+                  final item =
+                      TreeItem.table(
+                    name,
+                    id: id,
+                    parentId:
+                        widget.itemId,
+                  );
+
+                  setState(() {
+                    widget.item.children
+                        .add(item);
+
+                    _itemIds[item] =
+                        id;
+                  });
+
+                  if (dialogContext
+                      .mounted) {
+                    Navigator.pop(
+                      dialogContext,
+                    );
+                  }
+                } catch (error) {
+                  if (!mounted) {
+                    return;
+                  }
+
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        'Failed to create table: $error',
+                      ),
+                    ),
+                  );
+                }
               },
               child: const Text(
                 'Create',
@@ -169,21 +374,39 @@ class _TreePageState extends State<TreePage> {
     });
   }
 
-  void openItem(TreeItem item) {
-    final index = widget.item.children.indexOf(item);
+  void openItem(
+    TreeItem item,
+  ) {
+    final itemId =
+        _itemIds[item];
 
-    if (item.type == TreeItemType.table) {
+    if (itemId == null) {
+      return;
+    }
+
+    final index =
+        widget.item.children
+            .indexOf(item);
+
+    if (item.type ==
+        TreeItemType.table) {
       Navigator.push(
         context,
         MaterialPageRoute(
           builder: (context) {
             return TablePage(
               table: item,
-              onDelete: () {
+              tableId: itemId,
+              onDelete: () async {
                 if (index >= 0 &&
-                    index < widget.item.children.length) {
-                  widget.item.children.removeAt(index);
+                    index <
+                        widget.item.children
+                            .length) {
+                  widget.item.children
+                      .removeAt(index);
                 }
+
+                _itemIds.remove(item);
               },
             );
           },
@@ -203,11 +426,17 @@ class _TreePageState extends State<TreePage> {
         builder: (context) {
           return TreePage(
             item: item,
-            onDelete: () {
+            itemId: itemId,
+            onDelete: () async {
               if (index >= 0 &&
-                  index < widget.item.children.length) {
-                widget.item.children.removeAt(index);
+                  index <
+                      widget.item.children
+                          .length) {
+                widget.item.children
+                    .removeAt(index);
               }
+
+              _itemIds.remove(item);
             },
           );
         },
@@ -219,12 +448,13 @@ class _TreePageState extends State<TreePage> {
     });
   }
 
-  void renameItem() {
-    final controller = TextEditingController(
+  Future<void> renameItem() async {
+    final controller =
+        TextEditingController(
       text: widget.item.name,
     );
 
-    showDialog(
+    await showDialog(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
@@ -238,25 +468,65 @@ class _TreePageState extends State<TreePage> {
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.pop(dialogContext);
+                Navigator.pop(
+                  dialogContext,
+                );
               },
               child: const Text(
                 'Cancel',
               ),
             ),
             ElevatedButton(
-              onPressed: () {
-                final name = controller.text.trim();
+              onPressed: () async {
+                final name =
+                    controller.text.trim();
 
                 if (name.isEmpty) {
                   return;
                 }
 
-                setState(() {
-                  widget.item.name = name;
-                });
+                final id =
+                    widget.itemId;
 
-                Navigator.pop(dialogContext);
+                try {
+                  if (id != null) {
+                    await _repository
+                        .renameItem(
+                      id: id,
+                      name: name,
+                    );
+                  }
+
+                  if (!mounted) {
+                    return;
+                  }
+
+                  setState(() {
+                    widget.item.name =
+                        name;
+                  });
+
+                  if (dialogContext
+                      .mounted) {
+                    Navigator.pop(
+                      dialogContext,
+                    );
+                  }
+                } catch (error) {
+                  if (!mounted) {
+                    return;
+                  }
+
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        'Failed to rename folder: $error',
+                      ),
+                    ),
+                  );
+                }
               },
               child: const Text(
                 'Save',
@@ -265,13 +535,14 @@ class _TreePageState extends State<TreePage> {
           ],
         );
       },
-    ).then((_) {
-      controller.dispose();
-    });
+    );
+
+    controller.dispose();
   }
 
-  void deleteFolder() {
-    showDialog(
+  Future<void> deleteFolder() async {
+    final confirmed =
+        await showDialog<bool>(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
@@ -284,7 +555,10 @@ class _TreePageState extends State<TreePage> {
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.pop(dialogContext);
+                Navigator.pop(
+                  dialogContext,
+                  false,
+                );
               },
               child: const Text(
                 'Cancel',
@@ -292,13 +566,10 @@ class _TreePageState extends State<TreePage> {
             ),
             ElevatedButton(
               onPressed: () {
-                Navigator.pop(dialogContext);
-
-                widget.onDelete?.call();
-
-                if (mounted) {
-                  Navigator.pop(context);
-                }
+                Navigator.pop(
+                  dialogContext,
+                  true,
+                );
               },
               child: const Text(
                 'Delete',
@@ -308,10 +579,49 @@ class _TreePageState extends State<TreePage> {
         );
       },
     );
+
+    if (confirmed != true) {
+      return;
+    }
+
+    try {
+      final id =
+          widget.itemId;
+
+      if (id != null) {
+        await _repository.deleteItem(
+          id,
+        );
+      }
+
+      if (!mounted) {
+        return;
+      }
+
+      widget.onDelete?.call();
+
+      Navigator.pop(context);
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Failed to delete folder: $error',
+          ),
+        ),
+      );
+    }
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(
+    BuildContext context,
+  ) {
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -331,82 +641,113 @@ class _TreePageState extends State<TreePage> {
               icon: const Icon(
                 Icons.delete_outline,
               ),
-              tooltip: 'Delete Folder',
+              tooltip:
+                  'Delete Folder',
             ),
         ],
       ),
-      body: widget.item.children.isEmpty
-          ? Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.folder_open,
-                    size: 80,
-                    color: Theme.of(context)
-                        .colorScheme
-                        .primary,
-                  ),
-                  const SizedBox(
-                    height: 20,
-                  ),
-                  const Text(
-                    'Folder is empty',
-                    style: TextStyle(
-                      fontSize: 18,
-                    ),
-                  ),
-                  const SizedBox(
-                    height: 20,
-                  ),
-                  ElevatedButton.icon(
-                    onPressed: createItem,
-                    icon: const Icon(
-                      Icons.add,
-                    ),
-                    label: const Text(
-                      'Create',
-                    ),
-                  ),
-                ],
-              ),
+      body: _isLoading
+          ? const Center(
+              child:
+                  CircularProgressIndicator(),
             )
-          : ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: widget.item.children.length,
-              itemBuilder: (context, index) {
-                final child =
-                    widget.item.children[index];
-
-                return Card(
-                  child: ListTile(
-                    leading: Icon(
-                      child.type ==
-                              TreeItemType.folder
-                          ? Icons.folder
-                          : Icons.table_chart,
-                    ),
-                    title: Text(
-                      child.name,
-                    ),
-                    subtitle: child.type ==
-                            TreeItemType.table
-                        ? Text(
-                            '${child.rows.length} rows • '
-                            '${child.columns.length} default columns',
-                          )
-                        : null,
-                    trailing: const Icon(
-                      Icons.chevron_right,
-                    ),
-                    onTap: () {
-                      openItem(child);
-                    },
+          : widget.item.children
+                  .isEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisSize:
+                        MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.folder_open,
+                        size: 80,
+                        color: Theme.of(
+                          context,
+                        )
+                            .colorScheme
+                            .primary,
+                      ),
+                      const SizedBox(
+                        height: 20,
+                      ),
+                      const Text(
+                        'Folder is empty',
+                        style:
+                            TextStyle(
+                          fontSize: 18,
+                        ),
+                      ),
+                      const SizedBox(
+                        height: 20,
+                      ),
+                      ElevatedButton
+                          .icon(
+                        onPressed:
+                            createItem,
+                        icon:
+                            const Icon(
+                          Icons.add,
+                        ),
+                        label:
+                            const Text(
+                          'Create',
+                        ),
+                      ),
+                    ],
                   ),
-                );
-              },
-            ),
-      floatingActionButton: FloatingActionButton(
+                )
+              : ListView.builder(
+                  padding:
+                      const EdgeInsets.all(
+                    16,
+                  ),
+                  itemCount:
+                      widget.item.children
+                          .length,
+                  itemBuilder:
+                      (context, index) {
+                    final child =
+                        widget.item.children[
+                            index];
+
+                    return Card(
+                      child: ListTile(
+                        leading: Icon(
+                          child.type ==
+                                  TreeItemType
+                                      .folder
+                              ? Icons.folder
+                              : Icons
+                                  .table_chart,
+                        ),
+                        title: Text(
+                          child.name,
+                        ),
+                        subtitle:
+                            child.type ==
+                                    TreeItemType
+                                        .table
+                                ? Text(
+                                    '${child.rows.length} rows • '
+                                    '${child.columns.length} default columns',
+                                  )
+                                : null,
+                        trailing:
+                            const Icon(
+                          Icons
+                              .chevron_right,
+                        ),
+                        onTap: () {
+                          openItem(
+                            child,
+                          );
+                        },
+                      ),
+                    );
+                  },
+                ),
+      floatingActionButton:
+          FloatingActionButton(
         onPressed: createItem,
         child: const Icon(
           Icons.add,
