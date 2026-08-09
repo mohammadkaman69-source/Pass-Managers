@@ -2,90 +2,89 @@ import 'table_column_definition.dart';
 import 'table_row_data.dart';
 
 enum TreeItemType {
-folder,
-table,
+  folder,
+  table,
 }
 
 class TreeItem {
-int? id;
+  int? id;
 
-int? parentId;
+  int? parentId;
 
-String name;
+  String name;
 
-final TreeItemType type;
+  final TreeItemType type;
 
-final List<TreeItem> children;
+  final List<TreeItem> children;
 
-final List<TableColumnDefinition> columns;
+  final List<TableColumnDefinition> columns;
 
-final List<TableRowData> rows;
+  final List<TableRowData> rows;
 
-TreeItem.folder(
-this.name, {
-this.id,
-this.parentId,
-})  : type = TreeItemType.folder,
-children = [],
-columns = [],
-rows = [];
+  TreeItem.folder(
+    this.name, {
+    this.id,
+    this.parentId,
+  })  : type = TreeItemType.folder,
+        children = [],
+        columns = [],
+        rows = [];
 
-TreeItem.table(
-this.name, {
-this.id,
-this.parentId,
-})  : type = TreeItemType.table,
-children = [],
-columns = [
-TableColumnDefinition('Name'),
-TableColumnDefinition('IP'),
-TableColumnDefinition('Username'),
-TableColumnDefinition('Password'),
-TableColumnDefinition('Version'),
-TableColumnDefinition('Description'),
-],
-rows = [];
+  TreeItem.table(
+    this.name, {
+    this.id,
+    this.parentId,
+  })  : type = TreeItemType.table,
+        children = [],
+        columns = [
+          TableColumnDefinition('Name'),
+          TableColumnDefinition('IP'),
+          TableColumnDefinition('Username'),
+          TableColumnDefinition('Password'),
+          TableColumnDefinition('Version'),
+          TableColumnDefinition('Description'),
+        ],
+        rows = [];
 
-TreeItem copy() {
-if (type == TreeItemType.folder) {
-final copied = TreeItem.folder(
-name,
-id: id,
-parentId: parentId,
-);
+  TreeItem copy() {
+    if (type == TreeItemType.folder) {
+      final copied = TreeItem.folder(
+        name,
+        id: id,
+        parentId: parentId,
+      );
 
-  copied.children.addAll(
-    children.map(
-      (child) => child.copy(),
-    ),
-  );
+      copied.children.addAll(
+        children.map(
+          (child) => child.copy(),
+        ),
+      );
 
-  return copied;
-}
+      return copied;
+    }
 
-final copied = TreeItem.table(
-  name,
-  id: id,
-  parentId: parentId,
-);
+    final copied = TreeItem.table(
+      name,
+      id: id,
+      parentId: parentId,
+    );
 
-copied.columns
-  ..clear()
-  ..addAll(
-    columns.map(
-      (column) => column.copy(),
-    ),
-  );
+    copied.columns
+      ..clear()
+      ..addAll(
+        columns.map(
+          (column) => column.copy(),
+        ),
+      );
 
-copied.rows
-  ..clear()
-  ..addAll(
-    rows.map(
-      (row) => row.copy(),
-    ),
-  );
+    copied.rows
+      ..clear()
+      ..addAll(
+        rows.map(
+          (row) => row.copy(),
+        ),
+      );
 
-return copied;
-
-}
+    return copied;
+  }
 }
