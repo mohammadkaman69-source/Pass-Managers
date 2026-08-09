@@ -10,7 +10,7 @@ class SecurityManager {
   })  : _masterPasswordService =
             masterPasswordService ?? MasterPasswordService(),
         _securitySession =
-            securitySession ?? SecuritySession();
+            securitySession ?? SecuritySession.instance;
 
   final MasterPasswordService _masterPasswordService;
   final SecuritySession _securitySession;
@@ -33,9 +33,11 @@ class SecurityManager {
       masterPassword,
     );
 
-    _securitySession.unlock(key);
-
-    _clearBytes(key);
+    try {
+      _securitySession.unlock(key);
+    } finally {
+      _clearBytes(key);
+    }
   }
 
   Future<bool> unlock(
