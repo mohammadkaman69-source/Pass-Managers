@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../security/master_password_service.dart';
+import '../security/security_session.dart';
 import 'home_page.dart';
 
 class LoginPage extends StatefulWidget {
@@ -126,6 +127,15 @@ class _LoginPageState extends State<LoginPage> {
           password,
         );
 
+        final encryptionKey =
+            await _masterPasswordService.deriveEncryptionKey(
+          password,
+        );
+
+        SecuritySession.instance.unlock(
+          encryptionKey,
+        );
+
         if (!mounted) {
           return;
         }
@@ -170,17 +180,31 @@ class _LoginPageState extends State<LoginPage> {
           return;
         }
 
+        if (!result) {
+          setState(() {
+            isLoading = false;
+          });
+
+          showMessage(
+            'Wrong Master Password',
+          );
+          return;
+        }
+
+        final encryptionKey =
+            await _masterPasswordService.deriveEncryptionKey(
+          password,
+        );
+
+        SecuritySession.instance.unlock(
+          encryptionKey,
+        );
+
         setState(() {
           isLoading = false;
         });
 
-        if (result) {
-          openHome();
-        } else {
-          showMessage(
-            'Wrong Master Password',
-          );
-        }
+        openHome();
       } catch (error) {
         if (!mounted) {
           return;
