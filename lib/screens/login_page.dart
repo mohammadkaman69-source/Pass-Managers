@@ -11,14 +11,14 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
+  final SecurityManager _securityManager =
+      SecurityManager();
+
   final TextEditingController passwordController =
       TextEditingController();
 
   final TextEditingController confirmController =
       TextEditingController();
-
-  final SecurityManager _securityManager =
-      SecurityManager();
 
   bool createMode = false;
   bool isLoading = true;
@@ -84,7 +84,8 @@ class _LoginPageState extends State<LoginPage> {
       return;
     }
 
-    final password = passwordController.text;
+    final password =
+        passwordController.text;
 
     if (password.isEmpty) {
       showMessage(
@@ -124,7 +125,9 @@ class _LoginPageState extends State<LoginPage> {
         openHome();
       } else {
         final result =
-            await _securityManager.unlock(password);
+            await _securityManager.unlock(
+          password,
+        );
 
         if (result) {
           openHome();
@@ -167,7 +170,8 @@ class _LoginPageState extends State<LoginPage> {
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
-        builder: (context) => const HomePage(),
+        builder: (context) =>
+            const HomePage(),
       ),
     );
   }
@@ -204,7 +208,8 @@ class _LoginPageState extends State<LoginPage> {
                   controller: passwordController,
                   obscureText: true,
                   enabled: !isSubmitting,
-                  decoration: const InputDecoration(
+                  decoration:
+                      const InputDecoration(
                     labelText: 'Master Password',
                     border: OutlineInputBorder(),
                   ),
@@ -217,9 +222,22 @@ class _LoginPageState extends State<LoginPage> {
                     controller: confirmController,
                     obscureText: true,
                     enabled: !isSubmitting,
-                    decoration: const InputDecoration(
-                      labelText: 'Confirm Master Password',
+                    decoration:
+                        const InputDecoration(
+                      labelText:
+                          'Confirm Master Password',
                       border: OutlineInputBorder(),
+                    ),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  const Text(
+                    'Your Master Password is used to derive the encryption key for your password data.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.grey,
+                      fontSize: 12,
                     ),
                   ),
                 ],
@@ -233,8 +251,8 @@ class _LoginPageState extends State<LoginPage> {
                         isSubmitting ? null : submit,
                     child: isSubmitting
                         ? const SizedBox(
-                            width: 22,
-                            height: 22,
+                            width: 20,
+                            height: 20,
                             child:
                                 CircularProgressIndicator(
                               strokeWidth: 2,
@@ -261,11 +279,12 @@ class _LoginPageState extends State<LoginPage> {
                   const SizedBox(height: 8),
 
                   const Text(
-                    'Password recovery will be available soon',
+                    'Password recovery will be available soon.',
                     style: TextStyle(
                       color: Colors.grey,
                       fontSize: 12,
                     ),
+                    textAlign: TextAlign.center,
                   ),
                 ],
               ],
