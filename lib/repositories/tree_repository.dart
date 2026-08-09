@@ -1,4 +1,7 @@
+import 'dart:typed_data';
+
 import '../database/app_database.dart';
+import '../security/crypto_service.dart';
 import '../security/security_manager.dart';
 
 class TreeRepository {
@@ -6,6 +9,9 @@ class TreeRepository {
 
   final SecurityManager _securityManager =
       SecurityManager();
+
+  final CryptoService _cryptoService =
+      CryptoService();
 
   Future<List<Map<String, dynamic>>> getItems({
     int? parentId,
@@ -115,7 +121,8 @@ class TreeRepository {
     );
 
     for (final child in children) {
-      final childId = child['id'] as int;
+      final childId =
+          child['id'] as int;
 
       await _deleteItemRecursive(
         db,
@@ -131,7 +138,8 @@ class TreeRepository {
     );
 
     for (final row in rows) {
-      final rowId = row['id'] as int;
+      final rowId =
+          row['id'] as int;
 
       await _deleteRowRecursive(
         db,
@@ -190,7 +198,8 @@ class TreeRepository {
 
     return db.transaction(
       (txn) async {
-        final fieldId = await txn.insert(
+        final fieldId =
+            await txn.insert(
           'table_fields',
           {
             'row_id': rowId,
@@ -556,15 +565,19 @@ class TreeRepository {
         _securityManager.encryptionKey;
 
     try {
-      final crypto =
-          _securityManager.cryptoService;
+      final secretKey =
+          SecretKey(key);
 
-      return crypto.encrypt(
+      return await _cryptoService.encrypt(
         plainText: value,
-        key: crypto.secretKeyFromBytes(key),
+        key: secretKey,
       );
     } finally {
-      key.fillRange(0, key.length, 0);
+      key.fillRange(
+        0,
+        key.length,
+        0,
+      );
     }
   }
 
@@ -581,15 +594,19 @@ class TreeRepository {
         _securityManager.encryptionKey;
 
     try {
-      final crypto =
-          _securityManager.cryptoService;
+      final secretKey =
+          SecretKey(key);
 
-      return crypto.decrypt(
+      return await _cryptoService.decrypt(
         encryptedText: encryptedValue,
-        key: crypto.secretKeyFromBytes(key),
+        key: secretKey,
       );
     } finally {
-      key.fillRange(0, key.length, 0);
+      key.fillRange(
+        0,
+        key.length,
+        0,
+      );
     }
   }
 }
