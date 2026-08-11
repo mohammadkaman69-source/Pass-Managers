@@ -1,18 +1,22 @@
 import 'package:flutter/material.dart';
 
 import '../security/security_manager.dart';
-import 'home_page.dart';
 
 class LoginPage extends StatefulWidget {
+  final VoidCallback? onLoginSuccess;
+
   const LoginPage({
     super.key,
+    this.onLoginSuccess,
   });
 
   @override
-  State<LoginPage> createState() => _LoginPageState();
+  State<LoginPage> createState() =>
+      _LoginPageState();
 }
 
-class _LoginPageState extends State<LoginPage> {
+class _LoginPageState
+    extends State<LoginPage> {
   final SecurityManager _securityManager =
       SecurityManager();
 
@@ -90,7 +94,9 @@ class _LoginPageState extends State<LoginPage> {
     return hasLetter && hasNumber;
   }
 
-  bool _validateEmail(String email) {
+  bool _validateEmail(
+    String email,
+  ) {
     return RegExp(
       r'^[^@\s]+@[^@\s]+\.[^@\s]+$',
     ).hasMatch(email.trim());
@@ -140,7 +146,8 @@ class _LoginPageState extends State<LoginPage> {
         return;
       }
 
-      if (password != confirmController.text) {
+      if (password !=
+          confirmController.text) {
         _showMessage(
           'Passwords do not match.',
         );
@@ -154,7 +161,8 @@ class _LoginPageState extends State<LoginPage> {
 
     try {
       if (createMode) {
-        await _securityManager.setupMasterPassword(
+        await _securityManager
+            .setupMasterPassword(
           email: email,
           masterPassword: password,
         );
@@ -189,7 +197,9 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  void _showMessage(String message) {
+  void _showMessage(
+    String message,
+  ) {
     if (!mounted) {
       return;
     }
@@ -207,17 +217,13 @@ class _LoginPageState extends State<LoginPage> {
       return;
     }
 
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (_) =>
-            const HomePage(),
-      ),
-    );
+    widget.onLoginSuccess?.call();
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(
+    BuildContext context,
+  ) {
     if (_isLoading) {
       return const Scaffold(
         body: Center(
@@ -232,17 +238,21 @@ class _LoginPageState extends State<LoginPage> {
           padding: const EdgeInsets.all(30),
           child: SingleChildScrollView(
             child: Column(
-              mainAxisSize: MainAxisSize.min,
+              mainAxisSize:
+                  MainAxisSize.min,
               children: [
                 const Text(
                   'Pass Managers',
                   style: TextStyle(
                     fontSize: 32,
-                    fontWeight: FontWeight.bold,
+                    fontWeight:
+                        FontWeight.bold,
                   ),
                 ),
 
-                const SizedBox(height: 30),
+                const SizedBox(
+                  height: 30,
+                ),
 
                 if (createMode) ...[
                   TextField(
@@ -252,7 +262,8 @@ class _LoginPageState extends State<LoginPage> {
                         TextInputType.emailAddress,
                     textInputAction:
                         TextInputAction.next,
-                    enabled: !_isSubmitting,
+                    enabled:
+                        !_isSubmitting,
                     decoration:
                         const InputDecoration(
                       labelText:
@@ -264,14 +275,17 @@ class _LoginPageState extends State<LoginPage> {
                     ),
                   ),
 
-                  const SizedBox(height: 20),
+                  const SizedBox(
+                    height: 20,
+                  ),
                 ],
 
                 TextField(
                   controller:
                       passwordController,
                   obscureText: true,
-                  enabled: !_isSubmitting,
+                  enabled:
+                      !_isSubmitting,
                   textInputAction:
                       createMode
                           ? TextInputAction.next
@@ -291,13 +305,16 @@ class _LoginPageState extends State<LoginPage> {
                 ),
 
                 if (createMode) ...[
-                  const SizedBox(height: 20),
+                  const SizedBox(
+                    height: 20,
+                  ),
 
                   TextField(
                     controller:
                         confirmController,
                     obscureText: true,
-                    enabled: !_isSubmitting,
+                    enabled:
+                        !_isSubmitting,
                     textInputAction:
                         TextInputAction.done,
                     onSubmitted: (_) {
@@ -312,7 +329,9 @@ class _LoginPageState extends State<LoginPage> {
                     ),
                   ),
 
-                  const SizedBox(height: 20),
+                  const SizedBox(
+                    height: 20,
+                  ),
 
                   const Text(
                     'Your Master Password is used to derive the encryption key for your password data.',
@@ -325,35 +344,42 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                 ],
 
-                const SizedBox(height: 25),
+                const SizedBox(
+                  height: 25,
+                ),
 
                 SizedBox(
-                  width: double.infinity,
+                  width:
+                      double.infinity,
                   child:
                       ElevatedButton(
                     onPressed:
                         _isSubmitting
                             ? null
                             : _submit,
-                    child: _isSubmitting
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child:
-                                CircularProgressIndicator(
-                              strokeWidth: 2,
-                            ),
-                          )
-                        : Text(
-                            createMode
-                                ? 'Create'
-                                : 'Login',
-                          ),
+                    child:
+                        _isSubmitting
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child:
+                                    CircularProgressIndicator(
+                                  strokeWidth:
+                                      2,
+                                ),
+                              )
+                            : Text(
+                                createMode
+                                    ? 'Create'
+                                    : 'Login',
+                              ),
                   ),
                 ),
 
                 if (!createMode) ...[
-                  const SizedBox(height: 25),
+                  const SizedBox(
+                    height: 25,
+                  ),
 
                   const Text(
                     'Forgot Password?',
@@ -362,7 +388,9 @@ class _LoginPageState extends State<LoginPage> {
                     ),
                   ),
 
-                  const SizedBox(height: 8),
+                  const SizedBox(
+                    height: 8,
+                  ),
 
                   const Text(
                     'Password recovery will be available soon.',
