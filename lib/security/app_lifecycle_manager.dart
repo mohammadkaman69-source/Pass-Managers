@@ -17,15 +17,14 @@ class AppLifecycleManager
 
   bool _isRegistered = false;
 
-  bool _wasInBackground = false;
+  bool _lockedForBackground = false;
 
   void start() {
     if (_isRegistered) {
       return;
     }
 
-    WidgetsBinding.instance
-        .addObserver(this);
+    WidgetsBinding.instance.addObserver(this);
 
     _isRegistered = true;
   }
@@ -35,8 +34,7 @@ class AppLifecycleManager
       return;
     }
 
-    WidgetsBinding.instance
-        .removeObserver(this);
+    WidgetsBinding.instance.removeObserver(this);
 
     _isRegistered = false;
   }
@@ -45,30 +43,30 @@ class AppLifecycleManager
   void didChangeAppLifecycleState(
     AppLifecycleState state,
   ) {
-    switch (state) {
-      case AppLifecycleState.inactive:
-      case AppLifecycleState.paused:
-      case AppLifecycleState.detached:
-        if (_securitySession.isUnlocked) {
-          _securitySession.lock();
-          _wasInBackground = true;
-        }
-        break;
-
-      case AppLifecycleState.resumed:
-        if (_wasInBackground) {
-          _wasInBackground = false;
-
-          onLock();
-        }
-        break;
-
-      case AppLifecycleState.hidden:
-        if (_securitySession.isUnlocked) {
-          _securitySession.lock();
-          _wasInBackground = true;
-        }
-        break;
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden ||
+        state == AppLifecycleState.detached) {
+      _lockForBackground();
     }
+  }
+
+  void _lockForBackground() {
+    if (_lockedForBackground) {
+      return;
+    }
+
+    _lockedForBackground = true;
+
+    // پاک کردن کلید رمزنگاری از حافظه
+    if (_securitySession.isUnlocked) {
+      _securitySession.lock();
+    }
+
+    // درخواست بازگشت کامل برنامه به Login
+    onLock();
+  }
+
+  void markResumed() {
+    _lockedForBackground = false;
   }
 }
