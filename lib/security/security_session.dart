@@ -8,7 +8,8 @@ class SecuritySession {
 
   Uint8List? _encryptionKey;
 
-  bool get isUnlocked => _encryptionKey != null;
+  bool get isUnlocked =>
+      _encryptionKey != null;
 
   Uint8List get encryptionKey {
     final key = _encryptionKey;
@@ -31,7 +32,8 @@ class SecuritySession {
 
     _clearKey();
 
-    _encryptionKey = Uint8List.fromList(key);
+    _encryptionKey =
+        Uint8List.fromList(key);
   }
 
   void lock() {
@@ -45,7 +47,12 @@ class SecuritySession {
       return;
     }
 
-    key.fillRange(0, key.length, 0);
+    key.fillRange(
+      0,
+      key.length,
+      0,
+    );
+
     _encryptionKey = null;
   }
 }
