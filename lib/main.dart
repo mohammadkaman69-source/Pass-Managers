@@ -4,6 +4,9 @@ import 'screens/home_page.dart';
 import 'screens/login_page.dart';
 import 'security/app_lifecycle_manager.dart';
 
+final GlobalKey<NavigatorState> appNavigatorKey =
+    GlobalKey<NavigatorState>();
+
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -27,8 +30,6 @@ class _PassManagersState
   late final AppLifecycleManager
       _lifecycleManager;
 
-  bool _isLocked = true;
-
   @override
   void initState() {
     super.initState();
@@ -48,39 +49,63 @@ class _PassManagersState
   }
 
   void _lockApp() {
-    if (!mounted) {
+    final navigator =
+        appNavigatorKey.currentState;
+
+    if (navigator == null) {
       return;
     }
 
-    setState(() {
-      _isLocked = true;
-    });
+    // تمام صفحات قبلی را حذف می‌کنیم.
+    // یعنی HomePage / TreePage / TablePage
+    // دیگر روی Stack باقی نمی‌مانند.
+
+    navigator.pushAndRemoveUntil(
+      MaterialPageRoute(
+        builder: (_) => LoginPage(
+          onLoginSuccess: _unlockApp,
+        ),
+      ),
+      (route) => false,
+    );
+
+    _lifecycleManager.markResumed();
   }
 
   void _unlockApp() {
-    if (!mounted) {
+    final navigator =
+        appNavigatorKey.currentState;
+
+    if (navigator == null) {
       return;
     }
 
-    setState(() {
-      _isLocked = false;
-    });
+    // LoginPage فعلی کاملاً حذف می‌شود
+    // و HomePage از نو ساخته می‌شود.
+
+    navigator.pushAndRemoveUntil(
+      MaterialPageRoute(
+        builder: (_) => const HomePage(),
+      ),
+      (route) => false,
+    );
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(
+    BuildContext context,
+  ) {
     return MaterialApp(
+      navigatorKey: appNavigatorKey,
       debugShowCheckedModeBanner: false,
       title: 'Pass Managers',
       theme: ThemeData(
         colorSchemeSeed: Colors.blue,
         useMaterial3: true,
       ),
-      home: _isLocked
-          ? LoginPage(
-              onLoginSuccess: _unlockApp,
-            )
-          : const HomePage(),
+      home: LoginPage(
+        onLoginSuccess: _unlockApp,
+      ),
     );
   }
 }
