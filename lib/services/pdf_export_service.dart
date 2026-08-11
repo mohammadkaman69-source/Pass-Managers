@@ -54,9 +54,9 @@ class PdfExportService {
       );
     }
 
-    final fontData = await rootBundle.load(
-      'assets/fonts/NotoSans-Regular.ttf',
-    );
+   final fontData = await rootBundle.load(
+  'assets/fonts/BNazanin.ttf',
+);
 
     final font = pw.Font.ttf(
       fontData,
