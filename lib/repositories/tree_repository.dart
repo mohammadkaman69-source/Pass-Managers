@@ -604,4 +604,156 @@ class TreeRepository {
       );
     }
   }
+   /// Reads the complete tree recursively.
+  ///
+  /// The returned structure contains:
+  ///
+  /// {
+  ///   id,
+  ///   name,
+  ///   type,
+  ///   children: [...]
+  /// }
+  ///
+  /// Tables additionally contain:
+  ///
+  /// {
+  ///   columns: [...],
+  ///   rows: [...]
+  /// }
+  ///
+  /// Values are decrypted through the existing
+  /// security manager, therefore this method requires
+  /// the security session to be unlocked.
+  Future<List<Map<String, dynamic>>>
+      getCompleteTree() async {
+    return _loadTreeLevel(
+      parentId: null,
+    );
+  }
+
+  Future<List<Map<String, dynamic>>>
+      _loadTreeLevel({
+    required int? parentId,
+  }) async {
+    final items = await getItems(
+      parentId: parentId,
+    );
+
+    final result =
+        <Map<String, dynamic>>[];
+
+    for (final item in items) {
+      final id =
+          item['id'] as int;
+
+      final name =
+          item['name'] as String;
+
+      final type =
+          item['type'] as String;
+
+      final node =
+          <String, dynamic>{
+        'id': id,
+        'name': name,
+        'type': type,
+        'created_at':
+            item['created_at'],
+        'updated_at':
+            item['updated_at'],
+        'children':
+            <Map<String, dynamic>>[],
+      };
+
+      if (type == 'folder') {
+        node['children'] =
+            await _loadTreeLevel(
+          parentId: id,
+        );
+      } else if (type == 'table') {
+        node['columns'] =
+            <Map<String, dynamic>>[];
+
+        node['rows'] =
+            await _loadTableForExport(
+          id,
+        );
+      }
+
+      result.add(node);
+    }
+
+    return result;
+  }
+
+  Future<List<Map<String, dynamic>>>
+      _loadTableForExport(
+    int tableId,
+  ) async {
+    final rows =
+        await getRows(tableId);
+
+    final result =
+        <Map<String, dynamic>>[];
+
+    for (final row in rows) {
+      final rowId =
+          row['id'] as int;
+
+      final fields =
+          await getFields(rowId);
+
+      final values =
+          <String, dynamic>{};
+
+      final fieldsForExport =
+          <Map<String, dynamic>>[];
+
+      for (final field in fields) {
+        final fieldId =
+            field['id'] as int;
+
+        final fieldName =
+            field['name'] as String;
+
+        final position =
+            field['position'] as int;
+
+        final valueRecords =
+            await getValues(fieldId);
+
+        var value = '';
+
+        if (valueRecords.isNotEmpty) {
+          value =
+              valueRecords.first['value']
+                  as String;
+        }
+
+        fieldsForExport.add({
+          'id': fieldId,
+          'name': fieldName,
+          'position': position,
+        });
+
+        values[fieldName] =
+            value;
+      }
+
+      result.add({
+        'id': rowId,
+        'created_at':
+            row['created_at'],
+        'updated_at':
+            row['updated_at'],
+        'fields':
+            fieldsForExport,
+        'values':
+            values,
+      });
+    }
+
+    return result;
+  }
 }
