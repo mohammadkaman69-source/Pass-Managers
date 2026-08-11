@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/tree_item.dart';
 import '../repositories/tree_repository.dart';
+import '../security/security_guard.dart';
 import 'table_page.dart';
 import 'tree_page.dart';
 
@@ -15,7 +16,8 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  final TreeRepository _repository = TreeRepository();
+  final TreeRepository _repository =
+      TreeRepository();
 
   final List<TreeItem> items = [];
 
@@ -31,25 +33,32 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _loadItems() async {
     try {
-      final rows = await _repository.getItems();
+      final rows =
+          await _repository.getItems();
 
-      final loadedItems = <TreeItem>[];
-      final loadedIds = <TreeItem, int>{};
+      final loadedItems =
+          <TreeItem>[];
+
+      final loadedIds =
+          <TreeItem, int>{};
 
       for (final row in rows) {
         final id = row['id'] as int;
-        final name = row['name'] as String;
-        final type = row['type'] as String;
+        final name =
+            row['name'] as String;
+        final type =
+            row['type'] as String;
 
-        final item = type == 'table'
-            ? TreeItem.table(
-                name,
-                id: id,
-              )
-            : TreeItem.folder(
-                name,
-                id: id,
-              );
+        final item =
+            type == 'table'
+                ? TreeItem.table(
+                    name,
+                    id: id,
+                  )
+                : TreeItem.folder(
+                    name,
+                    id: id,
+                  );
 
         loadedItems.add(item);
         loadedIds[item] = id;
@@ -85,12 +94,15 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  void _showError(String message) {
+  void _showError(
+    String message,
+  ) {
     if (!mounted) {
       return;
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
+    ScaffoldMessenger.of(context)
+        .showSnackBar(
       SnackBar(
         content: Text(message),
       ),
@@ -103,33 +115,48 @@ class _HomePageState extends State<HomePage> {
       builder: (sheetContext) {
         return SafeArea(
           child: Column(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisSize:
+                MainAxisSize.min,
             children: [
               ListTile(
-                leading: const Icon(
-                  Icons.create_new_folder_outlined,
+                leading:
+                    const Icon(
+                  Icons
+                      .create_new_folder_outlined,
                 ),
-                title: const Text(
+                title:
+                    const Text(
                   'Create Folder',
                 ),
                 onTap: () {
-                  Navigator.pop(sheetContext);
+                  Navigator.pop(
+                    sheetContext,
+                  );
+
                   createFolder();
                 },
               ),
               ListTile(
-                leading: const Icon(
-                  Icons.table_chart_outlined,
+                leading:
+                    const Icon(
+                  Icons
+                      .table_chart_outlined,
                 ),
-                title: const Text(
+                title:
+                    const Text(
                   'Create Table',
                 ),
                 onTap: () {
-                  Navigator.pop(sheetContext);
+                  Navigator.pop(
+                    sheetContext,
+                  );
+
                   createTable();
                 },
               ),
-              const SizedBox(height: 10),
+              const SizedBox(
+                height: 10,
+              ),
             ],
           ),
         );
@@ -142,24 +169,33 @@ class _HomePageState extends State<HomePage> {
     required String label,
     String? initialValue,
   }) async {
-    final controller = TextEditingController(
-      text: initialValue ?? '',
+    final controller =
+        TextEditingController(
+      text:
+          initialValue ?? '',
     );
 
-    final result = await showDialog<String>(
+    final result =
+        await showDialog<String>(
       context: context,
-      builder: (dialogContext) {
+      builder:
+          (dialogContext) {
         return AlertDialog(
           title: Text(title),
           content: TextField(
-            controller: controller,
+            controller:
+                controller,
             autofocus: true,
-            decoration: InputDecoration(
+            decoration:
+                InputDecoration(
               labelText: label,
-              border: const OutlineInputBorder(),
+              border:
+                  const OutlineInputBorder(),
             ),
             onSubmitted: (_) {
-              final value = controller.text.trim();
+              final value =
+                  controller.text
+                      .trim();
 
               if (value.isNotEmpty) {
                 Navigator.pop(
@@ -172,13 +208,20 @@ class _HomePageState extends State<HomePage> {
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.pop(dialogContext);
+                Navigator.pop(
+                  dialogContext,
+                );
               },
-              child: const Text('Cancel'),
+              child:
+                  const Text(
+                'Cancel',
+              ),
             ),
             ElevatedButton(
               onPressed: () {
-                final value = controller.text.trim();
+                final value =
+                    controller.text
+                        .trim();
 
                 if (value.isEmpty) {
                   return;
@@ -189,7 +232,10 @@ class _HomePageState extends State<HomePage> {
                   value,
                 );
               },
-              child: const Text('Save'),
+              child:
+                  const Text(
+                'Save',
+              ),
             ),
           ],
         );
@@ -202,17 +248,23 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> createFolder() async {
-    final name = await _askName(
-      title: 'Create Folder',
-      label: 'Folder name',
+    final name =
+        await _askName(
+      title:
+          'Create Folder',
+      label:
+          'Folder name',
     );
 
-    if (name == null || name.isEmpty) {
+    if (name == null ||
+        name.isEmpty) {
       return;
     }
 
     try {
-      final id = await _repository.createFolder(
+      final id =
+          await _repository
+              .createFolder(
         name: name,
       );
 
@@ -220,14 +272,16 @@ class _HomePageState extends State<HomePage> {
         return;
       }
 
-      final item = TreeItem.folder(
+      final item =
+          TreeItem.folder(
         name,
         id: id,
       );
 
       setState(() {
         items.add(item);
-        _itemIds[item] = id;
+        _itemIds[item] =
+            id;
       });
     } catch (error) {
       _showError(
@@ -237,17 +291,23 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> createTable() async {
-    final name = await _askName(
-      title: 'Create Table',
-      label: 'Table name',
+    final name =
+        await _askName(
+      title:
+          'Create Table',
+      label:
+          'Table name',
     );
 
-    if (name == null || name.isEmpty) {
+    if (name == null ||
+        name.isEmpty) {
       return;
     }
 
     try {
-      final id = await _repository.createTable(
+      final id =
+          await _repository
+              .createTable(
         name: name,
       );
 
@@ -255,14 +315,16 @@ class _HomePageState extends State<HomePage> {
         return;
       }
 
-      final item = TreeItem.table(
+      final item =
+          TreeItem.table(
         name,
         id: id,
       );
 
       setState(() {
         items.add(item);
-        _itemIds[item] = id;
+        _itemIds[item] =
+            id;
       });
     } catch (error) {
       _showError(
@@ -274,24 +336,29 @@ class _HomePageState extends State<HomePage> {
   Future<void> renameItem(
     TreeItem item,
   ) async {
-    final id = _itemIds[item];
+    final id =
+        _itemIds[item];
 
     if (id == null) {
       return;
     }
 
-    final name = await _askName(
+    final name =
+        await _askName(
       title: 'Rename',
       label: 'Name',
-      initialValue: item.name,
+      initialValue:
+          item.name,
     );
 
-    if (name == null || name.isEmpty) {
+    if (name == null ||
+        name.isEmpty) {
       return;
     }
 
     try {
-      await _repository.renameItem(
+      await _repository
+          .renameItem(
         id: id,
         name: name,
       );
@@ -313,17 +380,23 @@ class _HomePageState extends State<HomePage> {
   Future<void> deleteItem(
     TreeItem item,
   ) async {
-    final id = _itemIds[item];
+    final id =
+        _itemIds[item];
 
     if (id == null) {
       return;
     }
 
-    final confirmed = await showDialog<bool>(
+    final confirmed =
+        await showDialog<bool>(
       context: context,
-      builder: (dialogContext) {
+      builder:
+          (dialogContext) {
         return AlertDialog(
-          title: const Text('Delete'),
+          title:
+              const Text(
+            'Delete',
+          ),
           content: Text(
             'Delete "${item.name}" and everything inside it?',
           ),
@@ -335,7 +408,10 @@ class _HomePageState extends State<HomePage> {
                   false,
                 );
               },
-              child: const Text('Cancel'),
+              child:
+                  const Text(
+                'Cancel',
+              ),
             ),
             ElevatedButton(
               onPressed: () {
@@ -344,7 +420,10 @@ class _HomePageState extends State<HomePage> {
                   true,
                 );
               },
-              child: const Text('Delete'),
+              child:
+                  const Text(
+                'Delete',
+              ),
             ),
           ],
         );
@@ -356,7 +435,8 @@ class _HomePageState extends State<HomePage> {
     }
 
     try {
-      await _repository.deleteItem(id);
+      await _repository
+          .deleteItem(id);
 
       if (!mounted) {
         return;
@@ -378,30 +458,51 @@ class _HomePageState extends State<HomePage> {
   ) {
     showModalBottomSheet(
       context: context,
-      builder: (sheetContext) {
+      builder:
+          (sheetContext) {
         return SafeArea(
           child: Column(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisSize:
+                MainAxisSize.min,
             children: [
               ListTile(
-                leading: const Icon(Icons.edit),
-                title: const Text('Rename'),
+                leading:
+                    const Icon(
+                  Icons.edit,
+                ),
+                title:
+                    const Text(
+                  'Rename',
+                ),
                 onTap: () {
-                  Navigator.pop(sheetContext);
+                  Navigator.pop(
+                    sheetContext,
+                  );
+
                   renameItem(item);
                 },
               ),
               ListTile(
-                leading: const Icon(
-                  Icons.delete_outline,
+                leading:
+                    const Icon(
+                  Icons
+                      .delete_outline,
                 ),
-                title: const Text('Delete'),
+                title:
+                    const Text(
+                  'Delete',
+                ),
                 onTap: () {
-                  Navigator.pop(sheetContext);
+                  Navigator.pop(
+                    sheetContext,
+                  );
+
                   deleteItem(item);
                 },
               ),
-              const SizedBox(height: 8),
+              const SizedBox(
+                height: 8,
+              ),
             ],
           ),
         );
@@ -409,14 +510,18 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  void openItem(TreeItem item) {
-    final id = _itemIds[item];
+  void openItem(
+    TreeItem item,
+  ) {
+    final id =
+        _itemIds[item];
 
     if (id == null) {
       return;
     }
 
-    if (item.type == TreeItemType.table) {
+    if (item.type ==
+        TreeItemType.table) {
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -430,8 +535,13 @@ class _HomePageState extends State<HomePage> {
                 }
 
                 setState(() {
-                  items.remove(item);
-                  _itemIds.remove(item);
+                  items.remove(
+                    item,
+                  );
+
+                  _itemIds.remove(
+                    item,
+                  );
                 });
               },
             );
@@ -454,15 +564,21 @@ class _HomePageState extends State<HomePage> {
             item: item,
             itemId: id,
             onDelete: () async {
-              await _repository.deleteItem(id);
+              await _repository
+                  .deleteItem(id);
 
               if (!mounted) {
                 return;
               }
 
               setState(() {
-                items.remove(item);
-                _itemIds.remove(item);
+                items.remove(
+                  item,
+                );
+
+                _itemIds.remove(
+                  item,
+                );
               });
             },
           );
@@ -476,92 +592,145 @@ class _HomePageState extends State<HomePage> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          'Pass Managers',
+  Widget build(
+    BuildContext context,
+  ) {
+    return SecurityGuard(
+      child: Scaffold(
+        appBar: AppBar(
+          title:
+              const Text(
+            'Pass Managers',
+          ),
         ),
-      ),
-      body: _isLoading
-          ? const Center(
-              child: CircularProgressIndicator(),
-            )
-          : items.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        Icons.folder_open,
-                        size: 80,
-                      ),
-                      const SizedBox(height: 20),
-                      const Text(
-                        'No items created yet',
-                        style: TextStyle(
-                          fontSize: 18,
+        body: _isLoading
+            ? const Center(
+                child:
+                    CircularProgressIndicator(),
+              )
+            : items.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisSize:
+                          MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.folder_open,
+                          size: 80,
                         ),
-                      ),
-                      const SizedBox(height: 20),
-                      ElevatedButton.icon(
-                        onPressed: createItem,
-                        icon: const Icon(Icons.add),
-                        label: const Text('Create'),
-                      ),
-                    ],
-                  ),
-                )
-              : ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: items.length,
-                  itemBuilder: (context, index) {
-                    final item = items[index];
-
-                    final isTable =
-                        item.type == TreeItemType.table;
-
-                    return Card(
-                      child: ListTile(
-                        leading: Icon(
-                          isTable
-                              ? Icons.table_chart
-                              : Icons.folder,
+                        const SizedBox(
+                          height: 20,
                         ),
-                        title: Text(item.name),
-                        subtitle: isTable
-                            ? Text(
-                                '${item.rows.length} rows • '
-                                '${item.columns.length} columns',
-                              )
-                            : null,
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IconButton(
-                              onPressed: () {
-                                showItemMenu(item);
-                              },
-                              icon: const Icon(
-                                Icons.more_vert,
+                        const Text(
+                          'No items created yet',
+                          style:
+                              TextStyle(
+                            fontSize: 18,
+                          ),
+                        ),
+                        const SizedBox(
+                          height: 20,
+                        ),
+                        ElevatedButton
+                            .icon(
+                          onPressed:
+                              createItem,
+                          icon:
+                              const Icon(
+                            Icons.add,
+                          ),
+                          label:
+                              const Text(
+                            'Create',
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                : ListView.builder(
+                    padding:
+                        const EdgeInsets.all(
+                      16,
+                    ),
+                    itemCount:
+                        items.length,
+                    itemBuilder:
+                        (context, index) {
+                      final item =
+                          items[index];
+
+                      final isTable =
+                          item.type ==
+                              TreeItemType
+                                  .table;
+
+                      return Card(
+                        child:
+                            ListTile(
+                          leading:
+                              Icon(
+                            isTable
+                                ? Icons
+                                    .table_chart
+                                : Icons
+                                    .folder,
+                          ),
+                          title:
+                              Text(
+                            item.name,
+                          ),
+                          subtitle:
+                              isTable
+                                  ? Text(
+                                      '${item.rows.length} rows • '
+                                      '${item.columns.length} columns',
+                                    )
+                                  : null,
+                          trailing:
+                              Row(
+                            mainAxisSize:
+                                MainAxisSize
+                                    .min,
+                            children: [
+                              IconButton(
+                                onPressed:
+                                    () {
+                                  showItemMenu(
+                                    item,
+                                  );
+                                },
+                                icon:
+                                    const Icon(
+                                  Icons
+                                      .more_vert,
+                                ),
+                                tooltip:
+                                    'Options',
                               ),
-                              tooltip: 'Options',
-                            ),
-                            const Icon(
-                              Icons.chevron_right,
-                            ),
-                          ],
+                              const Icon(
+                                Icons
+                                    .chevron_right,
+                              ),
+                            ],
+                          ),
+                          onTap: () {
+                            openItem(
+                              item,
+                            );
+                          },
                         ),
-                        onTap: () {
-                          openItem(item);
-                        },
-                      ),
-                    );
-                  },
-                ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: createItem,
-        child: const Icon(Icons.add),
+                      );
+                    },
+                  ),
+        floatingActionButton:
+            FloatingActionButton(
+          onPressed:
+              createItem,
+          child:
+              const Icon(
+            Icons.add,
+          ),
+        ),
       ),
     );
   }
