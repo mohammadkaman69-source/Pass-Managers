@@ -4,7 +4,6 @@ import 'package:flutter/services.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
-import '../models/table_row_data.dart';
 import '../models/tree_item.dart';
 
 class PdfExportService {
