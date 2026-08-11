@@ -5,13 +5,19 @@ import 'security_session.dart';
 class AppLifecycleManager
     with WidgetsBindingObserver {
   AppLifecycleManager({
+    required this.onLock,
     SecuritySession? securitySession,
   }) : _securitySession =
-            securitySession ?? SecuritySession.instance;
+            securitySession ??
+                SecuritySession.instance;
+
+  final VoidCallback onLock;
 
   final SecuritySession _securitySession;
 
   bool _isRegistered = false;
+
+  bool _wasInBackground = false;
 
   void start() {
     if (_isRegistered) {
@@ -39,11 +45,30 @@ class AppLifecycleManager
   void didChangeAppLifecycleState(
     AppLifecycleState state,
   ) {
-    if (state == AppLifecycleState
-            .paused ||
-        state == AppLifecycleState
-            .detached) {
-      _securitySession.lock();
+    switch (state) {
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.paused:
+      case AppLifecycleState.detached:
+        if (_securitySession.isUnlocked) {
+          _securitySession.lock();
+          _wasInBackground = true;
+        }
+        break;
+
+      case AppLifecycleState.resumed:
+        if (_wasInBackground) {
+          _wasInBackground = false;
+
+          onLock();
+        }
+        break;
+
+      case AppLifecycleState.hidden:
+        if (_securitySession.isUnlocked) {
+          _securitySession.lock();
+          _wasInBackground = true;
+        }
+        break;
     }
   }
 }
