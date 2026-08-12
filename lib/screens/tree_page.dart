@@ -7,7 +7,9 @@ import 'table_page.dart';
 
 class TreePage extends StatefulWidget {
   final TreeItem item;
+
   final int? itemId;
+
   final VoidCallback? onDelete;
 
   const TreePage({
@@ -23,11 +25,14 @@ class TreePage extends StatefulWidget {
 
 class _TreePageState extends State<TreePage> {
   final TreeRepository _repository = TreeRepository();
-  final PdfExportService _pdfExportService = PdfExportService();
+
+  final PdfExportService _pdfExportService =
+      PdfExportService();
 
   final Map<TreeItem, int> _itemIds = {};
 
   bool _isLoading = true;
+
   bool _isExporting = false;
 
   @override
@@ -175,7 +180,8 @@ class _TreePageState extends State<TreePage> {
                 }
 
                 try {
-                  final id = await _repository.createFolder(
+                  final id =
+                      await _repository.createFolder(
                     parentId: widget.itemId,
                     name: name,
                   );
@@ -205,7 +211,8 @@ class _TreePageState extends State<TreePage> {
                     return;
                   }
 
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  ScaffoldMessenger.of(context)
+                      .showSnackBar(
                     SnackBar(
                       content: Text(
                         'Failed to create folder: $error',
@@ -261,7 +268,8 @@ class _TreePageState extends State<TreePage> {
                 }
 
                 try {
-                  final id = await _repository.createTable(
+                  final id =
+                      await _repository.createTable(
                     parentId: widget.itemId,
                     name: name,
                   );
@@ -291,7 +299,8 @@ class _TreePageState extends State<TreePage> {
                     return;
                   }
 
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  ScaffoldMessenger.of(context)
+                      .showSnackBar(
                     SnackBar(
                       content: Text(
                         'Failed to create table: $error',
@@ -319,7 +328,8 @@ class _TreePageState extends State<TreePage> {
       return;
     }
 
-    final index = widget.item.children.indexOf(item);
+    final index =
+        widget.item.children.indexOf(item);
 
     if (item.type == TreeItemType.table) {
       Navigator.push(
@@ -331,7 +341,8 @@ class _TreePageState extends State<TreePage> {
               tableId: itemId,
               onDelete: () {
                 if (index >= 0 &&
-                    index < widget.item.children.length) {
+                    index <
+                        widget.item.children.length) {
                   widget.item.children.removeAt(index);
                 }
 
@@ -360,7 +371,8 @@ class _TreePageState extends State<TreePage> {
             itemId: itemId,
             onDelete: () {
               if (index >= 0 &&
-                  index < widget.item.children.length) {
+                  index <
+                      widget.item.children.length) {
                 widget.item.children.removeAt(index);
               }
 
@@ -405,7 +417,8 @@ class _TreePageState extends State<TreePage> {
             ),
             ElevatedButton(
               onPressed: () async {
-                final name = controller.text.trim();
+                final name =
+                    controller.text.trim();
 
                 if (name.isEmpty) {
                   return;
@@ -439,7 +452,8 @@ class _TreePageState extends State<TreePage> {
                     return;
                   }
 
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  ScaffoldMessenger.of(context)
+                      .showSnackBar(
                     SnackBar(
                       content: Text(
                         'Failed to rename folder: $error',
@@ -461,7 +475,8 @@ class _TreePageState extends State<TreePage> {
   }
 
   Future<void> deleteFolder() async {
-    final confirmed = await showDialog<bool>(
+    final confirmed =
+        await showDialog<bool>(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
@@ -554,6 +569,10 @@ class _TreePageState extends State<TreePage> {
       final completeTree =
           await _repository.getCompleteTree();
 
+      if (!mounted) {
+        return;
+      }
+
       Map<String, dynamic>? target;
 
       void findNode(
@@ -570,7 +589,8 @@ class _TreePageState extends State<TreePage> {
           final children = node['children'];
 
           if (children is List) {
-            final childNodes = <Map<String, dynamic>>[];
+            final childNodes =
+                <Map<String, dynamic>>[];
 
             for (final child in children) {
               if (child is Map<String, dynamic>) {
@@ -597,9 +617,9 @@ class _TreePageState extends State<TreePage> {
         );
       }
 
-      final file = await _pdfExportService.exportTree(
+      final file =
+          await _pdfExportService.exportTree(
         root: target!,
-        context: context,
       );
 
       if (!mounted) {
@@ -609,9 +629,10 @@ class _TreePageState extends State<TreePage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'PDF با موفقیت ذخیره شد:\n${file.path}',
+            'PDF با موفقیت ساخته شد:\n${file.path}',
           ),
-          duration: const Duration(seconds: 5),
+          duration:
+              const Duration(seconds: 5),
         ),
       );
     } catch (error) {
@@ -623,13 +644,11 @@ class _TreePageState extends State<TreePage> {
         'خطا در ساخت PDF:\n$error',
       );
     } finally {
-      if (!mounted) {
-        return;
+      if (mounted) {
+        setState(() {
+          _isExporting = false;
+        });
       }
-
-      setState(() {
-        _isExporting = false;
-      });
     }
   }
 
@@ -662,7 +681,8 @@ class _TreePageState extends State<TreePage> {
                     child: SizedBox(
                       width: 20,
                       height: 20,
-                      child: CircularProgressIndicator(
+                      child:
+                          CircularProgressIndicator(
                         strokeWidth: 2,
                       ),
                     ),
@@ -694,12 +714,14 @@ class _TreePageState extends State<TreePage> {
       ),
       body: _isLoading
           ? const Center(
-              child: CircularProgressIndicator(),
+              child:
+                  CircularProgressIndicator(),
             )
           : widget.item.children.isEmpty
               ? Center(
                   child: Column(
-                    mainAxisSize: MainAxisSize.min,
+                    mainAxisSize:
+                        MainAxisSize.min,
                     children: [
                       Icon(
                         Icons.folder_open,
@@ -708,14 +730,18 @@ class _TreePageState extends State<TreePage> {
                             .colorScheme
                             .primary,
                       ),
-                      const SizedBox(height: 20),
+                      const SizedBox(
+                        height: 20,
+                      ),
                       const Text(
                         'Folder is empty',
                         style: TextStyle(
                           fontSize: 18,
                         ),
                       ),
-                      const SizedBox(height: 20),
+                      const SizedBox(
+                        height: 20,
+                      ),
                       ElevatedButton.icon(
                         onPressed: createItem,
                         icon: const Icon(
@@ -729,11 +755,15 @@ class _TreePageState extends State<TreePage> {
                   ),
                 )
               : ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: widget.item.children.length,
-                  itemBuilder: (context, index) {
+                  padding:
+                      const EdgeInsets.all(16),
+                  itemCount:
+                      widget.item.children.length,
+                  itemBuilder:
+                      (context, index) {
                     final child =
-                        widget.item.children[index];
+                        widget.item.children[
+                            index];
 
                     return Card(
                       child: ListTile(
@@ -753,7 +783,8 @@ class _TreePageState extends State<TreePage> {
                                 '${child.columns.length} default columns',
                               )
                             : null,
-                        trailing: const Icon(
+                        trailing:
+                            const Icon(
                           Icons.chevron_right,
                         ),
                         onTap: () {
@@ -763,7 +794,8 @@ class _TreePageState extends State<TreePage> {
                     );
                   },
                 ),
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton:
+          FloatingActionButton(
         onPressed: createItem,
         child: const Icon(
           Icons.add,
