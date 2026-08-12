@@ -5,7 +5,10 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
 class PdfExportService {
-  Future<Uint8List> buildTreePdf({
+  static const MethodChannel _channel =
+      MethodChannel('pass_managers/file_saver');
+
+  Future<String?> exportTree({
     required Map<String, dynamic> root,
   }) async {
     final document = pw.Document();
@@ -25,6 +28,19 @@ class PdfExportService {
       level: 0,
     );
 
+    if (content.isEmpty) {
+      content.add(
+        pw.Text(
+          'محتوایی برای Export وجود ندارد.',
+          textDirection: pw.TextDirection.rtl,
+          style: pw.TextStyle(
+            font: font,
+            fontSize: 14,
+          ),
+        ),
+      );
+    }
+
     document.addPage(
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
@@ -32,13 +48,32 @@ class PdfExportService {
         theme: pw.ThemeData.withFont(
           base: font,
         ),
+        margin: const pw.EdgeInsets.all(28),
         build: (context) {
           return content;
         },
       ),
     );
 
-    return document.save();
+    final bytes = Uint8List.fromList(
+      await document.save(),
+    );
+
+    final safeName = _sanitizeFileName(
+      root['name']?.toString() ?? 'Pass-Managers',
+    );
+
+    final fileName = '$safeName.pdf';
+
+    final result = await _channel.invokeMethod<String>(
+      'savePdf',
+      <String, dynamic>{
+        'fileName': fileName,
+        'bytes': bytes,
+      },
+    );
+
+    return result;
   }
 
   void _buildTreeContent({
@@ -61,11 +96,13 @@ class PdfExportService {
         pw.Padding(
           padding: pw.EdgeInsets.only(
             right: indent,
-            top: level == 0 ? 0 : 10,
-            bottom: 6,
+            top: level == 0 ? 0 : 12,
+            bottom: 7,
           ),
           child: pw.Text(
-            '📁 $name',
+            level == 0
+                ? 'پوشه: $name'
+                : 'پوشه: $name',
             textDirection:
                 pw.TextDirection.rtl,
             style: pw.TextStyle(
@@ -145,7 +182,7 @@ class PdfExportService {
 
     content.add(
       pw.SizedBox(
-        height: 8,
+        height: 10,
       ),
     );
 
@@ -156,7 +193,7 @@ class PdfExportService {
           bottom: 8,
         ),
         child: pw.Text(
-          '📋 $name',
+          'جدول: $name',
           textDirection:
               pw.TextDirection.rtl,
           style: pw.TextStyle(
@@ -176,7 +213,7 @@ class PdfExportService {
         pw.Padding(
           padding: pw.EdgeInsets.only(
             right: indent + 10,
-            bottom: 8,
+            bottom: 10,
           ),
           child: pw.Text(
             'این جدول رکوردی ندارد.',
@@ -196,37 +233,90 @@ class PdfExportService {
     final columns =
         <String>[];
 
-    for (final row in rows) {
-      if (row is! Map) {
+    /*
+     * ستون‌ها را بر اساس position جمع می‌کنیم.
+     * چون fields هر رکورد ممکن است متفاوت باشد،
+     * از تمام رکوردها ستون‌های موجود را جمع می‌کنیم.
+     */
+    final fieldPositions =
+        <String, int>{};
+
+    for (final rawRow in rows) {
+      if (rawRow is! Map) {
         continue;
       }
+
+      final row =
+          Map<String, dynamic>.from(rawRow);
 
       final fields =
           row['fields'];
 
-      if (fields is List) {
-        for (final field in fields) {
-          if (field is Map) {
-            final fieldName =
-                field['name']?.toString() ?? '';
+      if (fields is! List) {
+        continue;
+      }
 
-            if (fieldName.isNotEmpty &&
-                !columns.contains(
-                  fieldName,
-                )) {
-              columns.add(fieldName);
-            }
-          }
+      for (final rawField in fields) {
+        if (rawField is! Map) {
+          continue;
+        }
+
+        final field =
+            Map<String, dynamic>.from(
+          rawField,
+        );
+
+        final fieldName =
+            field['name']?.toString() ?? '';
+
+        if (fieldName.isEmpty) {
+          continue;
+        }
+
+        final position =
+            field['position'] is int
+                ? field['position'] as int
+                : 999999;
+
+        final oldPosition =
+            fieldPositions[fieldName];
+
+        if (oldPosition == null ||
+            position < oldPosition) {
+          fieldPositions[fieldName] =
+              position;
         }
       }
     }
+
+    final sortedNames =
+        fieldPositions.keys.toList()
+          ..sort(
+            (a, b) {
+              final positionCompare =
+                  fieldPositions[a]!
+                      .compareTo(
+                    fieldPositions[b]!,
+                  );
+
+              if (positionCompare != 0) {
+                return positionCompare;
+              }
+
+              return a.compareTo(b);
+            },
+          );
+
+    columns.addAll(
+      sortedNames,
+    );
 
     if (columns.isEmpty) {
       content.add(
         pw.Padding(
           padding: pw.EdgeInsets.only(
             right: indent + 10,
-            bottom: 8,
+            bottom: 10,
           ),
           child: pw.Text(
             'این جدول فیلدی ندارد.',
@@ -246,10 +336,13 @@ class PdfExportService {
     final tableData =
         <List<String>>[];
 
-    for (final row in rows) {
-      if (row is! Map) {
+    for (final rawRow in rows) {
+      if (rawRow is! Map) {
         continue;
       }
+
+      final row =
+          Map<String, dynamic>.from(rawRow);
 
       final values =
           row['values'];
@@ -270,12 +363,15 @@ class PdfExportService {
           }
         }
 
+        final lowerName =
+            columnName.toLowerCase();
+
         final isPassword =
-            columnName
-                .toLowerCase()
-                .contains(
-                  'password',
-                );
+            lowerName.contains('password') ||
+            lowerName.contains('pass') ||
+            columnName.contains('رمز') ||
+            columnName.contains('پسورد') ||
+            columnName.contains('گذرواژه');
 
         if (isPassword &&
             value.isNotEmpty) {
@@ -285,14 +381,66 @@ class PdfExportService {
         rowValues.add(value);
       }
 
-      tableData.add(rowValues);
+      tableData.add(
+        rowValues,
+      );
     }
 
     content.add(
       pw.Padding(
         padding: pw.EdgeInsets.only(
           right: indent,
-          bottom: 14,
+          bottom: 16,
         ),
         child:
-            pw.TableHelper
+            pw.TableHelper.fromTextArray(
+          headers: columns,
+          data: tableData,
+          headerStyle:
+              pw.TextStyle(
+            font: font,
+            fontSize: 9,
+            fontWeight:
+                pw.FontWeight.bold,
+          ),
+          cellStyle:
+              pw.TextStyle(
+            font: font,
+            fontSize: 8,
+          ),
+          headerDecoration:
+              const pw.BoxDecoration(
+            color: PdfColors.grey300,
+          ),
+          cellAlignment:
+              pw.Alignment.centerRight,
+          headerAlignment:
+              pw.Alignment.centerRight,
+          border:
+              pw.TableBorder.all(
+            color: PdfColors.grey500,
+            width: 0.5,
+          ),
+          cellPadding:
+              const pw.EdgeInsets.all(4),
+        ),
+      ),
+    );
+  }
+
+  String _sanitizeFileName(
+    String name,
+  ) {
+    final sanitized =
+        name.replaceAll(
+      RegExp(r'[<>:"/\\|?*]'),
+      '_',
+    ).trim();
+
+    if (sanitized.isEmpty) {
+      return 'Pass-Managers';
+    }
+
+    return sanitized;
+  }
+}
