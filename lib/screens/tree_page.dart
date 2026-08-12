@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/tree_item.dart';
 import '../repositories/tree_repository.dart';
+import '../services/pdf_export_service.dart';
 import 'table_page.dart';
 
 class TreePage extends StatefulWidget {
@@ -25,9 +26,14 @@ class TreePage extends StatefulWidget {
 class _TreePageState extends State<TreePage> {
   final TreeRepository _repository = TreeRepository();
 
+  final PdfExportService _pdfExportService =
+      PdfExportService();
+
   final Map<TreeItem, int> _itemIds = {};
 
   bool _isLoading = true;
+
+  bool _isExporting = false;
 
   @override
   void initState() {
@@ -174,7 +180,8 @@ class _TreePageState extends State<TreePage> {
                 }
 
                 try {
-                  final id = await _repository.createFolder(
+                  final id =
+                      await _repository.createFolder(
                     parentId: widget.itemId,
                     name: name,
                   );
@@ -204,7 +211,8 @@ class _TreePageState extends State<TreePage> {
                     return;
                   }
 
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  ScaffoldMessenger.of(context)
+                      .showSnackBar(
                     SnackBar(
                       content: Text(
                         'Failed to create folder: $error',
@@ -260,7 +268,8 @@ class _TreePageState extends State<TreePage> {
                 }
 
                 try {
-                  final id = await _repository.createTable(
+                  final id =
+                      await _repository.createTable(
                     parentId: widget.itemId,
                     name: name,
                   );
@@ -290,7 +299,8 @@ class _TreePageState extends State<TreePage> {
                     return;
                   }
 
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  ScaffoldMessenger.of(context)
+                      .showSnackBar(
                     SnackBar(
                       content: Text(
                         'Failed to create table: $error',
@@ -318,7 +328,8 @@ class _TreePageState extends State<TreePage> {
       return;
     }
 
-    final index = widget.item.children.indexOf(item);
+    final index =
+        widget.item.children.indexOf(item);
 
     if (item.type == TreeItemType.table) {
       Navigator.push(
@@ -330,8 +341,10 @@ class _TreePageState extends State<TreePage> {
               tableId: itemId,
               onDelete: () {
                 if (index >= 0 &&
-                    index < widget.item.children.length) {
-                  widget.item.children.removeAt(index);
+                    index <
+                        widget.item.children.length) {
+                  widget.item.children
+                      .removeAt(index);
                 }
 
                 _itemIds.remove(item);
@@ -359,8 +372,10 @@ class _TreePageState extends State<TreePage> {
             itemId: itemId,
             onDelete: () {
               if (index >= 0 &&
-                  index < widget.item.children.length) {
-                widget.item.children.removeAt(index);
+                  index <
+                      widget.item.children.length) {
+                widget.item.children
+                    .removeAt(index);
               }
 
               _itemIds.remove(item);
@@ -404,7 +419,8 @@ class _TreePageState extends State<TreePage> {
             ),
             ElevatedButton(
               onPressed: () async {
-                final name = controller.text.trim();
+                final name =
+                    controller.text.trim();
 
                 if (name.isEmpty) {
                   return;
@@ -438,7 +454,8 @@ class _TreePageState extends State<TreePage> {
                     return;
                   }
 
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  ScaffoldMessenger.of(context)
+                      .showSnackBar(
                     SnackBar(
                       content: Text(
                         'Failed to rename folder: $error',
@@ -460,7 +477,8 @@ class _TreePageState extends State<TreePage> {
   }
 
   Future<void> deleteFolder() async {
-    final confirmed = await showDialog<bool>(
+    final confirmed =
+        await showDialog<bool>(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
@@ -531,6 +549,135 @@ class _TreePageState extends State<TreePage> {
     }
   }
 
+  Future<void> _exportCurrentTree() async {
+    if (_isExporting) {
+      return;
+    }
+
+    setState(() {
+      _isExporting = true;
+    });
+
+    try {
+      final completeTree =
+          await _repository.getCompleteTree();
+
+      Map<String, dynamic>? exportRoot;
+
+      if (widget.itemId == null) {
+        exportRoot = {
+          'id': widget.item.id,
+          'name': widget.item.name,
+          'type': 'folder',
+          'children': completeTree,
+        };
+      } else {
+        exportRoot = _findNodeById(
+          completeTree,
+          widget.itemId!,
+        );
+      }
+
+      if (exportRoot == null) {
+        throw StateError(
+          'Could not find the selected folder in the tree.',
+        );
+      }
+
+      final directory =
+          await _getExportDirectory();
+
+      final file =
+          await _pdfExportService.exportTree(
+        root: exportRoot,
+        directory: directory,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
+        SnackBar(
+          content: Text(
+            'PDF exported successfully:\n${file.path}',
+          ),
+          duration:
+              const Duration(seconds: 5),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
+        SnackBar(
+          content: Text(
+            'Failed to export PDF: $error',
+          ),
+        ),
+      );
+    } finally {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _isExporting = false;
+      });
+    }
+  }
+
+  Map<String, dynamic>? _findNodeById(
+    List<Map<String, dynamic>> nodes,
+    int id,
+  ) {
+    for (final node in nodes) {
+      final nodeId = node['id'];
+
+      if (nodeId == id) {
+        return node;
+      }
+
+      final children = node['children'];
+
+      if (children is List) {
+        final childMaps =
+            <Map<String, dynamic>>[];
+
+        for (final child in children) {
+          if (child
+              is Map<String, dynamic>) {
+            childMaps.add(child);
+          }
+        }
+
+        final result =
+            _findNodeById(
+          childMaps,
+          id,
+        );
+
+        if (result != null) {
+          return result;
+        }
+      }
+    }
+
+    return null;
+  }
+
+  Future<Directory>
+      _getExportDirectory() async {
+    final directory =
+        Directory.systemTemp;
+
+    return directory;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -539,6 +686,31 @@ class _TreePageState extends State<TreePage> {
           widget.item.name,
         ),
         actions: [
+          if (_isExporting)
+            const Padding(
+              padding:
+                  EdgeInsets.symmetric(
+                horizontal: 16,
+              ),
+              child: SizedBox(
+                width: 22,
+                height: 22,
+                child:
+                    CircularProgressIndicator(
+                  strokeWidth: 2,
+                ),
+              ),
+            )
+          else
+            IconButton(
+              onPressed:
+                  _exportCurrentTree,
+              icon: const Icon(
+                Icons.picture_as_pdf_outlined,
+              ),
+              tooltip:
+                  'Export PDF',
+            ),
           IconButton(
             onPressed: renameItem,
             icon: const Icon(
@@ -552,40 +724,52 @@ class _TreePageState extends State<TreePage> {
               icon: const Icon(
                 Icons.delete_outline,
               ),
-              tooltip: 'Delete Folder',
+              tooltip:
+                  'Delete Folder',
             ),
         ],
       ),
       body: _isLoading
           ? const Center(
-              child: CircularProgressIndicator(),
+              child:
+                  CircularProgressIndicator(),
             )
           : widget.item.children.isEmpty
               ? Center(
                   child: Column(
-                    mainAxisSize: MainAxisSize.min,
+                    mainAxisSize:
+                        MainAxisSize.min,
                     children: [
                       Icon(
                         Icons.folder_open,
                         size: 80,
-                        color: Theme.of(context)
+                        color: Theme.of(
+                          context,
+                        )
                             .colorScheme
                             .primary,
                       ),
-                      const SizedBox(height: 20),
+                      const SizedBox(
+                        height: 20,
+                      ),
                       const Text(
                         'Folder is empty',
                         style: TextStyle(
                           fontSize: 18,
                         ),
                       ),
-                      const SizedBox(height: 20),
+                      const SizedBox(
+                        height: 20,
+                      ),
                       ElevatedButton.icon(
-                        onPressed: createItem,
-                        icon: const Icon(
+                        onPressed:
+                            createItem,
+                        icon:
+                            const Icon(
                           Icons.add,
                         ),
-                        label: const Text(
+                        label:
+                            const Text(
                           'Create',
                         ),
                       ),
@@ -593,43 +777,55 @@ class _TreePageState extends State<TreePage> {
                   ),
                 )
               : ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount:
-                      widget.item.children.length,
-                  itemBuilder: (context, index) {
-                    final child =
-                        widget.item.children[index];
+                  padding:
+                      const EdgeInsets.all(
+                    16,
+                  ),
+                  itemCount: widget
+                      .item.children.length,
+                  itemBuilder:
+                      (context, index) {
+                    final child = widget
+                        .item.children[index];
 
                     return Card(
                       child: ListTile(
                         leading: Icon(
                           child.type ==
-                                  TreeItemType.folder
+                                  TreeItemType
+                                      .folder
                               ? Icons.folder
-                              : Icons.table_chart,
+                              : Icons
+                                  .table_chart,
                         ),
                         title: Text(
                           child.name,
                         ),
-                        subtitle:
-                            child.type ==
-                                    TreeItemType.table
-                                ? Text(
-                                    '${child.rows.length} rows • '
-                                    '${child.columns.length} default columns',
-                                  )
-                                : null,
-                        trailing: const Icon(
-                          Icons.chevron_right,
+                        subtitle: child
+                                    .type ==
+                                TreeItemType
+                                    .table
+                            ? Text(
+                                '${child.rows.length} rows • '
+                                '${child.columns.length} default columns',
+                              )
+                            : null,
+                        trailing:
+                            const Icon(
+                          Icons
+                              .chevron_right,
                         ),
                         onTap: () {
-                          openItem(child);
+                          openItem(
+                            child,
+                          );
                         },
                       ),
                     );
                   },
                 ),
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton:
+          FloatingActionButton(
         onPressed: createItem,
         child: const Icon(
           Icons.add,
