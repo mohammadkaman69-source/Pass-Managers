@@ -1,10 +1,15 @@
+import 'dart:typed_data';
+
 import 'package:flutter/services.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:public_file_saver/public_file_saver.dart';
 
 class PdfExportService {
-  Future<String?> exportTree({
+  final PublicFileSaver _fileSaver =
+      PublicFileSaver();
+
+  Future<PublicSavedFile?> exportTree({
     required Map<String, dynamic> root,
   }) async {
     final document = pw.Document();
@@ -37,22 +42,22 @@ class PdfExportService {
       ),
     );
 
-    final pdfBytes = await document.save();
-
-    final safeName = _sanitizeFileName(
-      root['name']?.toString() ?? 'export',
+    final pdfBytes =
+        Uint8List.fromList(
+      await document.save(),
     );
 
-    final fileName = '$safeName.pdf';
+    final safeName =
+        _sanitizeFileName(
+      root['name']?.toString() ??
+          'export',
+    );
 
-    final savedPath =
-        await PublicFileSaver.instance.saveFile(
-      fileName: fileName,
+    return _fileSaver.saveBytesWithDialog(
       bytes: pdfBytes,
+      fileName: '$safeName.pdf',
       mimeType: 'application/pdf',
     );
-
-    return savedPath;
   }
 
   void _buildTreeContent({
@@ -75,17 +80,21 @@ class PdfExportService {
         pw.Padding(
           padding: pw.EdgeInsets.only(
             right: indent,
-            top: level == 0 ? 0 : 10,
+            top: level == 0
+                ? 0
+                : 10,
             bottom: 6,
           ),
           child: pw.Text(
-            'Folder: $name',
+            '📁 $name',
             textDirection:
                 pw.TextDirection.rtl,
             style: pw.TextStyle(
               font: font,
               fontSize:
-                  level == 0 ? 20 : 16,
+                  level == 0
+                      ? 20
+                      : 16,
               fontWeight:
                   pw.FontWeight.bold,
             ),
@@ -97,12 +106,12 @@ class PdfExportService {
           node['children'];
 
       if (children is List) {
-        for (final child in children) {
-          if (child is Map) {
+        for (final child
+            in children) {
+          if (child
+              is Map<String, dynamic>) {
             _buildTreeContent(
-              node: Map<String, dynamic>.from(
-                child,
-              ),
+              node: child,
               content: content,
               font: font,
               level: level + 1,
@@ -170,7 +179,7 @@ class PdfExportService {
           bottom: 8,
         ),
         child: pw.Text(
-          'Table: $name',
+          '📋 $name',
           textDirection:
               pw.TextDirection.rtl,
           style: pw.TextStyle(
@@ -183,14 +192,17 @@ class PdfExportService {
       ),
     );
 
-    final rows = node['rows'];
+    final rows =
+        node['rows'];
 
     if (rows is! List ||
         rows.isEmpty) {
       content.add(
         pw.Padding(
-          padding: pw.EdgeInsets.only(
-            right: indent + 10,
+          padding:
+              pw.EdgeInsets.only(
+            right:
+                indent + 10,
             bottom: 8,
           ),
           child: pw.Text(
@@ -208,10 +220,12 @@ class PdfExportService {
       return;
     }
 
-    final columns = <String>[];
+    final columns =
+        <String>[];
 
     for (final row in rows) {
-      if (row is! Map) {
+      if (row
+          is! Map<String, dynamic>) {
         continue;
       }
 
@@ -219,14 +233,17 @@ class PdfExportService {
           row['fields'];
 
       if (fields is List) {
-        for (final field in fields) {
-          if (field is Map) {
+        for (final field
+            in fields) {
+          if (field
+              is Map<String, dynamic>) {
             final fieldName =
                 field['name']
-                    ?.toString() ??
+                        ?.toString() ??
                     '';
 
-            if (fieldName.isNotEmpty &&
+            if (fieldName
+                    .isNotEmpty &&
                 !columns.contains(
                   fieldName,
                 )) {
@@ -242,8 +259,10 @@ class PdfExportService {
     if (columns.isEmpty) {
       content.add(
         pw.Padding(
-          padding: pw.EdgeInsets.only(
-            right: indent + 10,
+          padding:
+              pw.EdgeInsets.only(
+            right:
+                indent + 10,
             bottom: 8,
           ),
           child: pw.Text(
@@ -265,7 +284,8 @@ class PdfExportService {
         <List<String>>[];
 
     for (final row in rows) {
-      if (row is! Map) {
+      if (row
+          is! Map<String, dynamic>) {
         continue;
       }
 
@@ -311,12 +331,14 @@ class PdfExportService {
 
     content.add(
       pw.Padding(
-        padding: pw.EdgeInsets.only(
+        padding:
+            pw.EdgeInsets.only(
           right: indent,
           bottom: 14,
         ),
         child:
-            pw.TableHelper.fromTextArray(
+            pw.TableHelper
+                .fromTextArray(
           headers: columns,
           data: tableData,
           headerStyle:
@@ -337,9 +359,11 @@ class PdfExportService {
                 PdfColors.grey300,
           ),
           cellAlignment:
-              pw.Alignment.centerRight,
+              pw.Alignment
+                  .centerRight,
           headerAlignment:
-              pw.Alignment.centerRight,
+              pw.Alignment
+                  .centerRight,
           border:
               pw.TableBorder.all(
             color:
@@ -354,14 +378,15 @@ class PdfExportService {
   String _sanitizeFileName(
     String name,
   ) {
-    final sanitized = name
-        .replaceAll(
-          RegExp(
-            r'[<>:"/\\|?*]',
-          ),
-          '_',
-        )
-        .trim();
+    final sanitized =
+        name
+            .replaceAll(
+              RegExp(
+                r'[<>:"/\\|?*]',
+              ),
+              '_',
+            )
+            .trim();
 
     if (sanitized.isEmpty) {
       return 'export';
