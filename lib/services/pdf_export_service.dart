@@ -1,14 +1,12 @@
-import 'dart:io';
+import 'dart:typed_data';
 
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
 class PdfExportService {
-  Future<File> exportTree({
+  Future<Uint8List> buildTreePdf({
     required Map<String, dynamic> root,
-    required BuildContext context,
   }) async {
     final document = pw.Document();
 
@@ -40,34 +38,7 @@ class PdfExportService {
       ),
     );
 
-    final bytes = await document.save();
-
-    /*
-     * این قسمت باید با Android Storage Access Framework
-     * انجام شود تا روی Androidهای جدید محدودیت مسیر
-     * /storage/emulated/0/Download وجود نداشته باشد.
-     *
-     * در نسخه فعلی سرویس، فایل موقت داخل cache ساخته می‌شود
-     * و بعد باید توسط فایل‌سیور/SAF به محل انتخابی کاربر منتقل شود.
-     */
-
-    final tempDirectory =
-        Directory.systemTemp;
-
-    final safeName = _sanitizeFileName(
-      root['name']?.toString() ?? 'export',
-    );
-
-    final file = File(
-      '${tempDirectory.path}/$safeName.pdf',
-    );
-
-    await file.writeAsBytes(
-      bytes,
-      flush: true,
-    );
-
-    return file;
+    return document.save();
   }
 
   void _buildTreeContent({
@@ -95,7 +66,8 @@ class PdfExportService {
           ),
           child: pw.Text(
             '📁 $name',
-            textDirection: pw.TextDirection.rtl,
+            textDirection:
+                pw.TextDirection.rtl,
             style: pw.TextStyle(
               font: font,
               fontSize:
@@ -112,9 +84,11 @@ class PdfExportService {
 
       if (children is List) {
         for (final child in children) {
-          if (child is Map<String, dynamic>) {
+          if (child is Map) {
             _buildTreeContent(
-              node: child,
+              node: Map<String, dynamic>.from(
+                child,
+              ),
               content: content,
               font: font,
               level: level + 1,
@@ -223,7 +197,7 @@ class PdfExportService {
         <String>[];
 
     for (final row in rows) {
-      if (row is! Map<String, dynamic>) {
+      if (row is! Map) {
         continue;
       }
 
@@ -232,7 +206,7 @@ class PdfExportService {
 
       if (fields is List) {
         for (final field in fields) {
-          if (field is Map<String, dynamic>) {
+          if (field is Map) {
             final fieldName =
                 field['name']?.toString() ?? '';
 
@@ -273,7 +247,7 @@ class PdfExportService {
         <List<String>>[];
 
     for (final row in rows) {
-      if (row is! Map<String, dynamic>) {
+      if (row is! Map) {
         continue;
       }
 
@@ -291,14 +265,17 @@ class PdfExportService {
               values[columnName];
 
           if (rawValue != null) {
-            value = rawValue.toString();
+            value =
+                rawValue.toString();
           }
         }
 
         final isPassword =
             columnName
                 .toLowerCase()
-                .contains('password');
+                .contains(
+                  'password',
+                );
 
         if (isPassword &&
             value.isNotEmpty) {
@@ -318,53 +295,4 @@ class PdfExportService {
           bottom: 14,
         ),
         child:
-            pw.TableHelper.fromTextArray(
-          headers: columns,
-          data: tableData,
-          headerStyle:
-              pw.TextStyle(
-            font: font,
-            fontSize: 9,
-            fontWeight:
-                pw.FontWeight.bold,
-          ),
-          cellStyle:
-              pw.TextStyle(
-            font: font,
-            fontSize: 8,
-          ),
-          headerDecoration:
-              const pw.BoxDecoration(
-            color: PdfColors.grey300,
-          ),
-          cellAlignment:
-              pw.Alignment.centerRight,
-          headerAlignment:
-              pw.Alignment.centerRight,
-          border:
-              pw.TableBorder.all(
-            color: PdfColors.grey500,
-            width: 0.5,
-          ),
-        ),
-      ),
-    );
-  }
-
-  String _sanitizeFileName(
-    String name,
-  ) {
-    final sanitized = name
-        .replaceAll(
-          RegExp(r'[<>:"/\\|?*]'),
-          '_',
-        )
-        .trim();
-
-    if (sanitized.isEmpty) {
-      return 'export';
-    }
-
-    return sanitized;
-  }
-}
+            pw.TableHelper
