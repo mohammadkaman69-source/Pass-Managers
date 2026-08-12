@@ -25,18 +25,14 @@ jobs:
       - name: Enable Windows desktop
         run: flutter config --enable-windows-desktop
 
-      - name: Recreate Android and Windows platforms
+      - name: Recreate Windows platform
         shell: pwsh
         run: |
-          if (Test-Path android) {
-            Remove-Item -Recurse -Force android
-          }
-
           if (Test-Path windows) {
             Remove-Item -Recurse -Force windows
           }
 
-          flutter create --platforms=android,windows --project-name pass_managers .
+          flutter create --platforms=windows --project-name pass_managers .
 
       - name: Remove generated sample test
         shell: pwsh
@@ -87,10 +83,20 @@ jobs:
       - name: Enable Android
         run: flutter config --enable-android
 
-      - name: Recreate Android platform
+      # IMPORTANT:
+      # Do NOT delete/recreate the android directory here.
+      # The project contains custom native Android code in
+      # MainActivity.kt for the PDF Storage Access Framework.
+      - name: Verify Android native integration
+        shell: bash
         run: |
-          rm -rf android
-          flutter create --platforms=android --project-name pass_managers .
+          test -f android/app/src/main/kotlin/com/example/pass_managers/MainActivity.kt
+
+          grep -q 'pass_managers/file_saver' \
+            android/app/src/main/kotlin/com/example/pass_managers/MainActivity.kt
+
+          grep -q 'savePdf' \
+            android/app/src/main/kotlin/com/example/pass_managers/MainActivity.kt
 
       - name: Remove generated sample test
         run: |
