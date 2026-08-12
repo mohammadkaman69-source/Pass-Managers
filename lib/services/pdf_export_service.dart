@@ -286,7 +286,7 @@ class PdfExportService {
 
     content.add(
       pw.Padding(
-        padding: EdgeInsets.only(
+        padding: pw.EdgeInsets.only(
           right: indent,
           bottom: 14,
         ),
