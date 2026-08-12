@@ -16,11 +16,11 @@ dependencies:
   cupertino_icons: ^1.0.8
   sqflite: ^2.4.2
   shared_preferences: ^2.5.3
-
   flutter_secure_storage: ^9.2.4
   cryptography: ^2.7.0
   path: ^1.9.1
   pdf: ^3.11.3
+  public_file_saver: ^0.0.2
 
 dev_dependencies:
   flutter_test:
@@ -31,7 +31,5 @@ dev_dependencies:
 flutter:
   uses-material-design: true
 
-  fonts:
-    - family: BNazanin
-      fonts:
-        - asset: assets/fonts/BNazanin.ttf
+  assets:
+    - assets/fonts/BNazanin.ttf
