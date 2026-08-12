@@ -2,11 +2,10 @@ package com.example.pass_managers
 
 import android.app.Activity
 import android.content.Intent
-import android.net.Uri
 import android.os.Bundle
-import androidx.activity.result.contract.ActivityResultContracts
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
+import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import java.io.IOException
 
@@ -18,71 +17,17 @@ class MainActivity : FlutterActivity() {
 
         private const val METHOD_SAVE_PDF =
             "savePdf"
+
+        private const val REQUEST_CREATE_PDF =
+            9001
     }
 
     private var pendingPdfBytes: ByteArray? = null
+
     private var pendingFileName: String? = null
+
     private var pendingResult:
         MethodChannel.Result? = null
-
-    private val createDocumentLauncher =
-        registerForActivityResult(
-            ActivityResultContracts.StartActivityForResult()
-        ) { activityResult ->
-
-            val result = pendingResult
-            val bytes = pendingPdfBytes
-
-            pendingResult = null
-            pendingPdfBytes = null
-            pendingFileName = null
-
-            if (result == null) {
-                return@registerForActivityResult
-            }
-
-            if (activityResult.resultCode != Activity.RESULT_OK) {
-                result.success(null)
-                return@registerForActivityResult
-            }
-
-            val uri =
-                activityResult.data?.data
-
-            if (uri == null) {
-                result.success(null)
-                return@registerForActivityResult
-            }
-
-            if (bytes == null) {
-                result.error(
-                    "NO_DATA",
-                    "PDF data is not available.",
-                    null
-                )
-                return@registerForActivityResult
-            }
-
-            try {
-                contentResolver
-                    .openOutputStream(uri)
-                    ?.use { outputStream ->
-                        outputStream.write(bytes)
-                        outputStream.flush()
-                    }
-                    ?: throw IOException(
-                        "Could not open output stream."
-                    )
-
-                result.success(uri.toString())
-            } catch (exception: Exception) {
-                result.error(
-                    "SAVE_FAILED",
-                    exception.message,
-                    null
-                )
-            }
-        }
 
     override fun configureFlutterEngine(
         flutterEngine: FlutterEngine
@@ -100,8 +45,8 @@ class MainActivity : FlutterActivity() {
 
                 METHOD_SAVE_PDF -> {
                     savePdf(
-                        call,
-                        result
+                        call = call,
+                        result = result
                     )
                 }
 
@@ -113,7 +58,7 @@ class MainActivity : FlutterActivity() {
     }
 
     private fun savePdf(
-        call: io.flutter.plugin.common.MethodCall,
+        call: MethodCall,
         result: MethodChannel.Result
     ) {
         if (pendingResult != null) {
@@ -140,9 +85,7 @@ class MainActivity : FlutterActivity() {
             return
         }
 
-        if (bytes == null ||
-            bytes.isEmpty()
-        ) {
+        if (bytes == null || bytes.isEmpty()) {
             result.error(
                 "INVALID_DATA",
                 "PDF data is empty.",
@@ -174,14 +117,13 @@ class MainActivity : FlutterActivity() {
             }
 
         try {
-            createDocumentLauncher.launch(
-                intent
+            startActivityForResult(
+                intent,
+                REQUEST_CREATE_PDF
             )
         } catch (exception: Exception) {
 
-            pendingPdfBytes = null
-            pendingFileName = null
-            pendingResult = null
+            clearPendingSave()
 
             result.error(
                 "LAUNCH_FAILED",
@@ -189,5 +131,122 @@ class MainActivity : FlutterActivity() {
                 null
             )
         }
+    }
+
+    @Deprecated(
+        "Deprecated in Android SDK, but retained for compatibility with FlutterActivity."
+    )
+    override fun onActivityResult(
+        requestCode: Int,
+        resultCode: Int,
+        data: android.content.Intent?
+    ) {
+        super.onActivityResult(
+            requestCode,
+            resultCode,
+            data
+        )
+
+        if (requestCode != REQUEST_CREATE_PDF) {
+            return
+        }
+
+        val result =
+            pendingResult
+
+        val bytes =
+            pendingPdfBytes
+
+        clearPendingSave()
+
+        if (result == null) {
+            return
+        }
+
+        if (resultCode != Activity.RESULT_OK) {
+            result.success(null)
+            return
+        }
+
+        val uri =
+            data?.data
+
+        if (uri == null) {
+            result.error(
+                "NO_URI",
+                "No destination file was selected.",
+                null
+            )
+            return
+        }
+
+        if (bytes == null || bytes.isEmpty()) {
+            result.error(
+                "NO_DATA",
+                "PDF data is not available.",
+                null
+            )
+            return
+        }
+
+        try {
+            val outputStream =
+                contentResolver.openOutputStream(
+                    uri
+                )
+
+            if (outputStream == null) {
+                throw IOException(
+                    "Could not open output stream."
+                )
+            }
+
+            outputStream.use {
+                it.write(bytes)
+                it.flush()
+            }
+
+            result.success(
+                uri.toString()
+            )
+
+        } catch (exception: Exception) {
+
+            result.error(
+                "SAVE_FAILED",
+                exception.message
+                    ?: "Failed to save PDF.",
+                null
+            )
+        }
+    }
+
+    private fun clearPendingSave() {
+        pendingPdfBytes = null
+        pendingFileName = null
+        pendingResult = null
+    }
+
+    override fun onDestroy() {
+        /*
+         * اگر Activity در حالی Destroy شود که پنجره
+         * انتخاب فایل باز است، Promise سمت Flutter
+         * نباید با یک Result قدیمی باقی بماند.
+         */
+        pendingResult?.let {
+            try {
+                it.error(
+                    "ACTIVITY_DESTROYED",
+                    "Android activity was destroyed before the PDF was saved.",
+                    null
+                )
+            } catch (_: Exception) {
+                // Result may already have been completed.
+            }
+        }
+
+        clearPendingSave()
+
+        super.onDestroy()
     }
 }
