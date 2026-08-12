@@ -20,13 +20,17 @@ class TreePage extends StatefulWidget {
   });
 
   @override
-  State<TreePage> createState() => _TreePageState();
+  State<TreePage> createState() =>
+      _TreePageState();
 }
 
-class _TreePageState extends State<TreePage> {
-  final TreeRepository _repository = TreeRepository();
+class _TreePageState
+    extends State<TreePage> {
+  final TreeRepository _repository =
+      TreeRepository();
 
-  final PdfExportService _pdfExportService =
+  final PdfExportService
+      _pdfExportService =
       PdfExportService();
 
   final Map<TreeItem, int> _itemIds = {};
@@ -43,31 +47,44 @@ class _TreePageState extends State<TreePage> {
 
   Future<void> _loadChildren() async {
     try {
-      final rows = await _repository.getItems(
+      final rows =
+          await _repository.getItems(
         parentId: widget.itemId,
       );
 
-      final loadedItems = <TreeItem>[];
-      final loadedIds = <TreeItem, int>{};
+      final loadedItems =
+          <TreeItem>[];
+
+      final loadedIds =
+          <TreeItem, int>{};
 
       for (final row in rows) {
-        final id = row['id'] as int;
-        final name = row['name'] as String;
-        final type = row['type'] as String;
+        final id =
+            row['id'] as int;
 
-        final item = type == 'table'
-            ? TreeItem.table(
-                name,
-                id: id,
-                parentId: widget.itemId,
-              )
-            : TreeItem.folder(
-                name,
-                id: id,
-                parentId: widget.itemId,
-              );
+        final name =
+            row['name'] as String;
+
+        final type =
+            row['type'] as String;
+
+        final item =
+            type == 'table'
+                ? TreeItem.table(
+                    name,
+                    id: id,
+                    parentId:
+                        widget.itemId,
+                  )
+                : TreeItem.folder(
+                    name,
+                    id: id,
+                    parentId:
+                        widget.itemId,
+                  );
 
         loadedItems.add(item);
+
         loadedIds[item] = id;
       }
 
@@ -78,11 +95,15 @@ class _TreePageState extends State<TreePage> {
       setState(() {
         widget.item.children
           ..clear()
-          ..addAll(loadedItems);
+          ..addAll(
+            loadedItems,
+          );
 
         _itemIds
           ..clear()
-          ..addAll(loadedIds);
+          ..addAll(
+            loadedIds,
+          );
 
         _isLoading = false;
       });
@@ -95,7 +116,9 @@ class _TreePageState extends State<TreePage> {
         _isLoading = false;
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(
         SnackBar(
           content: Text(
             'Failed to load folder: $error',
@@ -111,33 +134,44 @@ class _TreePageState extends State<TreePage> {
       builder: (sheetContext) {
         return SafeArea(
           child: Column(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisSize:
+                MainAxisSize.min,
             children: [
               ListTile(
                 leading: const Icon(
-                  Icons.create_new_folder_outlined,
+                  Icons
+                      .create_new_folder_outlined,
                 ),
                 title: const Text(
                   'Create Folder',
                 ),
                 onTap: () {
-                  Navigator.pop(sheetContext);
+                  Navigator.pop(
+                    sheetContext,
+                  );
+
                   createFolder();
                 },
               ),
               ListTile(
                 leading: const Icon(
-                  Icons.table_chart_outlined,
+                  Icons
+                      .table_chart_outlined,
                 ),
                 title: const Text(
                   'Create Table',
                 ),
                 onTap: () {
-                  Navigator.pop(sheetContext);
+                  Navigator.pop(
+                    sheetContext,
+                  );
+
                   createTable();
                 },
               ),
-              const SizedBox(height: 10),
+              const SizedBox(
+                height: 10,
+              ),
             ],
           ),
         );
@@ -146,7 +180,8 @@ class _TreePageState extends State<TreePage> {
   }
 
   void createFolder() {
-    final controller = TextEditingController();
+    final controller =
+        TextEditingController();
 
     showDialog(
       context: context,
@@ -156,16 +191,21 @@ class _TreePageState extends State<TreePage> {
             'Create Folder',
           ),
           content: TextField(
-            controller: controller,
+            controller:
+                controller,
             autofocus: true,
-            decoration: const InputDecoration(
-              labelText: 'Folder name',
+            decoration:
+                const InputDecoration(
+              labelText:
+                  'Folder name',
             ),
           ),
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.pop(dialogContext);
+                Navigator.pop(
+                  dialogContext,
+                );
               },
               child: const Text(
                 'Cancel',
@@ -173,7 +213,9 @@ class _TreePageState extends State<TreePage> {
             ),
             ElevatedButton(
               onPressed: () async {
-                final name = controller.text.trim();
+                final name =
+                    controller.text
+                        .trim();
 
                 if (name.isEmpty) {
                   return;
@@ -181,8 +223,10 @@ class _TreePageState extends State<TreePage> {
 
                 try {
                   final id =
-                      await _repository.createFolder(
-                    parentId: widget.itemId,
+                      await _repository
+                          .createFolder(
+                    parentId:
+                        widget.itemId,
                     name: name,
                   );
 
@@ -190,28 +234,37 @@ class _TreePageState extends State<TreePage> {
                     return;
                   }
 
-                  final item = TreeItem.folder(
+                  final item =
+                      TreeItem.folder(
                     name,
                     id: id,
-                    parentId: widget.itemId,
+                    parentId:
+                        widget.itemId,
                   );
 
                   setState(() {
-                    widget.item.children.add(item);
-                    _itemIds[item] = id;
+                    widget.item.children
+                        .add(item);
+
+                    _itemIds[item] =
+                        id;
                   });
 
-                  if (!dialogContext.mounted) {
+                  if (!dialogContext
+                      .mounted) {
                     return;
                   }
 
-                  Navigator.pop(dialogContext);
+                  Navigator.pop(
+                    dialogContext,
+                  );
                 } catch (error) {
                   if (!mounted) {
                     return;
                   }
 
-                  ScaffoldMessenger.of(context)
+                  ScaffoldMessenger
+                          .of(context)
                       .showSnackBar(
                     SnackBar(
                       content: Text(
@@ -234,7 +287,8 @@ class _TreePageState extends State<TreePage> {
   }
 
   void createTable() {
-    final controller = TextEditingController();
+    final controller =
+        TextEditingController();
 
     showDialog(
       context: context,
@@ -244,16 +298,21 @@ class _TreePageState extends State<TreePage> {
             'Create Table',
           ),
           content: TextField(
-            controller: controller,
+            controller:
+                controller,
             autofocus: true,
-            decoration: const InputDecoration(
-              labelText: 'Table name',
+            decoration:
+                const InputDecoration(
+              labelText:
+                  'Table name',
             ),
           ),
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.pop(dialogContext);
+                Navigator.pop(
+                  dialogContext,
+                );
               },
               child: const Text(
                 'Cancel',
@@ -261,7 +320,9 @@ class _TreePageState extends State<TreePage> {
             ),
             ElevatedButton(
               onPressed: () async {
-                final name = controller.text.trim();
+                final name =
+                    controller.text
+                        .trim();
 
                 if (name.isEmpty) {
                   return;
@@ -269,8 +330,10 @@ class _TreePageState extends State<TreePage> {
 
                 try {
                   final id =
-                      await _repository.createTable(
-                    parentId: widget.itemId,
+                      await _repository
+                          .createTable(
+                    parentId:
+                        widget.itemId,
                     name: name,
                   );
 
@@ -278,28 +341,37 @@ class _TreePageState extends State<TreePage> {
                     return;
                   }
 
-                  final item = TreeItem.table(
+                  final item =
+                      TreeItem.table(
                     name,
                     id: id,
-                    parentId: widget.itemId,
+                    parentId:
+                        widget.itemId,
                   );
 
                   setState(() {
-                    widget.item.children.add(item);
-                    _itemIds[item] = id;
+                    widget.item.children
+                        .add(item);
+
+                    _itemIds[item] =
+                        id;
                   });
 
-                  if (!dialogContext.mounted) {
+                  if (!dialogContext
+                      .mounted) {
                     return;
                   }
 
-                  Navigator.pop(dialogContext);
+                  Navigator.pop(
+                    dialogContext,
+                  );
                 } catch (error) {
                   if (!mounted) {
                     return;
                   }
 
-                  ScaffoldMessenger.of(context)
+                  ScaffoldMessenger
+                          .of(context)
                       .showSnackBar(
                     SnackBar(
                       content: Text(
@@ -321,17 +393,22 @@ class _TreePageState extends State<TreePage> {
     });
   }
 
-  void openItem(TreeItem item) {
-    final itemId = _itemIds[item];
+  void openItem(
+    TreeItem item,
+  ) {
+    final itemId =
+        _itemIds[item];
 
     if (itemId == null) {
       return;
     }
 
     final index =
-        widget.item.children.indexOf(item);
+        widget.item.children
+            .indexOf(item);
 
-    if (item.type == TreeItemType.table) {
+    if (item.type ==
+        TreeItemType.table) {
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -342,12 +419,18 @@ class _TreePageState extends State<TreePage> {
               onDelete: () {
                 if (index >= 0 &&
                     index <
-                        widget.item.children.length) {
+                        widget.item
+                            .children
+                            .length) {
                   widget.item.children
-                      .removeAt(index);
+                      .removeAt(
+                    index,
+                  );
                 }
 
-                _itemIds.remove(item);
+                _itemIds.remove(
+                  item,
+                );
               },
             );
           },
@@ -373,12 +456,18 @@ class _TreePageState extends State<TreePage> {
             onDelete: () {
               if (index >= 0 &&
                   index <
-                      widget.item.children.length) {
+                      widget.item
+                          .children
+                          .length) {
                 widget.item.children
-                    .removeAt(index);
+                    .removeAt(
+                  index,
+                );
               }
 
-              _itemIds.remove(item);
+              _itemIds.remove(
+                item,
+              );
             },
           );
         },
@@ -393,7 +482,8 @@ class _TreePageState extends State<TreePage> {
   }
 
   Future<void> renameItem() async {
-    final controller = TextEditingController(
+    final controller =
+        TextEditingController(
       text: widget.item.name,
     );
 
@@ -405,13 +495,16 @@ class _TreePageState extends State<TreePage> {
             'Rename',
           ),
           content: TextField(
-            controller: controller,
+            controller:
+                controller,
             autofocus: true,
           ),
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.pop(dialogContext);
+                Navigator.pop(
+                  dialogContext,
+                );
               },
               child: const Text(
                 'Cancel',
@@ -420,17 +513,20 @@ class _TreePageState extends State<TreePage> {
             ElevatedButton(
               onPressed: () async {
                 final name =
-                    controller.text.trim();
+                    controller.text
+                        .trim();
 
                 if (name.isEmpty) {
                   return;
                 }
 
                 try {
-                  final id = widget.itemId;
+                  final id =
+                      widget.itemId;
 
                   if (id != null) {
-                    await _repository.renameItem(
+                    await _repository
+                        .renameItem(
                       id: id,
                       name: name,
                     );
@@ -441,20 +537,25 @@ class _TreePageState extends State<TreePage> {
                   }
 
                   setState(() {
-                    widget.item.name = name;
+                    widget.item.name =
+                        name;
                   });
 
-                  if (!dialogContext.mounted) {
+                  if (!dialogContext
+                      .mounted) {
                     return;
                   }
 
-                  Navigator.pop(dialogContext);
+                  Navigator.pop(
+                    dialogContext,
+                  );
                 } catch (error) {
                   if (!mounted) {
                     return;
                   }
 
-                  ScaffoldMessenger.of(context)
+                  ScaffoldMessenger
+                          .of(context)
                       .showSnackBar(
                     SnackBar(
                       content: Text(
@@ -521,10 +622,12 @@ class _TreePageState extends State<TreePage> {
     }
 
     try {
-      final id = widget.itemId;
+      final id =
+          widget.itemId;
 
       if (id != null) {
-        await _repository.deleteItem(id);
+        await _repository
+            .deleteItem(id);
       }
 
       if (!mounted) {
@@ -539,7 +642,9 @@ class _TreePageState extends State<TreePage> {
         return;
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(
         SnackBar(
           content: Text(
             'Failed to delete folder: $error',
@@ -549,8 +654,18 @@ class _TreePageState extends State<TreePage> {
     }
   }
 
-  Future<void> _exportCurrentTree() async {
+  Future<void> _exportPdf() async {
     if (_isExporting) {
+      return;
+    }
+
+    final itemId =
+        widget.itemId;
+
+    if (itemId == null) {
+      _showExportError(
+        'شناسه این مورد برای Export PDF موجود نیست.',
+      );
       return;
     }
 
@@ -560,65 +675,113 @@ class _TreePageState extends State<TreePage> {
 
     try {
       final completeTree =
-          await _repository.getCompleteTree();
+          await _repository
+              .getCompleteTree();
 
-      Map<String, dynamic>? exportRoot;
+      Map<String, dynamic>?
+          target;
 
-      if (widget.itemId == null) {
-        exportRoot = {
-          'id': widget.item.id,
-          'name': widget.item.name,
-          'type': 'folder',
-          'children': completeTree,
-        };
-      } else {
-        exportRoot = _findNodeById(
-          completeTree,
-          widget.itemId!,
-        );
+      void findNode(
+        List<Map<String, dynamic>>
+            nodes,
+      ) {
+        for (final node
+            in nodes) {
+          final nodeId =
+              node['id'];
+
+          if (nodeId == itemId) {
+            target = node;
+            return;
+          }
+
+          final children =
+              node['children'];
+
+          if (children is List) {
+            final childNodes =
+                <Map<String, dynamic>>[];
+
+            for (final child
+                in children) {
+              if (child is Map) {
+                childNodes.add(
+                  Map<String, dynamic>
+                      .from(
+                    child,
+                  ),
+                );
+              }
+            }
+
+            if (childNodes
+                .isNotEmpty) {
+              findNode(
+                childNodes,
+              );
+
+              if (target !=
+                  null) {
+                return;
+              }
+            }
+          }
+        }
       }
 
-      if (exportRoot == null) {
+      findNode(
+        completeTree,
+      );
+
+      if (target == null) {
         throw StateError(
-          'Could not find the selected folder in the tree.',
+          'Export target was not found.',
         );
       }
 
-      final directory =
-          await _getExportDirectory();
-
-      final file =
-          await _pdfExportService.exportTree(
-        root: exportRoot,
-        directory: directory,
+      final savedPath =
+          await _pdfExportService
+              .exportTree(
+        root: target!,
       );
 
       if (!mounted) {
         return;
       }
 
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
-        SnackBar(
-          content: Text(
-            'PDF exported successfully:\n${file.path}',
+      if (savedPath == null ||
+          savedPath.isEmpty) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'ذخیره PDF لغو شد.',
+            ),
           ),
-          duration:
-              const Duration(seconds: 5),
-        ),
-      );
+        );
+      } else {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(
+          SnackBar(
+            content: Text(
+              'PDF با موفقیت ذخیره شد.',
+            ),
+            duration:
+                const Duration(
+              seconds: 4,
+            ),
+          ),
+        );
+      }
     } catch (error) {
       if (!mounted) {
         return;
       }
 
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
-        SnackBar(
-          content: Text(
-            'Failed to export PDF: $error',
-          ),
-        ),
+      _showExportError(
+        'خطا در ساخت یا ذخیره PDF:\n$error',
       );
     } finally {
       if (!mounted) {
@@ -631,98 +794,80 @@ class _TreePageState extends State<TreePage> {
     }
   }
 
-  Map<String, dynamic>? _findNodeById(
-    List<Map<String, dynamic>> nodes,
-    int id,
+  void _showExportError(
+    String message,
   ) {
-    for (final node in nodes) {
-      final nodeId = node['id'];
-
-      if (nodeId == id) {
-        return node;
-      }
-
-      final children = node['children'];
-
-      if (children is List) {
-        final childMaps =
-            <Map<String, dynamic>>[];
-
-        for (final child in children) {
-          if (child
-              is Map<String, dynamic>) {
-            childMaps.add(child);
-          }
-        }
-
-        final result =
-            _findNodeById(
-          childMaps,
-          id,
-        );
-
-        if (result != null) {
-          return result;
-        }
-      }
+    if (!mounted) {
+      return;
     }
 
-    return null;
-  }
-
-  Future<Directory>
-      _getExportDirectory() async {
-    final directory =
-        Directory.systemTemp;
-
-    return directory;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(
+      SnackBar(
+        content: Text(
+          message,
+        ),
+      ),
+    );
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(
+    BuildContext context,
+  ) {
     return Scaffold(
       appBar: AppBar(
         title: Text(
           widget.item.name,
         ),
         actions: [
-          if (_isExporting)
-            const Padding(
-              padding:
-                  EdgeInsets.symmetric(
-                horizontal: 16,
-              ),
-              child: SizedBox(
-                width: 22,
-                height: 22,
-                child:
-                    CircularProgressIndicator(
-                  strokeWidth: 2,
+          _isExporting
+              ? const Padding(
+                  padding:
+                      EdgeInsets.symmetric(
+                    horizontal: 16,
+                  ),
+                  child: Center(
+                    child: SizedBox(
+                      width: 20,
+                      height: 20,
+                      child:
+                          CircularProgressIndicator(
+                        strokeWidth: 2,
+                      ),
+                    ),
+                  ),
+                )
+              : IconButton(
+                  onPressed:
+                      _exportPdf,
+                  icon:
+                      const Icon(
+                    Icons
+                        .picture_as_pdf_outlined,
+                  ),
+                  tooltip:
+                      'Export PDF',
                 ),
-              ),
-            )
-          else
-            IconButton(
-              onPressed:
-                  _exportCurrentTree,
-              icon: const Icon(
-                Icons.picture_as_pdf_outlined,
-              ),
-              tooltip:
-                  'Export PDF',
-            ),
           IconButton(
-            onPressed: renameItem,
+            onPressed:
+                renameItem,
             icon: const Icon(
               Icons.edit,
             ),
-            tooltip: 'Rename',
+            tooltip:
+                'Rename',
           ),
-          if (widget.onDelete != null)
+          if (widget.onDelete !=
+              null)
             IconButton(
-              onPressed: deleteFolder,
-              icon: const Icon(
-                Icons.delete_outline,
+              onPressed:
+                  deleteFolder,
+              icon:
+                  const Icon(
+                Icons
+                    .delete_outline,
               ),
               tooltip:
                   'Delete Folder',
@@ -734,14 +879,16 @@ class _TreePageState extends State<TreePage> {
               child:
                   CircularProgressIndicator(),
             )
-          : widget.item.children.isEmpty
+          : widget.item.children
+                  .isEmpty
               ? Center(
                   child: Column(
                     mainAxisSize:
                         MainAxisSize.min,
                     children: [
                       Icon(
-                        Icons.folder_open,
+                        Icons
+                            .folder_open,
                         size: 80,
                         color: Theme.of(
                           context,
@@ -754,14 +901,17 @@ class _TreePageState extends State<TreePage> {
                       ),
                       const Text(
                         'Folder is empty',
-                        style: TextStyle(
-                          fontSize: 18,
+                        style:
+                            TextStyle(
+                          fontSize:
+                              18,
                         ),
                       ),
                       const SizedBox(
                         height: 20,
                       ),
-                      ElevatedButton.icon(
+                      ElevatedButton
+                          .icon(
                         onPressed:
                             createItem,
                         icon:
@@ -781,24 +931,34 @@ class _TreePageState extends State<TreePage> {
                       const EdgeInsets.all(
                     16,
                   ),
-                  itemCount: widget
-                      .item.children.length,
+                  itemCount:
+                      widget.item.children
+                          .length,
                   itemBuilder:
-                      (context, index) {
-                    final child = widget
-                        .item.children[index];
+                      (
+                    context,
+                    index,
+                  ) {
+                    final child =
+                        widget.item
+                                .children[
+                            index];
 
                     return Card(
-                      child: ListTile(
-                        leading: Icon(
+                      child:
+                          ListTile(
+                        leading:
+                            Icon(
                           child.type ==
                                   TreeItemType
                                       .folder
-                              ? Icons.folder
+                              ? Icons
+                                  .folder
                               : Icons
                                   .table_chart,
                         ),
-                        title: Text(
+                        title:
+                            Text(
                           child.name,
                         ),
                         subtitle: child
@@ -826,7 +986,8 @@ class _TreePageState extends State<TreePage> {
                 ),
       floatingActionButton:
           FloatingActionButton(
-        onPressed: createItem,
+        onPressed:
+            createItem,
         child: const Icon(
           Icons.add,
         ),
