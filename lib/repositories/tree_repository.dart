@@ -756,4 +756,62 @@ class TreeRepository {
 
     return result;
   }
+  /// Reads the selected tree item and all of its descendants.
+  ///
+  /// This is used when exporting PDF from any point
+  /// in the tree, not only from the root.
+  ///
+  /// Example:
+  ///
+  /// Folder A
+  /// ├── Table 1
+  /// ├── Table 2
+  /// └── Folder B
+  ///     ├── Table 3
+  ///     └── Folder C
+  ///
+  /// Calling this method with Folder A's ID returns
+  /// Folder A as the root of the exported structure.
+  Future<Map<String, dynamic>?> getCompleteTreeItem(
+    int itemId,
+  ) async {
+    final db = await _database.database;
+
+    final records = await db.query(
+      'tree_items',
+      where: 'id = ?',
+      whereArgs: [itemId],
+      limit: 1,
+    );
+
+    if (records.isEmpty) {
+      return null;
+    }
+
+    final item = records.first;
+
+    final id = item['id'] as int;
+    final name = item['name'] as String;
+    final type = item['type'] as String;
+
+    final node = <String, dynamic>{
+      'id': id,
+      'name': name,
+      'type': type,
+      'created_at': item['created_at'],
+      'updated_at': item['updated_at'],
+      'children': <Map<String, dynamic>>[],
+    };
+
+    if (type == 'folder') {
+      node['children'] = await _loadTreeLevel(
+        parentId: id,
+      );
+    } else if (type == 'table') {
+      node['columns'] = <Map<String, dynamic>>[];
+      node['rows'] = await _loadTableForExport(id);
+    }
+
+    return node;
+  }
 }
