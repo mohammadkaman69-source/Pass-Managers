@@ -1,13 +1,11 @@
-import 'dart:io';
-
 import 'package:flutter/services.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
+import 'package:public_file_saver/public_file_saver.dart';
 
 class PdfExportService {
-  Future<File> exportTree({
+  Future<String?> exportTree({
     required Map<String, dynamic> root,
-    required Directory directory,
   }) async {
     final document = pw.Document();
 
@@ -39,19 +37,22 @@ class PdfExportService {
       ),
     );
 
+    final pdfBytes = await document.save();
+
     final safeName = _sanitizeFileName(
       root['name']?.toString() ?? 'export',
     );
 
-    final file = File(
-      '${directory.path}/$safeName.pdf',
+    final fileName = '$safeName.pdf';
+
+    final savedPath =
+        await PublicFileSaver.instance.saveFile(
+      fileName: fileName,
+      bytes: pdfBytes,
+      mimeType: 'application/pdf',
     );
 
-    await file.writeAsBytes(
-      await document.save(),
-    );
-
-    return file;
+    return savedPath;
   }
 
   void _buildTreeContent({
@@ -78,8 +79,9 @@ class PdfExportService {
             bottom: 6,
           ),
           child: pw.Text(
-            '📁 $name',
-            textDirection: pw.TextDirection.rtl,
+            'Folder: $name',
+            textDirection:
+                pw.TextDirection.rtl,
             style: pw.TextStyle(
               font: font,
               fontSize:
@@ -156,7 +158,9 @@ class PdfExportService {
         level * 18.0;
 
     content.add(
-      pw.SizedBox(height: 8),
+      pw.SizedBox(
+        height: 8,
+      ),
     );
 
     content.add(
@@ -166,7 +170,7 @@ class PdfExportService {
           bottom: 8,
         ),
         child: pw.Text(
-          '📋 $name',
+          'Table: $name',
           textDirection:
               pw.TextDirection.rtl,
           style: pw.TextStyle(
@@ -181,7 +185,8 @@ class PdfExportService {
 
     final rows = node['rows'];
 
-    if (rows is! List || rows.isEmpty) {
+    if (rows is! List ||
+        rows.isEmpty) {
       content.add(
         pw.Padding(
           padding: pw.EdgeInsets.only(
@@ -210,17 +215,24 @@ class PdfExportService {
         continue;
       }
 
-      final fields = row['fields'];
+      final fields =
+          row['fields'];
 
       if (fields is List) {
         for (final field in fields) {
           if (field is Map) {
             final fieldName =
-                field['name']?.toString() ?? '';
+                field['name']
+                    ?.toString() ??
+                    '';
 
             if (fieldName.isNotEmpty &&
-                !columns.contains(fieldName)) {
-              columns.add(fieldName);
+                !columns.contains(
+                  fieldName,
+                )) {
+              columns.add(
+                fieldName,
+              );
             }
           }
         }
@@ -257,12 +269,14 @@ class PdfExportService {
         continue;
       }
 
-      final values = row['values'];
+      final values =
+          row['values'];
 
       final rowValues =
           <String>[];
 
-      for (final columnName in columns) {
+      for (final columnName
+          in columns) {
         var value = '';
 
         if (values is Map) {
@@ -270,14 +284,17 @@ class PdfExportService {
               values[columnName];
 
           if (rawValue != null) {
-            value = rawValue.toString();
+            value =
+                rawValue.toString();
           }
         }
 
         final isPassword =
             columnName
                 .toLowerCase()
-                .contains('password');
+                .contains(
+                  'password',
+                );
 
         if (isPassword &&
             value.isNotEmpty) {
@@ -287,7 +304,9 @@ class PdfExportService {
         rowValues.add(value);
       }
 
-      tableData.add(rowValues);
+      tableData.add(
+        rowValues,
+      );
     }
 
     content.add(
@@ -300,19 +319,22 @@ class PdfExportService {
             pw.TableHelper.fromTextArray(
           headers: columns,
           data: tableData,
-          headerStyle: pw.TextStyle(
+          headerStyle:
+              pw.TextStyle(
             font: font,
             fontSize: 9,
             fontWeight:
                 pw.FontWeight.bold,
           ),
-          cellStyle: pw.TextStyle(
+          cellStyle:
+              pw.TextStyle(
             font: font,
             fontSize: 8,
           ),
           headerDecoration:
               const pw.BoxDecoration(
-            color: PdfColors.grey300,
+            color:
+                PdfColors.grey300,
           ),
           cellAlignment:
               pw.Alignment.centerRight,
@@ -320,7 +342,8 @@ class PdfExportService {
               pw.Alignment.centerRight,
           border:
               pw.TableBorder.all(
-            color: PdfColors.grey500,
+            color:
+                PdfColors.grey500,
             width: 0.5,
           ),
         ),
@@ -333,7 +356,9 @@ class PdfExportService {
   ) {
     final sanitized = name
         .replaceAll(
-          RegExp(r'[<>:"/\\|?*]'),
+          RegExp(
+            r'[<>:"/\\|?*]',
+          ),
           '_',
         )
         .trim();
