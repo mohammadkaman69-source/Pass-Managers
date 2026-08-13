@@ -1,38 +1,64 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+final keystorePropertiesFile = rootProject.file("key.properties")
+final keystoreProperties = new Properties()
+
+if (keystorePropertiesFile.exists()) {
+    keystorePropertiesFile.withInputStream { stream ->
+        keystoreProperties.load(stream)
+    }
+}
+
 android {
     namespace = "com.example.pass_managers"
 
+    // file_picker/local_auth dependencies used by this project require API 36.
     compileSdk = 36
 
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
+        sourceCompatibility = JavaVersion.VERSION_11
+        targetCompatibility = JavaVersion.VERSION_11
     }
 
     kotlinOptions {
-        jvmTarget = "17"
+        jvmTarget = JavaVersion.VERSION_11.toString()
     }
 
     defaultConfig {
         applicationId = "com.example.pass_managers"
-
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
-
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        release {
+            if (keystorePropertiesFile.exists()) {
+                storeFile = rootProject.file(keystoreProperties["storeFile"])
+                storePassword = keystoreProperties["storePassword"]
+                keyAlias = keystoreProperties["keyAlias"]
+                keyPassword = keystoreProperties["keyPassword"]
+            }
+        }
+    }
+
     buildTypes {
         release {
-            signingConfig = signingConfigs.debug
+            // For a real updateable release, CI creates key.properties from
+            // GitHub Secrets. Without it, keep the build green with debug
+            // signing, but that APK is not a production update key.
+            signingConfig = keystorePropertiesFile.exists()
+                ? signingConfigs.release
+                : signingConfigs.debug
         }
     }
 }

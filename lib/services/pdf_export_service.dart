@@ -35,14 +35,11 @@ class PdfExportService {
 
     if (content.isEmpty) {
       content.add(
-        pw.Text(
+        _text(
           'محتوایی برای Export وجود ندارد.',
-          textDirection: pw.TextDirection.rtl,
-          style: pw.TextStyle(
-            font: font,
-            fontFallback: [latinFallback],
-            fontSize: 14,
-          ),
+          font: font,
+          latinFallback: latinFallback,
+          fontSize: 14,
         ),
       );
     }
@@ -58,29 +55,23 @@ class PdfExportService {
         header: (context) {
           return pw.Align(
             alignment: pw.Alignment.centerRight,
-            child: pw.Text(
+            child: _text(
               root['name']?.toString() ?? 'Pass Managers',
-              textDirection: pw.TextDirection.rtl,
-              style: pw.TextStyle(
-                font: font,
-                fontFallback: [latinFallback],
-                fontSize: 20,
-                fontWeight: pw.FontWeight.bold,
-              ),
+              font: font,
+              latinFallback: latinFallback,
+              fontSize: 20,
+              bold: true,
             ),
           );
         },
         footer: (context) {
           return pw.Align(
             alignment: pw.Alignment.centerLeft,
-            child: pw.Text(
+            child: _text(
               'صفحه ${context.pageNumber} / ${context.pagesCount}',
-              textDirection: pw.TextDirection.rtl,
-              style: pw.TextStyle(
-                font: font,
-                fontFallback: [latinFallback],
-                fontSize: 9,
-              ),
+              font: font,
+              latinFallback: latinFallback,
+              fontSize: 9,
             ),
           );
         },
@@ -135,15 +126,12 @@ class PdfExportService {
             top: level == 0 ? 0 : 12,
             bottom: 7,
           ),
-          child: pw.Text(
+          child: _text(
             'پوشه: $name',
-            textDirection: pw.TextDirection.rtl,
-            style: pw.TextStyle(
-              font: font,
-              fontFallback: [latinFallback],
-              fontSize: level == 0 ? 20 : 16,
-              fontWeight: pw.FontWeight.bold,
-            ),
+            font: font,
+            latinFallback: latinFallback,
+            fontSize: level == 0 ? 20 : 16,
+            bold: true,
           ),
         ),
       );
@@ -183,14 +171,11 @@ class PdfExportService {
           top: 8,
           bottom: 4,
         ),
-        child: pw.Text(
+        child: _text(
           name,
-          textDirection: pw.TextDirection.rtl,
-          style: pw.TextStyle(
-            font: font,
-            fontFallback: [latinFallback],
-            fontSize: 14,
-          ),
+          font: font,
+          latinFallback: latinFallback,
+          fontSize: 14,
         ),
       ),
     );
@@ -213,15 +198,12 @@ class PdfExportService {
           right: indent,
           bottom: 8,
         ),
-        child: pw.Text(
+        child: _text(
           'جدول: $name',
-          textDirection: pw.TextDirection.rtl,
-          style: pw.TextStyle(
-            font: font,
-            fontFallback: [latinFallback],
-            fontSize: 17,
-            fontWeight: pw.FontWeight.bold,
-          ),
+          font: font,
+          latinFallback: latinFallback,
+          fontSize: 17,
+          bold: true,
         ),
       ),
     );
@@ -313,6 +295,15 @@ class PdfExportService {
       fontWeight: pw.FontWeight.bold,
     );
 
+    final visualColumns = columns
+        .map(_protectLtrRuns)
+        .toList();
+    final visualTableData = tableData
+        .map(
+          (row) => row.map(_protectLtrRuns).toList(),
+        )
+        .toList();
+
     content.add(
       pw.Padding(
         padding: pw.EdgeInsets.only(
@@ -320,8 +311,8 @@ class PdfExportService {
           bottom: 16,
         ),
         child: pw.TableHelper.fromTextArray(
-          headers: columns,
-          data: tableData,
+          headers: visualColumns,
+          data: visualTableData,
           headerStyle: headerStyle,
           cellStyle: normalStyle,
           headerDecoration: const pw.BoxDecoration(
@@ -350,14 +341,46 @@ class PdfExportService {
         right: right,
         bottom: 10,
       ),
-      child: pw.Text(
+      child: _text(
         message,
-        textDirection: pw.TextDirection.rtl,
-        style: pw.TextStyle(
-          font: font,
-          fontFallback: [latinFallback],
-          fontSize: 10,
-        ),
+        font: font,
+        latinFallback: latinFallback,
+        fontSize: 10,
+      ),
+    );
+  }
+
+  bool _containsRtl(String value) {
+    return RegExp(r'[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]').hasMatch(value);
+  }
+
+  String _protectLtrRuns(String value) {
+    // In an RTL paragraph the pdf package may reorder Latin runs visually.
+    // LRM keeps English words and identifiers in their natural left-to-right order.
+    return value.replaceAllMapped(
+      RegExp(r'[A-Za-z][A-Za-z0-9 _./:@#?+\-]*'),
+      (match) => '\u200E${match.group(0)}\u200E',
+    );
+  }
+
+  pw.Text _text(
+    String value, {
+    required pw.Font font,
+    required pw.Font latinFallback,
+    double fontSize = 14,
+    bool bold = false,
+  }) {
+    final rtl = _containsRtl(value);
+    final displayValue = rtl ? _protectLtrRuns(value) : value;
+
+    return pw.Text(
+      displayValue,
+      textDirection: rtl ? pw.TextDirection.rtl : pw.TextDirection.ltr,
+      style: pw.TextStyle(
+        font: font,
+        fontFallback: [latinFallback],
+        fontSize: fontSize,
+        fontWeight: bold ? pw.FontWeight.bold : pw.FontWeight.normal,
       ),
     );
   }
