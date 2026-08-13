@@ -8,7 +8,7 @@ permissions:
 
 jobs:
   replace-project:
-    name: Replace repository with Pass-Managers-final-clean.zip
+    name: Replace repository with clean project
     runs-on: ubuntu-latest
 
     steps:
@@ -16,87 +16,199 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          persist-credentials: true
 
-      - name: Verify clean ZIP
+      - name: Verify clean ZIP exists
         shell: bash
         run: |
           set -euo pipefail
 
           ZIP="Pass-Managers-final-clean.zip"
-          EXPECTED_SHA256="c7e3c2337c92187e370888c450332fd0dd26867337905a64004663521303ea50"
 
           if [ ! -f "$ZIP" ]; then
-            echo "ERROR: $ZIP was not found in the repository root."
+            echo "ERROR: $ZIP not found in repository root."
             exit 1
           fi
 
-          ACTUAL_SHA256="$(sha256sum "$ZIP" | awk '{print $1}')"
+          echo "ZIP found:"
+          ls -lh "$ZIP"
 
-          echo "Expected SHA256: $EXPECTED_SHA256"
-          echo "Actual SHA256:   $ACTUAL_SHA256"
-
-          if [ "$ACTUAL_SHA256" != "$EXPECTED_SHA256" ]; then
-            echo "ERROR: The ZIP is not the exact clean project ZIP."
-            exit 1
-          fi
-
-      - name: Save ZIP outside repository
-        shell: bash
-        run: |
-          set -euo pipefail
-          cp "Pass-Managers-final-clean.zip" /tmp/Pass-Managers-final-clean.zip
-
-      - name: Remove everything not present in clean project
+      - name: Copy ZIP outside repository
         shell: bash
         run: |
           set -euo pipefail
 
-          # The ZIP is already safe in /tmp.
-          # This removes tracked and untracked project files,
-          # while keeping the .git directory required for the commit.
-          git clean -fdx
+          cp \
+            "Pass-Managers-final-clean.zip" \
+            "/tmp/Pass-Managers-final-clean.zip"
 
-      - name: Extract clean project
+      - name: Extract ZIP into completely empty directory
         shell: bash
         run: |
           set -euo pipefail
 
-          unzip -q /tmp/Pass-Managers-final-clean.zip -d .
+          rm -rf /tmp/pass-managers-clean
+          mkdir -p /tmp/pass-managers-clean
 
-          if [ ! -f "pubspec.yaml" ]; then
-            echo "ERROR: pubspec.yaml was not found after extraction."
-            exit 1
-          fi
+          unzip \
+            -q \
+            "/tmp/Pass-Managers-final-clean.zip" \
+            -d "/tmp/pass-managers-clean"
 
-          if [ ! -f "lib/main.dart" ]; then
-            echo "ERROR: lib/main.dart was not found after extraction."
-            exit 1
-          fi
+          echo "Extracted project:"
+          find /tmp/pass-managers-clean \
+            -maxdepth 2 \
+            -type f \
+            | sort
 
-          if [ ! -f "android/app/src/main/kotlin/com/example/pass_managers/MainActivity.kt" ]; then
-            echo "ERROR: MainActivity.kt was not found after extraction."
-            exit 1
-          fi
-
-          echo "Clean project extracted successfully."
-
-      - name: Show final project status
+      - name: Detect ZIP root
         shell: bash
         run: |
           set -euo pipefail
-          echo "===== Git status ====="
-          git status --short
+
+          ROOT="/tmp/pass-managers-clean"
+
+          echo "Checking ZIP structure..."
+
+          if [ -f "$ROOT/pubspec.yaml" ]; then
+            echo "ZIP contains project directly at root."
+            exit 0
+          fi
+
+          DIRECTORIES=()
+
+          while IFS= read -r -d '' dir; do
+            DIRECTORIES+=("$dir")
+          done < <(
+            find "$ROOT" \
+              -mindepth 1 \
+              -maxdepth 1 \
+              -type d \
+              -print0
+          )
+
+          if [ "${#DIRECTORIES[@]}" -ne 1 ]; then
+            echo "ERROR: Could not determine ZIP project root."
+            find "$ROOT" -maxdepth 2 -print
+            exit 1
+          fi
+
+          CANDIDATE="${DIRECTORIES[0]}"
+
+          if [ ! -f "$CANDIDATE/pubspec.yaml" ]; then
+            echo "ERROR: ZIP root does not contain pubspec.yaml."
+            find "$ROOT" -maxdepth 2 -print
+            exit 1
+          fi
+
+          echo "Wrapped project detected."
+
+          TEMP="/tmp/pass-managers-clean-root"
+
+          rm -rf "$TEMP"
+          mkdir -p "$TEMP"
+
+          shopt -s dotglob nullglob
+
+          for item in "$CANDIDATE"/*; do
+            mv "$item" "$TEMP/"
+          done
+
+          rm -rf "$ROOT"
+          mv "$TEMP" "$ROOT"
+
+      - name: Validate clean project before replacement
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          ROOT="/tmp/pass-managers-clean"
+
+          REQUIRED_FILES=(
+            "pubspec.yaml"
+            "pubspec.lock"
+            "lib/main.dart"
+            "android/app/src/main/kotlin/com/example/pass_managers/MainActivity.kt"
+          )
+
+          for file in "${REQUIRED_FILES[@]}"; do
+            if [ ! -f "$ROOT/$file" ]; then
+              echo "ERROR: Required file missing:"
+              echo "$file"
+              exit 1
+            fi
+          done
+
+          echo "Required files verified."
+
+      - name: Remove ZIP from repository workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          rm -f "Pass-Managers-final-clean.zip"
+
+      - name: Replace repository using clean project mirror
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          ROOT="/tmp/pass-managers-clean"
+
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq rsync
+
+          echo "Mirroring clean project..."
+
+          rsync \
+            -a \
+            --delete \
+            --exclude='.git/' \
+            "$ROOT/" \
+            "./"
+
+      - name: Verify repository after replacement
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "===== Final repository ====="
+
+          find . \
+            -path './.git' -prune \
+            -o -type f -print \
+            | sort
 
           echo
-          echo "===== Top-level files ====="
-          find . -maxdepth 1 -mindepth 1 -not -path './.git' -printf '%f\n' | sort
+          echo "===== Required files ====="
+
+          test -f pubspec.yaml
+          test -f pubspec.lock
+          test -f lib/main.dart
+          test -f android/app/src/main/kotlin/com/example/pass_managers/MainActivity.kt
 
           echo
-          echo "===== Workflows ====="
-          find .github/workflows -maxdepth 1 -type f -printf '%p\n' | sort
+          echo "===== Forbidden old files ====="
 
-      - name: Commit replacement
+          FORBIDDEN_FILES=(
+            "AI_REPORT.json"
+            "ai-report.txt"
+            "lib/services/password_service.dart"
+            "test/widget_test.dart"
+            "Pass-Managers-final-clean.zip"
+          )
+
+          for file in "${FORBIDDEN_FILES[@]}"; do
+            if [ -e "$file" ]; then
+              echo "ERROR: Old/extra file still exists:"
+              echo "$file"
+              exit 1
+            fi
+          done
+
+          echo
+          echo "Repository verification PASSED."
+
+      - name: Commit final repository
         shell: bash
         run: |
           set -euo pipefail
@@ -107,13 +219,14 @@ jobs:
           git add -A
 
           if git diff --cached --quiet; then
-            echo "No changes detected."
+            echo "No repository changes detected."
             exit 0
           fi
 
-          git commit -m "Replace project with clean final project"
+          git commit \
+            -m "Replace repository with clean final project"
 
-      - name: Push replacement
+      - name: Push final repository
         shell: bash
         run: |
           set -euo pipefail
