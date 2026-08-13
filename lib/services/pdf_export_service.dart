@@ -288,7 +288,7 @@ class PdfExportService {
 
     content.add(
       pw.Padding(
-        padding: EdgeInsets.only(right: indent, bottom: 16),
+        padding: pw.EdgeInsets.only(right: indent, bottom: 16),
         child: pw.Table(
           border: pw.TableBorder.all(
             color: PdfColors.grey500,
