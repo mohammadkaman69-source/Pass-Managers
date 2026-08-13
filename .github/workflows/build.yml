@@ -6,145 +6,301 @@ name: Pass Managers Build
 permissions:
   contents: read
 
-env:
-  FLUTTER_VERSION: "3.44.7"
-
 jobs:
+
   android-build:
-    name: Android Build
+    name: Android Release APK
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout source
+
+      - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.44.7
+          channel: stable
+          cache: true
 
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
+          cache: gradle
 
-      - name: Download Flutter SDK
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Verify Android SDK tools
         shell: bash
         run: |
           set -euo pipefail
 
-          url="https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_${FLUTTER_VERSION}-stable.tar.xz"
-          archive="$RUNNER_TEMP/flutter.tar.xz"
-          sdk="$RUNNER_TEMP/flutter"
+          echo "ANDROID_HOME=${ANDROID_HOME:-}"
+          echo "ANDROID_SDK_ROOT=${ANDROID_SDK_ROOT:-}"
 
-          rm -rf "$sdk"
-          mkdir -p "$sdk"
+          if command -v sdkmanager >/dev/null 2>&1; then
+            echo "sdkmanager found in PATH:"
+            command -v sdkmanager
+          else
+            echo "sdkmanager was not found in PATH."
 
-          curl --fail --location --retry 5 --retry-all-errors --retry-delay 3 \
-            -o "$archive" "$url"
+            SDKMANAGER=""
 
-          tar -xJf "$archive" -C "$RUNNER_TEMP"
-          echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
+            if [ -n "${ANDROID_HOME:-}" ] && [ -x "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" ]; then
+              SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+            elif [ -n "${ANDROID_SDK_ROOT:-}" ] && [ -x "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" ]; then
+              SDKMANAGER="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
+            fi
 
-      - name: Verify Flutter
+            if [ -z "$SDKMANAGER" ]; then
+              find "${ANDROID_HOME:-/usr/local/lib/android/sdk}" \
+                -type f \
+                -name sdkmanager \
+                -print 2>/dev/null || true
+
+              exit 1
+            fi
+
+            SDKMANAGER_DIR="$(dirname "$SDKMANAGER")"
+
+            echo "$SDKMANAGER_DIR" >> "$GITHUB_PATH"
+
+            echo "Using sdkmanager:"
+            echo "$SDKMANAGER"
+          fi
+
+      - name: Accept Android SDK licenses
         shell: bash
         run: |
           set -euo pipefail
-          flutter --version
+
+          yes | flutter doctor --android-licenses || true
 
       - name: Install Android SDK 36
         shell: bash
         run: |
           set -euo pipefail
 
-          yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager "platform-tools" "platforms;android-36" "build-tools;35.0.0"
+          if command -v sdkmanager >/dev/null 2>&1; then
+            SDKMANAGER="$(command -v sdkmanager)"
+          elif [ -n "${ANDROID_HOME:-}" ] && [ -x "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" ]; then
+            SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          elif [ -n "${ANDROID_SDK_ROOT:-}" ] && [ -x "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" ]; then
+            SDKMANAGER="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
+          else
+            echo "ERROR: sdkmanager could not be located."
+            exit 1
+          fi
 
-      - name: Verify Android project
+          echo "Using SDK manager:"
+          echo "$SDKMANAGER"
+
+          "$SDKMANAGER" --install \
+            "platform-tools" \
+            "platforms;android-36" \
+            "build-tools;35.0.0"
+
+      - name: Flutter doctor
         shell: bash
         run: |
           set -euo pipefail
-          test -f android/settings.gradle
-          test -f android/app/build.gradle
-          test -f android/gradle/wrapper/gradle-wrapper.properties
-          test -f android/app/src/main/AndroidManifest.xml
 
-      - name: Get dependencies
-        run: flutter pub get
+          flutter doctor -v
 
-      - name: Analyze
-        run: flutter analyze
+      - name: Get Flutter dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
 
-      - name: Build APK
-        run: flutter build apk --release
+          flutter pub get
 
-      - name: Upload APK
+      - name: Verify Android compile SDK configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          test -f android/app/build.gradle || {
+            echo "ERROR: android/app/build.gradle is missing."
+            exit 1
+          }
+
+          echo "Checking Android build configuration..."
+
+          grep -n "compileSdk" android/app/build.gradle || true
+
+      - name: Analyze Flutter project
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          flutter analyze
+
+      - name: Build Android APK
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          flutter build apk --release
+
+      - name: Verify APK
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          APK="build/app/outputs/flutter-apk/app-release.apk"
+
+          if [ ! -f "$APK" ]; then
+            echo "ERROR: Release APK was not generated."
+            exit 1
+          fi
+
+          ls -lh "$APK"
+
+      - name: Upload Android APK
         uses: actions/upload-artifact@v4
         with:
-          name: PassManagers-Android
+          name: Pass-Managers-Android-Release
           path: build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
+
 
   windows-build:
-    name: Windows Build
+    name: Windows Release
     runs-on: windows-latest
 
     steps:
-      - name: Checkout source
+
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Download Flutter SDK
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = "Stop"
-
-          $url = "https://storage.googleapis.com/flutter_infra_release/releases/stable/windows/flutter_windows_${env:FLUTTER_VERSION}-stable.zip"
-          $archive = Join-Path $env:RUNNER_TEMP "flutter.zip"
-          $sdkRoot = Join-Path $env:RUNNER_TEMP "flutter"
-
-          if (Test-Path $sdkRoot) {
-            Remove-Item -Recurse -Force $sdkRoot
-          }
-
-          Invoke-WebRequest -Uri $url -OutFile $archive
-          Expand-Archive -Path $archive -DestinationPath $env:RUNNER_TEMP -Force
-
-          Add-Content -Path $env:GITHUB_PATH -Value (Join-Path $sdkRoot "bin")
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.44.7
+          channel: stable
+          cache: true
 
       - name: Verify Flutter
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
+
           flutter --version
+          flutter doctor -v
 
-      - name: Enable Windows desktop
-        run: flutter config --enable-windows-desktop
-
-      - name: Verify Windows project
+      - name: Get Flutter dependencies
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
 
-          if (!(Test-Path "windows/CMakeLists.txt")) {
-            throw "windows/CMakeLists.txt is missing."
+          flutter pub get
+
+      - name: Verify Windows project before repair
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          if (-not (Test-Path "pubspec.yaml")) {
+            throw "pubspec.yaml is missing."
           }
 
-          if (!(Test-Path "windows/flutter/CMakeLists.txt")) {
+          if (-not (Test-Path "lib")) {
+            throw "lib directory is missing."
+          }
+
+          Write-Host "Checking Windows platform..."
+
+          if (Test-Path "windows/CMakeLists.txt") {
+            Write-Host "windows/CMakeLists.txt exists."
+          }
+          else {
+            Write-Host "windows/CMakeLists.txt is missing."
+          }
+
+      - name: Repair Windows platform
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          Write-Host "Recreating Flutter Windows platform files..."
+
+          flutter create --platforms=windows .
+
+          if (-not (Test-Path "windows/CMakeLists.txt")) {
+            throw "windows/CMakeLists.txt is still missing after flutter create."
+          }
+
+          if (-not (Test-Path "windows/flutter/CMakeLists.txt")) {
             throw "windows/flutter/CMakeLists.txt is missing."
           }
 
-          if (!(Test-Path "windows/runner/CMakeLists.txt")) {
-            throw "windows/runner/CMakeLists.txt is missing."
+          if (-not (Test-Path "windows/runner")) {
+            throw "windows/runner directory is missing."
           }
 
-          Write-Host "Windows project files are present."
+          Write-Host "Windows platform repaired successfully."
 
-      - name: Get dependencies
-        run: flutter pub get
+      - name: Analyze Flutter project
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
 
-      - name: Analyze
-        run: flutter analyze
+          flutter analyze
 
-      - name: Build Windows
-        run: flutter build windows --release
+      - name: Build Windows Release
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
 
-      - name: Upload Windows Build
+          flutter build windows --release
+
+      - name: Verify Windows build
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          if (-not (Test-Path "build/windows/x64/runner/Release")) {
+            throw "Windows Release directory was not generated."
+          }
+
+          Write-Host "Windows Release generated successfully."
+
+          Get-ChildItem `
+            "build/windows/x64/runner/Release" `
+            -Recurse |
+            Select-Object FullName, Length
+
+      - name: Package Windows Release
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          $source = "build/windows/x64/runner/Release"
+          $destination = "build/Pass-Managers-Windows-Release.zip"
+
+          if (-not (Test-Path $source)) {
+            throw "Windows Release directory does not exist."
+          }
+
+          Compress-Archive `
+            -Path "$source/*" `
+            -DestinationPath $destination `
+            -Force
+
+          if (-not (Test-Path $destination)) {
+            throw "Windows ZIP was not created."
+          }
+
+          Get-Item $destination |
+            Select-Object FullName, Length
+
+      - name: Upload Windows Release
         uses: actions/upload-artifact@v4
         with:
-          name: PassManagers-Windows
-          path: build/windows/x64/runner/Release/
+          name: Pass-Managers-Windows-Release
+          path: build/Pass-Managers-Windows-Release.zip
+          if-no-files-found: error
