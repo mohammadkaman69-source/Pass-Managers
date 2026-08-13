@@ -1,0 +1,487 @@
+name: Replace Project From Fixed ZIP
+
+"on":
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  replace-project:
+    name: Replace project from fixed ZIP
+    runs-on: ubuntu-latest
+
+    steps:
+
+      # ---------------------------------------------------------
+      # 1. Checkout using the PAT
+      # ---------------------------------------------------------
+      # مهم:
+      # از AI_GITHUB_TOKEN استفاده می‌کنیم تا Push کردن
+      # build.yml و سایر Workflowها با خطای permission مواجه نشود.
+      # ---------------------------------------------------------
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.AI_GITHUB_TOKEN }}
+
+      # ---------------------------------------------------------
+      # 2. Verify ZIP exists
+      # ---------------------------------------------------------
+
+      - name: Verify fixed ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "Checking fixed ZIP..."
+
+          if [ ! -f "Pass-Managers-final-fixed.zip" ]; then
+            echo "ERROR: Pass-Managers-final-fixed.zip was not found."
+            echo
+            echo "Repository root:"
+            find . -maxdepth 1 -mindepth 1 -printf '%f\n' | sort
+            exit 1
+          fi
+
+          echo "ZIP found:"
+          ls -lh "Pass-Managers-final-fixed.zip"
+
+      # ---------------------------------------------------------
+      # 3. Extract ZIP into temporary directory
+      # ---------------------------------------------------------
+      # هیچ unzip تعاملی وجود ندارد.
+      # ZIP هرگز مستقیماً روی Repository باز نمی‌شود.
+      # ---------------------------------------------------------
+
+      - name: Extract fixed ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          rm -rf /tmp/pass_managers_fixed
+          mkdir -p /tmp/pass_managers_fixed
+
+          unzip -q -o \
+            "Pass-Managers-final-fixed.zip" \
+            -d /tmp/pass_managers_fixed
+
+          echo "ZIP extracted successfully."
+
+          echo
+          echo "Extracted root:"
+          find /tmp/pass_managers_fixed \
+            -maxdepth 2 \
+            -type f \
+            | sort
+
+      # ---------------------------------------------------------
+      # 4. Verify ZIP structure
+      # ---------------------------------------------------------
+
+      - name: Verify fixed project structure
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          ROOT="/tmp/pass_managers_fixed"
+
+          echo "Checking project structure..."
+
+          required_files=(
+            ".gitignore"
+            "pubspec.yaml"
+            "pubspec.lock"
+            "analysis_options.yaml"
+
+            "lib/main.dart"
+
+            "lib/screens/login_page.dart"
+            "lib/screens/home_page.dart"
+            "lib/screens/tree_page.dart"
+            "lib/screens/table_page.dart"
+            "lib/screens/add_password_page.dart"
+
+            "lib/security/crypto_service.dart"
+            "lib/security/biometric_service.dart"
+            "lib/security/master_password_service.dart"
+            "lib/security/security_manager.dart"
+            "lib/security/security_guard.dart"
+            "lib/security/secure_key_storage.dart"
+            "lib/security/app_lifecycle_manager.dart"
+            "lib/security/secure_data_service.dart"
+            "lib/security/security_session.dart"
+
+            "lib/services/backup_service.dart"
+            "lib/services/pdf_export_service.dart"
+
+            "lib/export/pdf_exporter.dart"
+            "lib/export/tree_export_model.dart"
+
+            "lib/database/app_database.dart"
+            "lib/database/vault_repository.dart"
+
+            "lib/models/pdf_export_data.dart"
+            "lib/models/tree_item.dart"
+            "lib/models/table_row_data.dart"
+            "lib/models/table_column_definition.dart"
+
+            "lib/repositories/tree_repository.dart"
+
+            "assets/fonts/BNazanin.ttf"
+
+            "android/settings.gradle"
+            "android/build.gradle"
+            "android/gradle.properties"
+            "android/app/build.gradle"
+            "android/gradle/wrapper/gradle-wrapper.properties"
+            "android/app/src/main/AndroidManifest.xml"
+            "android/app/src/main/kotlin/com/example/pass_managers/MainActivity.kt"
+
+            "windows/CMakeLists.txt"
+            "windows/flutter/CMakeLists.txt"
+            "windows/runner/CMakeLists.txt"
+
+            ".github/workflows/build.yml"
+          )
+
+          for file in "${required_files[@]}"; do
+            if [ ! -f "$ROOT/$file" ]; then
+              echo
+              echo "ERROR: Required file missing from ZIP:"
+              echo "$file"
+              exit 1
+            fi
+
+            echo "OK: $file"
+          done
+
+          echo
+          echo "All required files are present."
+
+      # ---------------------------------------------------------
+      # 5. Verify Windows project BEFORE deleting anything
+      # ---------------------------------------------------------
+
+      - name: Verify Windows project
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          ROOT="/tmp/pass_managers_fixed"
+
+          echo "Checking Windows project..."
+
+          test -f "$ROOT/windows/CMakeLists.txt"
+          test -f "$ROOT/windows/flutter/CMakeLists.txt"
+          test -f "$ROOT/windows/runner/CMakeLists.txt"
+          test -f "$ROOT/windows/runner/main.cpp"
+          test -f "$ROOT/windows/runner/flutter_window.cpp"
+          test -f "$ROOT/windows/runner/win32_window.cpp"
+
+          echo "Windows project OK."
+
+      # ---------------------------------------------------------
+      # 6. Verify Android project BEFORE deleting anything
+      # ---------------------------------------------------------
+
+      - name: Verify Android project
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          ROOT="/tmp/pass_managers_fixed"
+
+          echo "Checking Android project..."
+
+          test -f "$ROOT/android/settings.gradle"
+          test -f "$ROOT/android/build.gradle"
+          test -f "$ROOT/android/app/build.gradle"
+          test -f "$ROOT/android/gradle/wrapper/gradle-wrapper.properties"
+          test -f "$ROOT/android/app/src/main/AndroidManifest.xml"
+          test -f "$ROOT/android/app/src/main/kotlin/com/example/pass_managers/MainActivity.kt"
+
+          echo "Android project OK."
+
+      # ---------------------------------------------------------
+      # 7. Protect THIS workflow
+      # ---------------------------------------------------------
+      # این فایل در ZIP وجود ندارد.
+      # اگر کل .github حذف شود، Workflow فعلی وسط اجرای خودش
+      # از بین می‌رود.
+      #
+      # بنابراین قبل از پاکسازی، یک کپی موقت از آن می‌گیریم.
+      # ---------------------------------------------------------
+
+      - name: Protect replacement workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ ! -f ".github/workflows/replace-project.yml" ]; then
+            echo "ERROR: replacement workflow is missing."
+            exit 1
+          fi
+
+          cp \
+            ".github/workflows/replace-project.yml" \
+            "/tmp/replace-project.yml"
+
+          echo "Replacement workflow protected."
+
+      # ---------------------------------------------------------
+      # 8. Remove old project
+      # ---------------------------------------------------------
+      # .git حفظ می‌شود.
+      # ZIP فعلاً حفظ می‌شود.
+      # Workflow فعلی هم حفظ می‌شود.
+      # همه چیز دیگر حذف می‌شود.
+      # ---------------------------------------------------------
+
+      - name: Remove old project
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "Removing old project files..."
+
+          find . \
+            -mindepth 1 \
+            -maxdepth 1 \
+            ! -name ".git" \
+            ! -name ".github" \
+            ! -name "Pass-Managers-final-fixed.zip" \
+            -exec rm -rf {} +
+
+          # .github را جداگانه پاک می‌کنیم،
+          # ولی فایل Runner را اول نگه می‌داریم.
+          mkdir -p /tmp/protected-workflow
+
+          cp \
+            "/tmp/replace-project.yml" \
+            "/tmp/protected-workflow/replace-project.yml"
+
+          rm -rf .github
+
+          mkdir -p .github/workflows
+
+          cp \
+            "/tmp/protected-workflow/replace-project.yml" \
+            ".github/workflows/replace-project.yml"
+
+          echo
+          echo "Old project removed."
+
+      # ---------------------------------------------------------
+      # 9. Install exact project from ZIP
+      # ---------------------------------------------------------
+
+      - name: Install fixed project
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          ROOT="/tmp/pass_managers_fixed"
+
+          echo "Installing fixed project..."
+
+          cp -a \
+            "$ROOT/." \
+            "./"
+
+          echo
+          echo "Fixed project installed."
+
+      # ---------------------------------------------------------
+      # 10. Restore replacement workflow
+      # ---------------------------------------------------------
+      # چون ZIP خودش build.yml دارد، آن Workflow از ZIP می‌آید.
+      # Runner خودمان هم دوباره قرار می‌گیرد.
+      # ---------------------------------------------------------
+
+      - name: Restore replacement workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mkdir -p ".github/workflows"
+
+          cp \
+            "/tmp/replace-project.yml" \
+            ".github/workflows/replace-project.yml"
+
+          echo "Replacement workflow restored."
+
+      # ---------------------------------------------------------
+      # 11. Remove ZIP from repository
+      # ---------------------------------------------------------
+
+      - name: Remove ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          rm -f "Pass-Managers-final-fixed.zip"
+
+          if [ -f "Pass-Managers-final-fixed.zip" ]; then
+            echo "ERROR: ZIP could not be removed."
+            exit 1
+          fi
+
+          echo "ZIP removed."
+
+      # ---------------------------------------------------------
+      # 12. Verify final project
+      # ---------------------------------------------------------
+
+      - name: Verify final project
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "======================================"
+          echo "FINAL PROJECT VERIFICATION"
+          echo "======================================"
+
+          test -f "pubspec.yaml"
+          test -f "pubspec.lock"
+          test -f "lib/main.dart"
+
+          echo "Flutter:"
+          echo "  OK"
+
+          test -f "android/settings.gradle"
+          test -f "android/build.gradle"
+          test -f "android/app/build.gradle"
+          test -f "android/gradle/wrapper/gradle-wrapper.properties"
+          test -f "android/app/src/main/AndroidManifest.xml"
+          test -f "android/app/src/main/kotlin/com/example/pass_managers/MainActivity.kt"
+
+          echo "Android:"
+          echo "  OK"
+
+          test -f "windows/CMakeLists.txt"
+          test -f "windows/flutter/CMakeLists.txt"
+          test -f "windows/runner/CMakeLists.txt"
+
+          echo "Windows:"
+          echo "  OK"
+
+          test -f "lib/security/biometric_service.dart"
+          test -f "lib/services/backup_service.dart"
+          test -f "lib/services/pdf_export_service.dart"
+
+          echo "Security / Backup / PDF:"
+          echo "  OK"
+
+          test -f "assets/fonts/BNazanin.ttf"
+
+          echo "Fonts:"
+          echo "  OK"
+
+          test -f ".github/workflows/build.yml"
+          test -f ".github/workflows/replace-project.yml"
+
+          echo "Workflows:"
+          echo "  OK"
+
+      # ---------------------------------------------------------
+      # 13. Check for unwanted ZIP / legacy files
+      # ---------------------------------------------------------
+
+      - name: Verify cleanup
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          forbidden_files=(
+            "Pass-Managers-final-clean.zip"
+            "AI_REPORT.json"
+            "ai-report.txt"
+            "test/widget_test.dart"
+            ".github/workflows/flutter-create.yml"
+            ".github/workflows/regenerate-windows.yml"
+          )
+
+          for file in "${forbidden_files[@]}"; do
+            if [ -e "$file" ]; then
+              echo
+              echo "ERROR: Forbidden legacy file still exists:"
+              echo "$file"
+              exit 1
+            fi
+          done
+
+          echo "Cleanup verification OK."
+
+      # ---------------------------------------------------------
+      # 14. Show exact changes
+      # ---------------------------------------------------------
+
+      - name: Show final Git status
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "======================================"
+          echo "GIT STATUS"
+          echo "======================================"
+
+          git status --short
+
+          echo
+          echo "======================================"
+          echo "PROJECT ROOT"
+          echo "======================================"
+
+          find . \
+            -mindepth 1 \
+            -maxdepth 1 \
+            ! -name ".git" \
+            -printf "%f\n" \
+            | sort
+
+      # ---------------------------------------------------------
+      # 15. Commit
+      # ---------------------------------------------------------
+
+      - name: Commit replacement
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add -A
+
+          if git diff --cached --quiet; then
+            echo "No changes detected."
+            exit 0
+          fi
+
+          git commit \
+            -m "Replace project with fixed project ZIP"
+
+      # ---------------------------------------------------------
+      # 16. Push using AI_GITHUB_TOKEN
+      # ---------------------------------------------------------
+
+      - name: Push replacement
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.AI_GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "ERROR: AI_GITHUB_TOKEN secret is empty or unavailable."
+            exit 1
+          fi
+
+          git remote set-url origin \
+            "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+
+          git push origin HEAD:main
