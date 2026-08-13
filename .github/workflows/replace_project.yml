@@ -8,7 +8,7 @@ permissions:
 
 jobs:
   replace-project:
-    name: Replace repository with clean project
+    name: Replace project from clean ZIP
     runs-on: ubuntu-latest
 
     steps:
@@ -17,198 +17,136 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Verify clean ZIP exists
+      - name: Verify source ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f Pass-Managers-final-clean.zip
+
+      - name: Extract clean ZIP
         shell: bash
         run: |
           set -euo pipefail
 
-          ZIP="Pass-Managers-final-clean.zip"
+          rm -rf /tmp/pass_managers_clean
+          mkdir -p /tmp/pass_managers_clean
 
-          if [ ! -f "$ZIP" ]; then
-            echo "ERROR: $ZIP not found in repository root."
-            exit 1
+          unzip -q -o Pass-Managers-final-clean.zip \
+            -d /tmp/pass_managers_clean
+
+          if [ -f /tmp/pass_managers_clean/pubspec.yaml ]; then
+            ROOT=/tmp/pass_managers_clean
+          else
+            ROOT=$(find /tmp/pass_managers_clean -mindepth 1 -maxdepth 1 -type d -print -quit)
           fi
 
-          echo "ZIP found:"
-          ls -lh "$ZIP"
+          test -n "${ROOT:-}"
+          test -f "$ROOT/pubspec.yaml"
 
-      - name: Copy ZIP outside repository
+          echo "CLEAN_ROOT=$ROOT" >> "$GITHUB_ENV"
+
+      - name: Verify clean ZIP required files
         shell: bash
         run: |
           set -euo pipefail
 
-          cp \
-            "Pass-Managers-final-clean.zip" \
-            "/tmp/Pass-Managers-final-clean.zip"
-
-      - name: Extract ZIP into completely empty directory
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          rm -rf /tmp/pass-managers-clean
-          mkdir -p /tmp/pass-managers-clean
-
-          unzip \
-            -q \
-            "/tmp/Pass-Managers-final-clean.zip" \
-            -d "/tmp/pass-managers-clean"
-
-          echo "Extracted project:"
-          find /tmp/pass-managers-clean \
-            -maxdepth 2 \
-            -type f \
-            | sort
-
-      - name: Detect ZIP root
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          ROOT="/tmp/pass-managers-clean"
-
-          echo "Checking ZIP structure..."
-
-          if [ -f "$ROOT/pubspec.yaml" ]; then
-            echo "ZIP contains project directly at root."
-            exit 0
-          fi
-
-          DIRECTORIES=()
-
-          while IFS= read -r -d '' dir; do
-            DIRECTORIES+=("$dir")
-          done < <(
-            find "$ROOT" \
-              -mindepth 1 \
-              -maxdepth 1 \
-              -type d \
-              -print0
-          )
-
-          if [ "${#DIRECTORIES[@]}" -ne 1 ]; then
-            echo "ERROR: Could not determine ZIP project root."
-            find "$ROOT" -maxdepth 2 -print
-            exit 1
-          fi
-
-          CANDIDATE="${DIRECTORIES[0]}"
-
-          if [ ! -f "$CANDIDATE/pubspec.yaml" ]; then
-            echo "ERROR: ZIP root does not contain pubspec.yaml."
-            find "$ROOT" -maxdepth 2 -print
-            exit 1
-          fi
-
-          echo "Wrapped project detected."
-
-          TEMP="/tmp/pass-managers-clean-root"
-
-          rm -rf "$TEMP"
-          mkdir -p "$TEMP"
-
-          shopt -s dotglob nullglob
-
-          for item in "$CANDIDATE"/*; do
-            mv "$item" "$TEMP/"
-          done
-
-          rm -rf "$ROOT"
-          mv "$TEMP" "$ROOT"
-
-      - name: Validate clean project before replacement
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          ROOT="/tmp/pass-managers-clean"
-
-          REQUIRED_FILES=(
+          required=(
             "pubspec.yaml"
             "pubspec.lock"
             "lib/main.dart"
+            "lib/security/biometric_service.dart"
+            "lib/services/backup_service.dart"
+            "lib/services/pdf_export_service.dart"
+            "android/settings.gradle"
+            "android/app/build.gradle"
+            "android/gradle/wrapper/gradle-wrapper.properties"
+            "android/app/src/main/AndroidManifest.xml"
             "android/app/src/main/kotlin/com/example/pass_managers/MainActivity.kt"
+            "windows/CMakeLists.txt"
           )
 
-          for file in "${REQUIRED_FILES[@]}"; do
-            if [ ! -f "$ROOT/$file" ]; then
-              echo "ERROR: Required file missing:"
-              echo "$file"
+          for f in "${required[@]}"; do
+            test -f "$CLEAN_ROOT/$f" || {
+              echo "Missing from clean ZIP: $f"
+              exit 1
+            }
+          done
+
+      - name: Remove old project files
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          find . -mindepth 1 -maxdepth 1 \
+            ! -name '.git' \
+            ! -name '.github' \
+            ! -name 'Pass-Managers-final-clean.zip' \
+            -exec rm -rf {} +
+
+          find .github/workflows -type f \
+            ! -name 'build.yml' \
+            -delete 2>/dev/null || true
+
+      - name: Install clean project except workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          rsync -a --delete \
+            --exclude '.github/' \
+            "$CLEAN_ROOT/" \
+            ./
+
+      - name: Remove temporary ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f Pass-Managers-final-clean.zip
+
+      - name: Verify forbidden legacy files are gone
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          forbidden=(
+            ".github/workflows/flutter-create.yml"
+            ".github/workflows/regenerate-windows.yml"
+            "AI_REPORT.json"
+            "ai-report.txt"
+            "lib/services/password_service.dart"
+            "test/widget_test.dart"
+          )
+
+          for f in "${forbidden[@]}"; do
+            if [ -e "$f" ]; then
+              echo "Legacy file still exists: $f"
               exit 1
             fi
           done
 
-          echo "Required files verified."
+      - name: Verify roadmap files
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f lib/security/biometric_service.dart
+          test -f lib/services/backup_service.dart
 
-      - name: Remove ZIP from repository workspace
+      - name: Show exact replacement result
         shell: bash
         run: |
           set -euo pipefail
 
-          rm -f "Pass-Managers-final-clean.zip"
+          echo "===== GIT STATUS ====="
+          git status --short
 
-      - name: Replace repository using clean project mirror
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          ROOT="/tmp/pass-managers-clean"
-
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq rsync
-
-          echo "Mirroring clean project..."
-
-          rsync \
-            -a \
-            --delete \
-            --exclude='.git/' \
-            "$ROOT/" \
-            "./"
-
-      - name: Verify repository after replacement
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          echo "===== Final repository ====="
-
+          echo
+          echo "===== PROJECT FILES ====="
           find . \
             -path './.git' -prune \
             -o -type f -print \
             | sort
 
-          echo
-          echo "===== Required files ====="
-
-          test -f pubspec.yaml
-          test -f pubspec.lock
-          test -f lib/main.dart
-          test -f android/app/src/main/kotlin/com/example/pass_managers/MainActivity.kt
-
-          echo
-          echo "===== Forbidden old files ====="
-
-          FORBIDDEN_FILES=(
-            "AI_REPORT.json"
-            "ai-report.txt"
-            "lib/services/password_service.dart"
-            "test/widget_test.dart"
-            "Pass-Managers-final-clean.zip"
-          )
-
-          for file in "${FORBIDDEN_FILES[@]}"; do
-            if [ -e "$file" ]; then
-              echo "ERROR: Old/extra file still exists:"
-              echo "$file"
-              exit 1
-            fi
-          done
-
-          echo
-          echo "Repository verification PASSED."
-
-      - name: Commit final repository
+      - name: Commit replacement
         shell: bash
         run: |
           set -euo pipefail
@@ -219,16 +157,14 @@ jobs:
           git add -A
 
           if git diff --cached --quiet; then
-            echo "No repository changes detected."
+            echo "No project changes detected."
             exit 0
           fi
 
-          git commit \
-            -m "Replace repository with clean final project"
+          git commit -m "Replace project with clean final project"
 
-      - name: Push final repository
+      - name: Push project replacement
         shell: bash
         run: |
           set -euo pipefail
-
-          git push origin "HEAD:${GITHUB_REF_NAME}"
+          git push origin HEAD:main
