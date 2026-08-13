@@ -1,18 +1,108 @@
-name: Replace Project Test
+name: Pass Managers Build
 
 "on":
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  test:
+  android-build:
+    name: Android Release Build
     runs-on: ubuntu-latest
 
     steps:
-      - name: Test Runner
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.44.7"
+          channel: stable
+
+      - name: Show Flutter version
+        run: flutter --version
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Verify Android configuration
+        shell: bash
         run: |
-          echo "RUNNER IS WORKING"
-          echo "Repository: $GITHUB_REPOSITORY"
-          echo "Branch: $GITHUB_REF_NAME"
+          set -euo pipefail
+
+          test -f android/app/build.gradle
+          test -f android/settings.gradle
+          test -f android/gradle/wrapper/gradle-wrapper.properties
+          test -f android/app/src/main/kotlin/com/example/pass_managers/MainActivity.kt
+
+          grep -q "compileSdk = 36" android/app/build.gradle
+          grep -q "gradle-8.12-all.zip" android/gradle/wrapper/gradle-wrapper.properties
+
+      - name: Build Android APK
+        run: flutter build apk --release
+
+      - name: Upload Android APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: PassManagers-Android
+          path: build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
+
+
+  windows-build:
+    name: Windows Release Build
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.44.7"
+          channel: stable
+
+      - name: Show Flutter version
+        run: flutter --version
+
+      - name: Enable Windows desktop
+        run: flutter config --enable-windows-desktop
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Verify Windows project
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          if (!(Test-Path "windows")) {
+            throw "Windows project is missing."
+          }
+
+          if (!(Test-Path "windows/flutter/CMakeLists.txt")) {
+            throw "windows/flutter/CMakeLists.txt is missing."
+          }
+
+          if (!(Test-Path "windows/runner/CMakeLists.txt")) {
+            throw "windows/runner/CMakeLists.txt is missing."
+          }
+
+      - name: Build Windows
+        run: flutter build windows --release
+
+      - name: Upload Windows Build
+        uses: actions/upload-artifact@v4
+        with:
+          name: PassManagers-Windows
+          path: build/windows/x64/runner/Release/
+          if-no-files-found: error
