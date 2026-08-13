@@ -9,18 +9,6 @@ class PdfExportService {
   static const MethodChannel _channel =
       MethodChannel('pass_managers/file_saver');
 
-  static final RegExp _rtlCharacter = RegExp(
-    r'[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]',
-  );
-
-  static final RegExp _ltrCharacter = RegExp(
-    r'[A-Za-z0-9]',
-  );
-
-  static final RegExp _ltrRunCharacter = RegExp(
-    r'''[A-Za-z0-9@._:/\\+\-=%,#?&~*()[\]{}]''',
-  );
-
   Future<String?> exportTree({
     required Map<String, dynamic> root,
   }) async {
@@ -54,13 +42,13 @@ class PdfExportService {
     document.addPage(
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
-        margin: const pw.EdgeInsets.all(28),
+        margin: pw.EdgeInsets.all(28),
         header: (_) {
           final title = root['name']?.toString() ?? 'Pass Managers';
 
           return pw.Container(
             width: double.infinity,
-            margin: const pw.EdgeInsets.only(bottom: 12),
+            margin: pw.EdgeInsets.only(bottom: 12),
             child: _text(
               title,
               persianFont: persianFont,
@@ -73,7 +61,7 @@ class PdfExportService {
         footer: (context) {
           return pw.Container(
             width: double.infinity,
-            margin: const pw.EdgeInsets.only(top: 10),
+            margin: pw.EdgeInsets.only(top: 10),
             child: _text(
               'صفحه ${context.pageNumber} / ${context.pagesCount}',
               persianFont: persianFont,
@@ -86,7 +74,7 @@ class PdfExportService {
       ),
     );
 
-    final savedBytes = List<int>.from(await document.save());
+    final savedBytes = await document.save();
 
     final safeName = _sanitizeFileName(
       root['name']?.toString() ?? 'Pass-Managers',
@@ -116,8 +104,8 @@ class PdfExportService {
             },
           );
         } catch (_) {
-          // Saving already succeeded.
-          // Opening is a secondary operation.
+          // PDF was already saved successfully.
+          // Opening is optional.
         }
 
         return result;
@@ -126,17 +114,17 @@ class PdfExportService {
       }
     }
 
-    try {
-      return await FilePicker.platform.saveFile(
-        dialogTitle: 'ذخیره PDF Pass Managers',
-        fileName: fileName,
-        type: FileType.custom,
-        allowedExtensions: const <String>['pdf'],
-        bytes: savedBytes,
-      );
-    } finally {
-      savedBytes.fillRange(0, savedBytes.length, 0);
-    }
+    final result = await FilePicker.platform.saveFile(
+      dialogTitle: 'ذخیره PDF Pass Managers',
+      fileName: fileName,
+      type: FileType.custom,
+      allowedExtensions: <String>['pdf'],
+      bytes: savedBytes,
+    );
+
+    savedBytes.fillRange(0, savedBytes.length, 0);
+
+    return result;
   }
 
   void _buildTreeContent({
@@ -227,7 +215,7 @@ class PdfExportService {
     final indent = level * 18.0;
 
     content.add(
-      const pw.SizedBox(height: 10),
+      pw.SizedBox(height: 10),
     );
 
     content.add(
@@ -310,20 +298,22 @@ class PdfExportService {
     }
 
     final columns = fieldPositions.keys.toList()
-      ..sort((a, b) {
-        final positionCompare =
-            fieldPositions[a]!.compareTo(fieldPositions[b]!);
+      ..sort(
+        (a, b) {
+          final positionCompare =
+              fieldPositions[a]!.compareTo(fieldPositions[b]!);
 
-        if (positionCompare != 0) {
-          return positionCompare;
-        }
+          if (positionCompare != 0) {
+            return positionCompare;
+          }
 
-        return a.compareTo(b);
-      });
+          return a.compareTo(b);
+        },
+      );
 
     final tableRows = <pw.TableRow>[
       pw.TableRow(
-        decoration: const pw.BoxDecoration(
+        decoration: pw.BoxDecoration(
           color: PdfColors.grey300,
         ),
         children: <pw.Widget>[
@@ -402,7 +392,7 @@ class PdfExportService {
     bool bold = false,
   }) {
     return pw.Padding(
-      padding: const pw.EdgeInsets.all(4),
+      padding: pw.EdgeInsets.all(4),
       child: _text(
         value,
         persianFont: persianFont,
@@ -434,38 +424,58 @@ class PdfExportService {
   }
 
   bool _containsRtl(String value) {
-    return _rtlCharacter.hasMatch(value);
-  }
-
-  bool _containsLtr(String value) {
-    return _ltrCharacter.hasMatch(value);
+    return RegExp(
+      r'[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]',
+    ).hasMatch(value);
   }
 
   String _prepareBidi(String value) {
-    if (value.isEmpty || !_containsRtl(value)) {
+    if (value.isEmpty) {
+      return value;
+    }
+
+    if (!_containsRtl(value)) {
       return value;
     }
 
     final buffer = StringBuffer();
-    var index = 0;
+    var i = 0;
 
-    while (index < value.length) {
-      final character = value[index];
+    while (i < value.length) {
+      final character = value.substring(i, i + 1);
 
-      if (_ltrCharacter.hasMatch(character)) {
-        final start = index;
+      final isAsciiLetter =
+          RegExp(r'[A-Za-z]').hasMatch(character);
 
-        while (index < value.length) {
-          final current = value[index];
+      final isDigit =
+          RegExp(r'[0-9]').hasMatch(character);
 
-          if (!_ltrRunCharacter.hasMatch(current)) {
+      if (isAsciiLetter || isDigit) {
+        final start = i;
+
+        while (i < value.length) {
+          final current = value.substring(i, i + 1);
+
+          final isLetter =
+              RegExp(r'[A-Za-z]').hasMatch(current);
+
+          final isDigitCharacter =
+              RegExp(r'[0-9]').hasMatch(current);
+
+          final isLtrPunctuation = RegExp(
+            r'''[A-Za-z0-9@._:/\\+\-=%,#?&~*()[\]{}]''',
+          ).hasMatch(current);
+
+          if (!isLetter &&
+              !isDigitCharacter &&
+              !isLtrPunctuation) {
             break;
           }
 
-          index++;
+          i++;
         }
 
-        final run = value.substring(start, index);
+        final run = value.substring(start, i);
 
         buffer
           ..write('\u200E')
@@ -476,7 +486,7 @@ class PdfExportService {
       }
 
       buffer.write(character);
-      index++;
+      i++;
     }
 
     return buffer.toString();
