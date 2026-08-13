@@ -326,7 +326,7 @@ class PdfExportService {
     double right,
   ) {
     return pw.Padding(
-      padding: EdgeInsets.only(right: right, bottom: 10),
+      padding: pw.EdgeInsets.only(right: right, bottom: 10),
       child: _text(
         message,
         persianFont: persianFont,
