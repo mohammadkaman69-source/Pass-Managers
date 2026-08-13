@@ -24,7 +24,7 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Setup Java 17
+      - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -34,82 +34,96 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v4
         with:
-          packages: |
-            platform-tools
-            platforms;android-36
-            build-tools;35.0.0
+          packages: "platform-tools platforms;android-36 build-tools;35.0.0"
           accept-android-sdk-licenses: true
           log-accepted-android-sdk-licenses: false
 
-      - name: Verify Android environment
+      - name: Verify Android SDK
         shell: bash
         run: |
           set -euo pipefail
 
-          echo "===== FLUTTER ====="
-          flutter --version
-
-          echo
-          echo "===== JAVA ====="
-          java -version
-
-          echo
-          echo "===== ANDROID ====="
           echo "ANDROID_HOME=${ANDROID_HOME:-}"
           echo "ANDROID_SDK_ROOT=${ANDROID_SDK_ROOT:-}"
 
-          command -v sdkmanager
-          sdkmanager --version
+          if [ -n "${ANDROID_HOME:-}" ]; then
+            echo "Android SDK:"
+            ls -la "$ANDROID_HOME" || true
+          fi
 
           echo
-          echo "===== INSTALLED SDK ====="
-          sdkmanager --list_installed | grep -E \
-            'platform-tools|platforms;android-36|build-tools;35' \
-            || true
+          echo "Installed Android platforms:"
+          if [ -n "${ANDROID_HOME:-}" ] && [ -d "$ANDROID_HOME/platforms" ]; then
+            ls -la "$ANDROID_HOME/platforms"
+          fi
+
+          echo
+          echo "Installed build tools:"
+          if [ -n "${ANDROID_HOME:-}" ] && [ -d "$ANDROID_HOME/build-tools" ]; then
+            ls -la "$ANDROID_HOME/build-tools"
+          fi
+
+      - name: Flutter doctor
+        shell: bash
+        run: |
+          set -euo pipefail
+          flutter doctor -v
+
+      - name: Get Flutter dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          flutter pub get
 
       - name: Verify Android project files
         shell: bash
         run: |
           set -euo pipefail
 
-          test -f pubspec.yaml
+          required=(
+            "pubspec.yaml"
+            "android/settings.gradle"
+            "android/app/build.gradle"
+            "android/gradle/wrapper/gradle-wrapper.properties"
+            "android/app/src/main/AndroidManifest.xml"
+          )
 
-          if [ -f android/app/build.gradle.kts ]; then
-            echo "Using android/app/build.gradle.kts"
-            grep -n "compileSdk" android/app/build.gradle.kts
-          elif [ -f android/app/build.gradle ]; then
-            echo "Using android/app/build.gradle"
-            grep -n "compileSdk" android/app/build.gradle
-          else
-            echo "ERROR: Android app Gradle file was not found."
-            exit 1
-          fi
+          for file in "${required[@]}"; do
+            if [ ! -f "$file" ]; then
+              echo "ERROR: Missing Android file: $file"
+              exit 1
+            fi
+          done
 
-          test -f android/settings.gradle || \
-          test -f android/settings.gradle.kts
+          echo "All required Android project files exist."
 
-      - name: Get Flutter dependencies
+      - name: Verify Android compile SDK
         shell: bash
         run: |
           set -euo pipefail
 
-          flutter pub get
+          echo "Android compileSdk configuration:"
+          grep -n "compileSdk" android/app/build.gradle || true
+
+          if ! grep -q "compileSdk = 36" android/app/build.gradle; then
+            echo "ERROR: android/app/build.gradle must contain:"
+            echo "compileSdk = 36"
+            exit 1
+          fi
 
       - name: Analyze Flutter project
         shell: bash
         run: |
           set -euo pipefail
-
           flutter analyze
 
       - name: Build Android APK
         shell: bash
         run: |
           set -euo pipefail
-
           flutter build apk --release
 
-      - name: Verify Android APK
+      - name: Verify APK
         shell: bash
         run: |
           set -euo pipefail
@@ -121,6 +135,7 @@ jobs:
             exit 1
           fi
 
+          echo "Android APK generated successfully:"
           ls -lh "$APK"
 
       - name: Upload Android APK
@@ -160,34 +175,24 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
 
-          if (-not (Test-Path "pubspec.yaml")) {
-            throw "pubspec.yaml is missing."
-          }
-
-          if (-not (Test-Path "lib")) {
-            throw "lib directory is missing."
-          }
-
           $required = @(
+            "pubspec.yaml",
             "windows/CMakeLists.txt",
             "windows/flutter/CMakeLists.txt",
+            "windows/runner",
             "windows/runner/CMakeLists.txt",
             "windows/runner/main.cpp",
             "windows/runner/flutter_window.cpp",
-            "windows/runner/flutter_window.h",
-            "windows/runner/utils.cpp",
-            "windows/runner/utils.h",
-            "windows/runner/win32_window.cpp",
-            "windows/runner/win32_window.h"
+            "windows/runner/flutter_window.h"
           )
 
           foreach ($file in $required) {
             if (-not (Test-Path $file)) {
-              throw "Required Windows file is missing: $file"
+              throw "Required Windows project file is missing: $file"
             }
           }
 
-          Write-Host "Windows project structure is present."
+          Write-Host "Windows project files are present."
 
       - name: Get Flutter dependencies
         shell: pwsh
@@ -240,6 +245,10 @@ jobs:
             throw "Windows Release directory does not exist."
           }
 
+          if (Test-Path $destination) {
+            Remove-Item $destination -Force
+          }
+
           Compress-Archive `
             -Path "$source/*" `
             -DestinationPath $destination `
@@ -249,6 +258,7 @@ jobs:
             throw "Windows ZIP was not created."
           }
 
+          Write-Host "Windows ZIP created successfully:"
           Get-Item $destination |
             Select-Object FullName, Length
 
