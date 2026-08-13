@@ -683,126 +683,40 @@ class _TreePageState extends State<TreePage> {
     });
 
     try {
-      final completeTree =
-          await _repository
-              .getCompleteTree();
-
-      Map<String, dynamic>? target;
-
-      final itemId =
-          widget.itemId;
-
-      /*
-       * اگر صفحه فعلی ریشه مجازی برنامه باشد،
-       * itemId ندارد و کل درخت را Export می‌کنیم.
-       */
-      if (itemId == null) {
-        target =
-            <String, dynamic>{
-          'id': null,
-          'name':
-              widget.item.name,
-          'type': 'folder',
-          'children':
-              completeTree,
-        };
-      } else {
-        void findNode(
-          List<Map<String, dynamic>>
-              nodes,
-        ) {
-          for (final node
-              in nodes) {
-            final nodeId =
-                node['id'];
-
-            if (nodeId == itemId) {
-              target = node;
-              return;
+      final target = widget.itemId == null
+          ? <String, dynamic>{
+              'id': null,
+              'name': widget.item.name,
+              'type': 'folder',
+              'children': await _repository.getCompleteTree(),
             }
-
-            final children =
-                node['children'];
-
-            if (children is List) {
-              final childNodes =
-                  <Map<String, dynamic>>[];
-
-              for (final child
-                  in children) {
-                if (child is Map) {
-                  childNodes.add(
-                    Map<String,
-                        dynamic>.from(
-                      child,
-                    ),
-                  );
-                }
-              }
-
-              if (childNodes
-                  .isNotEmpty) {
-                findNode(
-                  childNodes,
-                );
-
-                if (target != null) {
-                  return;
-                }
-              }
-            }
-          }
-        }
-
-        findNode(
-          completeTree,
-        );
-      }
+          : await _repository.getCompleteTreeItem(widget.itemId!);
 
       if (target == null) {
-        throw StateError(
-          'Export target was not found.',
-        );
+        throw StateError('Export target was not found.');
       }
 
-      if (!mounted) {
-        return;
-      }
-
-      final fileUri =
-          await _pdfExportService
-              .exportTree(
-        root: target!,
+      final fileUri = await _pdfExportService.exportTree(
+        root: target,
       );
 
       if (!mounted) {
         return;
       }
 
-      if (fileUri == null ||
-          fileUri.isEmpty) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(
+      if (fileUri == null || fileUri.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text(
-              'ذخیره PDF لغو شد.',
-            ),
+            content: Text('ذخیره PDF لغو شد.'),
           ),
         );
-
         return;
       }
 
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
-            'PDF با موفقیت ذخیره شد.',
-          ),
-          duration:
-              Duration(seconds: 4),
+          content: Text('PDF با موفقیت ذخیره شد.'),
+          duration: Duration(seconds: 4),
         ),
       );
     } catch (error) {
@@ -810,17 +724,10 @@ class _TreePageState extends State<TreePage> {
         return;
       }
 
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            'خطا در ساخت PDF:\n$error',
-          ),
-          duration:
-              const Duration(
-            seconds: 5,
-          ),
+          content: Text('خطا در ساخت PDF:\n$error'),
+          duration: const Duration(seconds: 5),
         ),
       );
     } finally {

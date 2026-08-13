@@ -814,4 +814,120 @@ class TreeRepository {
 
     return node;
   }
+  /// Replaces the complete vault with data from an already decrypted backup.
+  /// IDs from the backup are intentionally not reused; new IDs are generated
+  /// by SQLite so foreign-key relationships remain valid.
+  Future<void> replaceFromBackup(
+    List<Map<String, dynamic>> roots,
+  ) async {
+    final db = await _database.database;
+
+    await db.transaction((txn) async {
+      await txn.delete('table_values');
+      await txn.delete('table_fields');
+      await txn.delete('table_rows');
+      await txn.delete('tree_items');
+
+      for (final root in roots) {
+        await _restoreNode(txn, root, parentId: null);
+      }
+    });
+  }
+
+  Future<void> _restoreNode(
+    dynamic db,
+    Map<String, dynamic> node, {
+    required int? parentId,
+  }) async {
+    final name = node['name']?.toString().trim() ?? '';
+    final type = node['type']?.toString() ?? '';
+    if (name.isEmpty || (type != 'folder' && type != 'table')) {
+      return;
+    }
+
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final itemId = await db.insert('tree_items', {
+      'parent_id': parentId,
+      'name': name,
+      'type': type,
+      'created_at': node['created_at'] is int ? node['created_at'] : now,
+      'updated_at': node['updated_at'] is int ? node['updated_at'] : now,
+    });
+
+    if (type == 'folder') {
+      final children = node['children'];
+      if (children is List) {
+        for (final child in children) {
+          if (child is Map) {
+            await _restoreNode(
+              db,
+              Map<String, dynamic>.from(child),
+              parentId: itemId,
+            );
+          }
+        }
+      }
+      return;
+    }
+
+    final rows = node['rows'];
+    if (rows is! List) {
+      return;
+    }
+
+    for (final rawRow in rows) {
+      if (rawRow is! Map) {
+        continue;
+      }
+
+      final row = Map<String, dynamic>.from(rawRow);
+      final rowId = await db.insert('table_rows', {
+        'table_item_id': itemId,
+        'created_at': row['created_at'] is int ? row['created_at'] : now,
+        'updated_at': row['updated_at'] is int ? row['updated_at'] : now,
+      });
+
+      final fields = row['fields'];
+      final values = row['values'];
+      if (fields is! List) {
+        continue;
+      }
+
+      for (final rawField in fields) {
+        if (rawField is! Map) {
+          continue;
+        }
+
+        final field = Map<String, dynamic>.from(rawField);
+        final fieldName = field['name']?.toString() ?? '';
+        if (fieldName.isEmpty) {
+          continue;
+        }
+
+        final position = field['position'] is int
+            ? field['position'] as int
+            : 0;
+
+        final fieldId = await db.insert('table_fields', {
+          'row_id': rowId,
+          'name': fieldName,
+          'position': position,
+          'created_at': now,
+          'updated_at': now,
+        });
+
+        var value = '';
+        if (values is Map && values[fieldName] != null) {
+          value = values[fieldName].toString();
+        }
+
+        final encryptedValue = await _encryptValue(value);
+        await db.insert('table_values', {
+          'field_id': fieldId,
+          'value': encryptedValue,
+        });
+      }
+    }
+  }
+
 }

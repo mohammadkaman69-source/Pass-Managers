@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../security/security_manager.dart';
+import '../security/biometric_service.dart';
 
 class LoginPage extends StatefulWidget {
   final VoidCallback? onLoginSuccess;
@@ -20,6 +21,9 @@ class _LoginPageState
   final SecurityManager _securityManager =
       SecurityManager();
 
+  final BiometricService _biometricService =
+      BiometricService();
+
   final TextEditingController emailController =
       TextEditingController();
 
@@ -32,6 +36,7 @@ class _LoginPageState
   bool createMode = false;
   bool _isLoading = true;
   bool _isSubmitting = false;
+  bool _biometricEnabled = false;
 
   @override
   void initState() {
@@ -57,8 +62,16 @@ class _LoginPageState
         return;
       }
 
+      final biometricAvailable = await _biometricService.isSupported();
+      final biometricEnabled = await _biometricService.isEnabled();
+
+      if (!mounted) {
+        return;
+      }
+
       setState(() {
         createMode = !exists;
+        _biometricEnabled = biometricEnabled && biometricAvailable;
         _isLoading = false;
       });
     } catch (error) {
@@ -188,6 +201,35 @@ class _LoginPageState
       _showMessage(
         'Security operation failed: $error',
       );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _loginWithBiometric() async {
+    if (_isSubmitting || !_biometricEnabled) {
+      return;
+    }
+
+    setState(() {
+      _isSubmitting = true;
+    });
+
+    try {
+      final unlocked = await _biometricService.authenticateAndUnlock();
+      if (!mounted) {
+        return;
+      }
+
+      if (unlocked) {
+        _openHome();
+      } else {
+        _showMessage('احراز هویت بیومتریک انجام نشد.');
+      }
     } finally {
       if (mounted) {
         setState(() {
@@ -375,6 +417,18 @@ class _LoginPageState
                               ),
                   ),
                 ),
+
+                if (!createMode && _biometricEnabled) ...[
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: _isSubmitting ? null : _loginWithBiometric,
+                      icon: const Icon(Icons.fingerprint),
+                      label: const Text('ورود با بیومتریک'),
+                    ),
+                  ),
+                ],
 
                 if (!createMode) ...[
                   const SizedBox(

@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/services.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -14,11 +16,9 @@ class PdfExportService {
     final fontData = await rootBundle.load(
       'assets/fonts/BNazanin.ttf',
     );
-
     final font = pw.Font.ttf(fontData);
 
     final content = <pw.Widget>[];
-
     _buildTreeContent(
       node: root,
       content: content,
@@ -43,35 +43,48 @@ class PdfExportService {
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
         textDirection: pw.TextDirection.rtl,
-        theme: pw.ThemeData.withFont(
-          base: font,
-        ),
         margin: const pw.EdgeInsets.all(28),
-        build: (context) {
-          return content;
-        },
+        theme: pw.ThemeData.withFont(base: font),
+        header: (context) => pw.Align(
+          alignment: pw.Alignment.centerRight,
+          child: pw.Text(
+            root['name']?.toString() ?? 'Pass Managers',
+            textDirection: pw.TextDirection.rtl,
+            style: pw.TextStyle(
+              font: font,
+              fontSize: 20,
+              fontWeight: pw.FontWeight.bold,
+            ),
+          ),
+        ),
+        footer: (context) => pw.Align(
+          alignment: pw.Alignment.centerLeft,
+          child: pw.Text(
+            'صفحه ${context.pageNumber} / ${context.pagesCount}',
+            textDirection: pw.TextDirection.rtl,
+            style: pw.TextStyle(
+              font: font,
+              fontSize: 9,
+            ),
+          ),
+        ),
+        build: (context) => content,
       ),
     );
 
-    final bytes = Uint8List.fromList(
-      await document.save(),
-    );
+    final bytes = Uint8List.fromList(await document.save());
 
     final safeName = _sanitizeFileName(
       root['name']?.toString() ?? 'Pass-Managers',
     );
 
-    final fileName = '$safeName.pdf';
-
-    final result = await _channel.invokeMethod<String>(
+    return _channel.invokeMethod<String>(
       'savePdf',
       <String, dynamic>{
-        'fileName': fileName,
+        'fileName': '$safeName.pdf',
         'bytes': bytes,
       },
     );
-
-    return result;
   }
 
   void _buildTreeContent({
@@ -80,14 +93,9 @@ class PdfExportService {
     required pw.Font font,
     required int level,
   }) {
-    final name =
-        node['name']?.toString() ?? '';
-
-    final type =
-        node['type']?.toString() ?? '';
-
-    final indent =
-        level * 18.0;
+    final name = node['name']?.toString() ?? '';
+    final type = node['type']?.toString() ?? '';
+    final indent = level * 18.0;
 
     if (type == 'folder') {
       content.add(
@@ -98,32 +106,23 @@ class PdfExportService {
             bottom: 7,
           ),
           child: pw.Text(
-            level == 0
-                ? 'پوشه: $name'
-                : 'پوشه: $name',
-            textDirection:
-                pw.TextDirection.rtl,
+            'پوشه: $name',
+            textDirection: pw.TextDirection.rtl,
             style: pw.TextStyle(
               font: font,
-              fontSize:
-                  level == 0 ? 20 : 16,
-              fontWeight:
-                  pw.FontWeight.bold,
+              fontSize: level == 0 ? 20 : 16,
+              fontWeight: pw.FontWeight.bold,
             ),
           ),
         ),
       );
 
-      final children =
-          node['children'];
-
+      final children = node['children'];
       if (children is List) {
         for (final child in children) {
           if (child is Map) {
             _buildTreeContent(
-              node: Map<String, dynamic>.from(
-                child,
-              ),
+              node: Map<String, dynamic>.from(child),
               content: content,
               font: font,
               level: level + 1,
@@ -131,7 +130,6 @@ class PdfExportService {
           }
         }
       }
-
       return;
     }
 
@@ -142,7 +140,6 @@ class PdfExportService {
         font: font,
         level: level,
       );
-
       return;
     }
 
@@ -155,8 +152,7 @@ class PdfExportService {
         ),
         child: pw.Text(
           name,
-          textDirection:
-              pw.TextDirection.rtl,
+          textDirection: pw.TextDirection.rtl,
           style: pw.TextStyle(
             font: font,
             fontSize: 14,
@@ -172,18 +168,10 @@ class PdfExportService {
     required pw.Font font,
     required int level,
   }) {
-    final name =
-        node['name']?.toString() ?? '';
+    final name = node['name']?.toString() ?? '';
+    final indent = level * 18.0;
 
-    final indent =
-        level * 18.0;
-
-    content.add(
-      pw.SizedBox(
-        height: 10,
-      ),
-    );
-
+    content.add(pw.SizedBox(height: 10));
     content.add(
       pw.Padding(
         padding: pw.EdgeInsets.only(
@@ -192,196 +180,88 @@ class PdfExportService {
         ),
         child: pw.Text(
           'جدول: $name',
-          textDirection:
-              pw.TextDirection.rtl,
+          textDirection: pw.TextDirection.rtl,
           style: pw.TextStyle(
             font: font,
             fontSize: 17,
-            fontWeight:
-                pw.FontWeight.bold,
+            fontWeight: pw.FontWeight.bold,
           ),
         ),
       ),
     );
 
     final rows = node['rows'];
-
     if (rows is! List || rows.isEmpty) {
       content.add(
-        pw.Padding(
-          padding: pw.EdgeInsets.only(
-            right: indent + 10,
-            bottom: 10,
-          ),
-          child: pw.Text(
-            'این جدول رکوردی ندارد.',
-            textDirection:
-                pw.TextDirection.rtl,
-            style: pw.TextStyle(
-              font: font,
-              fontSize: 10,
-            ),
-          ),
+        _message(
+          'این جدول رکوردی ندارد.',
+          font,
+          indent + 10,
         ),
       );
-
       return;
     }
 
-    final columns =
-        <String>[];
-
-    /*
-     * ستون‌ها را بر اساس position جمع می‌کنیم.
-     * چون fields هر رکورد ممکن است متفاوت باشد،
-     * از تمام رکوردها ستون‌های موجود را جمع می‌کنیم.
-     */
-    final fieldPositions =
-        <String, int>{};
+    final fieldPositions = <String, int>{};
 
     for (final rawRow in rows) {
-      if (rawRow is! Map) {
-        continue;
-      }
-
-      final row =
-          Map<String, dynamic>.from(rawRow);
-
-      final fields =
-          row['fields'];
-
-      if (fields is! List) {
-        continue;
-      }
+      if (rawRow is! Map) continue;
+      final fields = rawRow['fields'];
+      if (fields is! List) continue;
 
       for (final rawField in fields) {
-        if (rawField is! Map) {
-          continue;
-        }
+        if (rawField is! Map) continue;
+        final fieldName = rawField['name']?.toString() ?? '';
+        if (fieldName.isEmpty) continue;
 
-        final field =
-            Map<String, dynamic>.from(
-          rawField,
-        );
+        final rawPosition = rawField['position'];
+        final position = rawPosition is int ? rawPosition : 999999;
+        final oldPosition = fieldPositions[fieldName];
 
-        final fieldName =
-            field['name']?.toString() ?? '';
-
-        if (fieldName.isEmpty) {
-          continue;
-        }
-
-        final position =
-            field['position'] is int
-                ? field['position'] as int
-                : 999999;
-
-        final oldPosition =
-            fieldPositions[fieldName];
-
-        if (oldPosition == null ||
-            position < oldPosition) {
-          fieldPositions[fieldName] =
-              position;
+        if (oldPosition == null || position < oldPosition) {
+          fieldPositions[fieldName] = position;
         }
       }
     }
 
-    final sortedNames =
-        fieldPositions.keys.toList()
-          ..sort(
-            (a, b) {
-              final positionCompare =
-                  fieldPositions[a]!
-                      .compareTo(
-                    fieldPositions[b]!,
-                  );
-
-              if (positionCompare != 0) {
-                return positionCompare;
-              }
-
-              return a.compareTo(b);
-            },
-          );
-
-    columns.addAll(
-      sortedNames,
-    );
-
-    if (columns.isEmpty) {
+    if (fieldPositions.isEmpty) {
       content.add(
-        pw.Padding(
-          padding: pw.EdgeInsets.only(
-            right: indent + 10,
-            bottom: 10,
-          ),
-          child: pw.Text(
-            'این جدول فیلدی ندارد.',
-            textDirection:
-                pw.TextDirection.rtl,
-            style: pw.TextStyle(
-              font: font,
-              fontSize: 10,
-            ),
-          ),
+        _message(
+          'این جدول فیلدی ندارد.',
+          font,
+          indent + 10,
         ),
       );
-
       return;
     }
 
-    final tableData =
-        <List<String>>[];
+    final columns = fieldPositions.keys.toList()
+      ..sort((a, b) {
+        final positionCompare =
+            fieldPositions[a]!.compareTo(fieldPositions[b]!);
+        return positionCompare != 0
+            ? positionCompare
+            : a.compareTo(b);
+      });
+
+    final tableData = <List<String>>[];
 
     for (final rawRow in rows) {
-      if (rawRow is! Map) {
-        continue;
-      }
+      if (rawRow is! Map) continue;
 
-      final row =
-          Map<String, dynamic>.from(rawRow);
-
-      final values =
-          row['values'];
-
-      final rowValues =
-          <String>[];
+      final values = rawRow['values'];
+      final rowValues = <String>[];
 
       for (final columnName in columns) {
         var value = '';
-
-        if (values is Map) {
-          final rawValue =
-              values[columnName];
-
-          if (rawValue != null) {
-            value =
-                rawValue.toString();
-          }
-        }
-
-        final lowerName =
-            columnName.toLowerCase();
-
-        final isPassword =
-            lowerName.contains('password') ||
-            lowerName.contains('pass') ||
-            columnName.contains('رمز') ||
-            columnName.contains('پسورد') ||
-            columnName.contains('گذرواژه');
-
-        if (isPassword &&
-            value.isNotEmpty) {
-          value = '••••••••';
+        if (values is Map && values[columnName] != null) {
+          value = values[columnName].toString();
         }
 
         rowValues.add(value);
       }
 
-      tableData.add(
-        rowValues,
-      );
+      tableData.add(rowValues);
     }
 
     content.add(
@@ -390,55 +270,60 @@ class PdfExportService {
           right: indent,
           bottom: 16,
         ),
-        child:
-            pw.TableHelper.fromTextArray(
+        child: pw.TableHelper.fromTextArray(
           headers: columns,
           data: tableData,
-          headerStyle:
-              pw.TextStyle(
+          headerStyle: pw.TextStyle(
             font: font,
             fontSize: 9,
-            fontWeight:
-                pw.FontWeight.bold,
+            fontWeight: pw.FontWeight.bold,
           ),
-          cellStyle:
-              pw.TextStyle(
+          cellStyle: pw.TextStyle(
             font: font,
             fontSize: 8,
           ),
-          headerDecoration:
-              const pw.BoxDecoration(
+          headerDecoration: const pw.BoxDecoration(
             color: PdfColors.grey300,
           ),
-          cellAlignment:
-              pw.Alignment.centerRight,
-          headerAlignment:
-              pw.Alignment.centerRight,
-          border:
-              pw.TableBorder.all(
+          cellAlignment: pw.Alignment.centerRight,
+          headerAlignment: pw.Alignment.centerRight,
+          border: pw.TableBorder.all(
             color: PdfColors.grey500,
             width: 0.5,
           ),
-          cellPadding:
-              const pw.EdgeInsets.all(4),
+          cellPadding: const pw.EdgeInsets.all(4),
         ),
       ),
     );
   }
 
-  String _sanitizeFileName(
-    String name,
+  pw.Widget _message(
+    String message,
+    pw.Font font,
+    double right,
   ) {
-    final sanitized =
-        name.replaceAll(
-      RegExp(r'[<>:"/\\|?*]'),
-      '_',
-    ).trim();
+    return pw.Padding(
+      padding: pw.EdgeInsets.only(
+        right: right,
+        bottom: 10,
+      ),
+      child: pw.Text(
+        message,
+        textDirection: pw.TextDirection.rtl,
+        style: pw.TextStyle(
+          font: font,
+          fontSize: 10,
+        ),
+      ),
+    );
+  }
 
-    if (sanitized.isEmpty) {
-      return 'Pass-Managers';
-    }
 
-    return sanitized;
+  String _sanitizeFileName(String name) {
+    final sanitized = name
+        .replaceAll(RegExp(r'[<>:"/\\|?*]'), '_')
+        .trim();
+
+    return sanitized.isEmpty ? 'Pass-Managers' : sanitized;
   }
 }

@@ -20,6 +20,8 @@ dependencies:
   cryptography: ^2.7.0
   path: ^1.9.1
   pdf: ^3.11.3
+  file_picker: ^8.3.7
+  local_auth: ^2.3.0
 
 dev_dependencies:
   flutter_test:
