@@ -8,7 +8,7 @@ permissions:
 
 jobs:
   replace-project:
-    name: Replace project from uploaded clean ZIP
+    name: Replace project from clean ZIP
     runs-on: ubuntu-latest
 
     steps:
@@ -16,15 +16,19 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Find uploaded ZIP
         shell: bash
         run: |
           set -euo pipefail
 
-          echo "Searching for project ZIP..."
-
-          ZIP_FILE="$(find . -maxdepth 1 -type f -iname '*.zip' -print -quit)"
+          ZIP_FILE="$(find . \
+            -maxdepth 1 \
+            -type f \
+            -iname '*.zip' \
+            -print \
+            | head -n 1)"
 
           if [ -z "${ZIP_FILE:-}" ]; then
             echo "ERROR: No ZIP file found in repository root."
@@ -32,48 +36,60 @@ jobs:
           fi
 
           echo "ZIP_FILE=$ZIP_FILE" >> "$GITHUB_ENV"
-          echo "Using: $ZIP_FILE"
+
+          echo "Using ZIP:"
+          echo "$ZIP_FILE"
 
       - name: Validate ZIP
         shell: bash
         run: |
           set -euo pipefail
 
+          test -f "$ZIP_FILE"
+
           unzip -t "$ZIP_FILE" >/dev/null
 
           echo "ZIP archive is valid."
 
-      - name: Extract ZIP
+      - name: Extract clean ZIP
         shell: bash
         run: |
           set -euo pipefail
 
           rm -rf /tmp/pass_managers_clean
+
           mkdir -p /tmp/pass_managers_clean
 
-          unzip -q "$ZIP_FILE" -d /tmp/pass_managers_clean
+          unzip -q "$ZIP_FILE" \
+            -d /tmp/pass_managers_clean
 
-          echo "Extracted ZIP contents:"
-          find /tmp/pass_managers_clean -maxdepth 3 -type f | sort
+          echo "ZIP extracted successfully."
 
-      - name: Detect project root inside ZIP
+      - name: Detect project root
         shell: bash
         run: |
           set -euo pipefail
 
           if [ -f "/tmp/pass_managers_clean/pubspec.yaml" ]; then
+
             ROOT="/tmp/pass_managers_clean"
+
           else
-            ROOT="$(find /tmp/pass_managers_clean \
-              -mindepth 1 \
-              -maxdepth 1 \
-              -type d \
-              -exec test -f '{}/pubspec.yaml' ';' \
-              -print -quit)"
+
+            ROOT="$(
+              find /tmp/pass_managers_clean \
+                -mindepth 1 \
+                -maxdepth 1 \
+                -type d \
+                -exec test -f '{}/pubspec.yaml' ';' \
+                -print \
+                | head -n 1
+            )"
+
           fi
 
           if [ -z "${ROOT:-}" ]; then
-            echo "ERROR: pubspec.yaml was not found in ZIP."
+            echo "ERROR: pubspec.yaml not found in ZIP."
             exit 1
           fi
 
@@ -82,7 +98,7 @@ jobs:
           echo "Detected project root:"
           echo "$ROOT"
 
-      - name: Verify required project structure
+      - name: Verify clean ZIP structure
         shell: bash
         run: |
           set -euo pipefail
@@ -93,30 +109,61 @@ jobs:
             "lib"
             "android"
             "windows"
-            "windows/CMakeLists.txt"
-            "windows/runner"
             "android/settings.gradle"
             "android/app"
+            "windows/CMakeLists.txt"
+            "windows/runner"
+            "lib/main.dart"
           )
 
           for item in "${required[@]}"; do
+
             if [ ! -e "$CLEAN_ROOT/$item" ]; then
+              echo
               echo "ERROR: Required item missing from ZIP:"
               echo "$item"
+              echo
+
               exit 1
             fi
+
           done
 
-          echo "Required project structure is present."
+          echo "Clean ZIP structure is valid."
 
-      - name: Show ZIP project manifest
+      - name: Verify important application files
         shell: bash
         run: |
           set -euo pipefail
 
-          echo "========================================"
-          echo "FILES INCLUDED IN CLEAN ZIP"
-          echo "========================================"
+          required=(
+            "lib/main.dart"
+            "lib/screens/home_page.dart"
+            "lib/services/backup_service.dart"
+            "lib/services/pdf_export_service.dart"
+            "lib/security/biometric_service.dart"
+          )
+
+          for file in "${required[@]}"; do
+
+            if [ ! -f "$CLEAN_ROOT/$file" ]; then
+              echo "ERROR: Missing application file:"
+              echo "$file"
+              exit 1
+            fi
+
+          done
+
+          echo "Important application files verified."
+
+      - name: Display clean ZIP manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "=========================================="
+          echo "CLEAN ZIP MANIFEST"
+          echo "=========================================="
 
           find "$CLEAN_ROOT" \
             -type f \
@@ -124,22 +171,22 @@ jobs:
             | sed "s#^$CLEAN_ROOT/##" \
             | sort
 
-      - name: Backup current repository state
+      - name: Protect GitHub workflow
         shell: bash
         run: |
           set -euo pipefail
 
-          mkdir -p /tmp/current_project_backup
+          mkdir -p /tmp/workflow_backup
 
-          find . \
-            -mindepth 1 \
-            -maxdepth 1 \
-            ! -name '.git' \
-            ! -name '.github' \
-            ! -name "$(basename "$ZIP_FILE")" \
-            -exec cp -a {} /tmp/current_project_backup/ \;
+          if [ -d ".github/workflows" ]; then
 
-          echo "Current project state backed up temporarily."
+            cp -a \
+              .github/workflows \
+              /tmp/workflow_backup/
+
+          fi
+
+          echo "GitHub workflow directory protected."
 
       - name: Remove old project files
         shell: bash
@@ -151,96 +198,84 @@ jobs:
           find . \
             -mindepth 1 \
             -maxdepth 1 \
-            ! -name '.git' \
-            ! -name '.github' \
+            ! -name ".git" \
+            ! -name ".github" \
             ! -name "$(basename "$ZIP_FILE")" \
             -exec rm -rf {} +
 
           echo "Old project files removed."
 
-      - name: Remove obsolete workflow files
+      - name: Install project from clean ZIP
         shell: bash
         run: |
           set -euo pipefail
 
-          if [ -d ".github/workflows" ]; then
-            find .github/workflows \
-              -type f \
-              ! -name 'build.yml' \
-              ! -name 'Replica Project Test.yml' \
-              -delete
-          fi
+          echo "Installing clean project..."
 
-          echo "Obsolete workflow files removed."
-
-      - name: Install clean project
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          echo "Installing project from clean ZIP..."
-
-          rsync -a \
-            "$CLEAN_ROOT/" \
+          cp -a \
+            "$CLEAN_ROOT/." \
             ./
 
-          echo "Project installed."
+          echo "Clean project installed."
 
-      - name: Verify Android and Windows were preserved
+      - name: Restore GitHub workflows
         shell: bash
         run: |
           set -euo pipefail
 
-          echo "Checking Android..."
+          mkdir -p .github/workflows
+
+          if [ -d "/tmp/workflow_backup/workflows" ]; then
+
+            cp -a \
+              /tmp/workflow_backup/workflows/. \
+              .github/workflows/
+
+          fi
+
+          echo "GitHub workflows restored."
+
+      - name: Verify Android project
+        shell: bash
+        run: |
+          set -euo pipefail
 
           test -f android/settings.gradle
           test -d android/app
 
-          echo "Android OK."
+          echo "Android project: OK"
 
-          echo "Checking Windows..."
-
-          test -f windows/CMakeLists.txt
-          test -d windows/runner
-          test -f windows/runner/Runner.rc
-
-          echo "Windows OK."
-
-      - name: Verify important application files
+      - name: Verify Windows project
         shell: bash
         run: |
           set -euo pipefail
 
-          required=(
-            "pubspec.yaml"
-            "pubspec.lock"
-            "lib/main.dart"
-            "lib/screens/home_page.dart"
-            "lib/services/backup_service.dart"
-            "lib/services/pdf_export_service.dart"
-            "lib/security/biometric_service.dart"
-          )
+          test -f windows/CMakeLists.txt
+          test -d windows/runner
 
-          for f in "${required[@]}"; do
-            if [ ! -f "$f" ]; then
-              echo "ERROR: Required application file missing:"
-              echo "$f"
-              exit 1
-            fi
-          done
+          echo "Windows project: OK"
 
-          echo "Application files OK."
+      - name: Verify Flutter project
+        shell: bash
+        run: |
+          set -euo pipefail
 
-      - name: Remove temporary ZIP
+          test -f pubspec.yaml
+          test -f pubspec.lock
+          test -f lib/main.dart
+
+          echo "Flutter project: OK"
+
+      - name: Remove temporary uploaded ZIP
         shell: bash
         run: |
           set -euo pipefail
 
           rm -f "$ZIP_FILE"
 
-          echo "Uploaded ZIP removed from repository working tree."
+          echo "Temporary ZIP removed."
 
-      - name: Verify forbidden legacy files
+      - name: Remove forbidden legacy files
         shell: bash
         run: |
           set -euo pipefail
@@ -253,38 +288,81 @@ jobs:
             ".github/workflows/regenerate-windows.yml"
           )
 
-          for f in "${forbidden[@]}"; do
-            if [ -e "$f" ]; then
-              echo "ERROR: Forbidden legacy file still exists:"
-              echo "$f"
-              exit 1
+          for file in "${forbidden[@]}"; do
+
+            if [ -e "$file" ]; then
+              echo "Removing legacy file:"
+              echo "$file"
+
+              rm -rf "$file"
             fi
+
           done
 
-          echo "No forbidden legacy files found."
+      - name: Verify forbidden files are gone
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          forbidden=(
+            "AI_REPORT.json"
+            "ai-report.txt"
+            "test/widget_test.dart"
+            ".github/workflows/flutter-create.yml"
+            ".github/workflows/regenerate-windows.yml"
+          )
+
+          for file in "${forbidden[@]}"; do
+
+            if [ -e "$file" ]; then
+              echo "ERROR: Forbidden file still exists:"
+              echo "$file"
+              exit 1
+            fi
+
+          done
+
+          echo "Legacy file check: OK"
+
+      - name: Verify workflow still exists
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ ! -d ".github/workflows" ]; then
+            echo "ERROR: .github/workflows was removed."
+            exit 1
+          fi
+
+          echo "Remaining workflows:"
+          find .github/workflows \
+            -maxdepth 1 \
+            -type f \
+            -print \
+            | sort
 
       - name: Show final project structure
         shell: bash
         run: |
           set -euo pipefail
 
-          echo "========================================"
-          echo "FINAL PROJECT STRUCTURE"
-          echo "========================================"
+          echo "=========================================="
+          echo "FINAL PROJECT FILES"
+          echo "=========================================="
 
           find . \
-            -path './.git' -prune \
+            -path "./.git" -prune \
             -o -type f -print \
             | sort
 
-      - name: Check Git status
+      - name: Show Git status
         shell: bash
         run: |
           set -euo pipefail
 
-          echo "========================================"
+          echo "=========================================="
           echo "GIT STATUS"
-          echo "========================================"
+          echo "=========================================="
 
           git status --short
 
@@ -293,8 +371,11 @@ jobs:
         run: |
           set -euo pipefail
 
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.name \
+            "github-actions[bot]"
+
+          git config user.email \
+            "41898282+github-actions[bot]@users.noreply.github.com"
 
           git add -A
 
@@ -303,11 +384,22 @@ jobs:
             exit 0
           fi
 
-          git commit -m "Replace project with clean ZIP"
+          git commit \
+            -m "Replace project with clean ZIP"
 
-      - name: Push replacement
+      - name: Push replacement using AI GitHub token
         shell: bash
+        env:
+          AI_GITHUB_TOKEN: ${{ secrets.AI_GITHUB_TOKEN }}
         run: |
           set -euo pipefail
+
+          if [ -z "${AI_GITHUB_TOKEN:-}" ]; then
+            echo "ERROR: AI_GITHUB_TOKEN secret is empty or unavailable."
+            exit 1
+          fi
+
+          git remote set-url origin \
+            "https://x-access-token:${AI_GITHUB_TOKEN}@github.com/iranzamin2012/Pass-Managers.git"
 
           git push origin HEAD:main
