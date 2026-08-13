@@ -53,13 +53,11 @@ class PdfExportService {
             child: pw.Text(
               root['name']?.toString() ??
                   'Pass Managers',
-              textDirection:
-                  pw.TextDirection.rtl,
+              textDirection: pw.TextDirection.rtl,
               style: pw.TextStyle(
                 font: font,
                 fontSize: 20,
-                fontWeight:
-                    pw.FontWeight.bold,
+                fontWeight: pw.FontWeight.bold,
               ),
             ),
           );
@@ -69,8 +67,7 @@ class PdfExportService {
             alignment: pw.Alignment.centerLeft,
             child: pw.Text(
               'صفحه ${context.pageNumber} / ${context.pagesCount}',
-              textDirection:
-                  pw.TextDirection.rtl,
+              textDirection: pw.TextDirection.rtl,
               style: pw.TextStyle(
                 font: font,
                 fontSize: 9,
@@ -110,7 +107,8 @@ class PdfExportService {
     final type =
         node['type']?.toString() ?? '';
 
-    final indent = level * 18.0;
+    final indent =
+        level * 18.0;
 
     if (type == 'folder') {
       content.add(
@@ -122,27 +120,24 @@ class PdfExportService {
           ),
           child: pw.Text(
             'پوشه: $name',
-            textDirection:
-                pw.TextDirection.rtl,
+            textDirection: pw.TextDirection.rtl,
             style: pw.TextStyle(
               font: font,
-              fontSize:
-                  level == 0 ? 20 : 16,
-              fontWeight:
-                  pw.FontWeight.bold,
+              fontSize: level == 0 ? 20 : 16,
+              fontWeight: pw.FontWeight.bold,
             ),
           ),
         ),
       );
 
-      final children = node['children'];
+      final children =
+          node['children'];
 
       if (children is List) {
         for (final child in children) {
           if (child is Map) {
             _buildTreeContent(
-              node:
-                  Map<String, dynamic>.from(
+              node: Map<String, dynamic>.from(
                 child,
               ),
               content: content,
@@ -176,8 +171,7 @@ class PdfExportService {
         ),
         child: pw.Text(
           name,
-          textDirection:
-              pw.TextDirection.rtl,
+          textDirection: pw.TextDirection.rtl,
           style: pw.TextStyle(
             font: font,
             fontSize: 14,
@@ -196,10 +190,13 @@ class PdfExportService {
     final name =
         node['name']?.toString() ?? '';
 
-    final indent = level * 18.0;
+    final indent =
+        level * 18.0;
 
     content.add(
-      pw.SizedBox(height: 10),
+      pw.SizedBox(
+        height: 10,
+      ),
     );
 
     content.add(
@@ -210,19 +207,18 @@ class PdfExportService {
         ),
         child: pw.Text(
           'جدول: $name',
-          textDirection:
-              pw.TextDirection.rtl,
+          textDirection: pw.TextDirection.rtl,
           style: pw.TextStyle(
             font: font,
             fontSize: 17,
-            fontWeight:
-                pw.FontWeight.bold,
+            fontWeight: pw.FontWeight.bold,
           ),
         ),
       ),
     );
 
-    final rows = node['rows'];
+    final rows =
+        node['rows'];
 
     if (rows is! List ||
         rows.isEmpty) {
@@ -245,7 +241,8 @@ class PdfExportService {
         continue;
       }
 
-      final fields = rawRow['fields'];
+      final fields =
+          rawRow['fields'];
 
       if (fields is! List) {
         continue;
@@ -257,8 +254,7 @@ class PdfExportService {
         }
 
         final fieldName =
-            rawField['name']?.toString() ??
-                '';
+            rawField['name']?.toString() ?? '';
 
         if (fieldName.isEmpty) {
           continue;
@@ -305,9 +301,11 @@ class PdfExportService {
                 fieldPositions[b]!,
               );
 
-              return positionCompare != 0
-                  ? positionCompare
-                  : a.compareTo(b);
+              if (positionCompare != 0) {
+                return positionCompare;
+              }
+
+              return a.compareTo(b);
             },
           );
 
@@ -319,21 +317,19 @@ class PdfExportService {
         continue;
       }
 
-      final values = rawRow['values'];
+      final values =
+          rawRow['values'];
 
       final rowValues =
           <String>[];
 
-      for (final columnName
-          in columns) {
+      for (final columnName in columns) {
         var value = '';
 
         if (values is Map &&
-            values[columnName] !=
-                null) {
+            values[columnName] != null) {
           value =
-              values[columnName]
-                  .toString();
+              values[columnName].toString();
         }
 
         rowValues.add(value);
@@ -348,19 +344,15 @@ class PdfExportService {
           right: indent,
           bottom: 16,
         ),
-        child:
-            pw.TableHelper.fromTextArray(
+        child: pw.TableHelper.fromTextArray(
           headers: columns,
           data: tableData,
-          headerStyle:
-              pw.TextStyle(
+          headerStyle: pw.TextStyle(
             font: font,
             fontSize: 9,
-            fontWeight:
-                pw.FontWeight.bold,
+            fontWeight: pw.FontWeight.bold,
           ),
-          cellStyle:
-              pw.TextStyle(
+          cellStyle: pw.TextStyle(
             font: font,
             fontSize: 8,
           ),
@@ -374,8 +366,7 @@ class PdfExportService {
               pw.Alignment.centerRight,
           border:
               pw.TableBorder.all(
-            color:
-                PdfColors.grey500,
+            color: PdfColors.grey500,
             width: 0.5,
           ),
           cellPadding:
