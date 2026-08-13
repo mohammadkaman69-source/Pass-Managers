@@ -574,8 +574,7 @@ class PdfExportService {
     bool bold = false,
   }) {
     final hasRtl = _containsRtl(value);
-    final hasLtr = _containsLtr(value);
-    final hasNumber = _containsNumber(value);
+    
 
     /*
      * Pure LTR:
