@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 
 import '../models/tree_item.dart';
 import '../repositories/tree_repository.dart';
-import '../services/pdf_export_service.dart';
-import '../services/backup_service.dart';
 import '../security/biometric_service.dart';
+import '../security/security_guard.dart';
+import '../security/security_manager.dart';
+import '../services/backup_service.dart';
+import '../services/pdf_export_service.dart';
 import 'table_page.dart';
 import 'tree_page.dart';
 
@@ -20,8 +22,9 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   final TreeRepository _repository = TreeRepository();
 
-  final List<TreeItem> items = [];
-  final Map<TreeItem, int> _itemIds = {};
+  final List<TreeItem> items = <TreeItem>[];
+
+  final Map<TreeItem, int> _itemIds = <TreeItem, int>{};
 
   final PdfExportService _pdfExportService = PdfExportService();
   final BackupService _backupService = BackupService();
@@ -87,13 +90,13 @@ class _HomePageState extends State<HomePage> {
         _isLoading = false;
       });
 
-      _showError(
+      _showMessage(
         'Failed to load data: $error',
       );
     }
   }
 
-  void _showError(String message) {
+  void _showMessage(String message) {
     if (!mounted) {
       return;
     }
@@ -169,45 +172,49 @@ class _HomePageState extends State<HomePage> {
 
     final result = await showDialog<String>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(title),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          obscureText: true,
-          decoration: const InputDecoration(
-            labelText: 'Master Password',
-            border: OutlineInputBorder(),
-          ),
-          onSubmitted: (value) {
-            if (value.isNotEmpty) {
-              Navigator.pop(
-                dialogContext,
-                value,
-              );
-            }
-          },
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(dialogContext);
-            },
-            child: const Text('لغو'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              if (controller.text.isNotEmpty) {
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Text(title),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            obscureText: true,
+            decoration: const InputDecoration(
+              labelText: 'Master Password',
+              border: OutlineInputBorder(),
+            ),
+            onSubmitted: (value) {
+              if (value.isNotEmpty) {
                 Navigator.pop(
                   dialogContext,
-                  controller.text,
+                  value,
                 );
               }
             },
-            child: const Text('ادامه'),
           ),
-        ],
-      ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+              },
+              child: const Text('لغو'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final value = controller.text;
+
+                if (value.isNotEmpty) {
+                  Navigator.pop(
+                    dialogContext,
+                    value,
+                  );
+                }
+              },
+              child: const Text('ادامه'),
+            ),
+          ],
+        );
+      },
     );
 
     controller.dispose();
@@ -228,6 +235,15 @@ class _HomePageState extends State<HomePage> {
       return;
     }
 
+    final verified = await SecurityManager().unlock(password);
+
+    if (!verified) {
+      if (mounted) {
+        _showMessage('Master Password اشتباه است.');
+      }
+      return;
+    }
+
     setState(() {
       _isBackupBusy = true;
     });
@@ -241,7 +257,7 @@ class _HomePageState extends State<HomePage> {
         return;
       }
 
-      _showError(
+      _showMessage(
         saved
             ? 'نسخه پشتیبان با موفقیت ذخیره شد.'
             : 'ذخیره نسخه پشتیبان لغو شد.',
@@ -251,7 +267,7 @@ class _HomePageState extends State<HomePage> {
         return;
       }
 
-      _showError(
+      _showMessage(
         'خطا در ایجاد نسخه پشتیبان: $error',
       );
     } finally {
@@ -270,32 +286,34 @@ class _HomePageState extends State<HomePage> {
 
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Restore Backup'),
-        content: const Text(
-          'با بازیابی، اطلاعات فعلی برنامه حذف و اطلاعات نسخه پشتیبان جایگزین می‌شود. ادامه می‌دهید؟',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(
-                dialogContext,
-                false,
-              );
-            },
-            child: const Text('لغو'),
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Restore Backup'),
+          content: const Text(
+            'با بازیابی، اطلاعات فعلی برنامه حذف و اطلاعات نسخه پشتیبان جایگزین می‌شود. ادامه می‌دهید؟',
           ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(
-                dialogContext,
-                true,
-              );
-            },
-            child: const Text('بازیابی'),
-          ),
-        ],
-      ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(
+                  dialogContext,
+                  false,
+                );
+              },
+              child: const Text('لغو'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(
+                  dialogContext,
+                  true,
+                );
+              },
+              child: const Text('بازیابی'),
+            ),
+          ],
+        );
+      },
     );
 
     if (confirmed != true) {
@@ -325,7 +343,7 @@ class _HomePageState extends State<HomePage> {
         return;
       }
 
-      _showError(
+      _showMessage(
         'نسخه پشتیبان با موفقیت بازیابی شد.',
       );
     } on BackupCancelledException {
@@ -335,7 +353,7 @@ class _HomePageState extends State<HomePage> {
         return;
       }
 
-      _showError(
+      _showMessage(
         'خطا در بازیابی نسخه پشتیبان: $error',
       );
     } finally {
@@ -348,22 +366,20 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _configureBiometric() async {
-    final supported =
-        await _biometricService.isSupported();
+    final supported = await _biometricService.isSupported();
 
     if (!mounted) {
       return;
     }
 
     if (!supported) {
-      _showError(
+      _showMessage(
         'بیومتریک روی این دستگاه در دسترس نیست.',
       );
       return;
     }
 
-    final enabled =
-        await _biometricService.isEnabled();
+    final enabled = await _biometricService.isEnabled();
 
     if (!mounted) {
       return;
@@ -372,39 +388,41 @@ class _HomePageState extends State<HomePage> {
     if (enabled) {
       final disable = await showDialog<bool>(
         context: context,
-        builder: (dialogContext) => AlertDialog(
-          title: const Text('Biometric Login'),
-          content: const Text(
-            'ورود بیومتریک فعال است. غیرفعال شود؟',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(
-                  dialogContext,
-                  false,
-                );
-              },
-              child: const Text('لغو'),
+        builder: (dialogContext) {
+          return AlertDialog(
+            title: const Text('Biometric Login'),
+            content: const Text(
+              'ورود بیومتریک فعال است. غیرفعال شود؟',
             ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(
-                  dialogContext,
-                  true,
-                );
-              },
-              child: const Text('غیرفعال کردن'),
-            ),
-          ],
-        ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(
+                    dialogContext,
+                    false,
+                  );
+                },
+                child: const Text('لغو'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(
+                    dialogContext,
+                    true,
+                  );
+                },
+                child: const Text('غیرفعال کردن'),
+              ),
+            ],
+          );
+        },
       );
 
       if (disable == true) {
         await _biometricService.disable();
 
         if (mounted) {
-          _showError(
+          _showMessage(
             'ورود بیومتریک غیرفعال شد.',
           );
         }
@@ -413,14 +431,13 @@ class _HomePageState extends State<HomePage> {
       return;
     }
 
-    final enabledNow =
-        await _biometricService.enable();
+    final enabledNow = await _biometricService.enable();
 
     if (!mounted) {
       return;
     }
 
-    _showError(
+    _showMessage(
       enabledNow
           ? 'ورود بیومتریک فعال شد.'
           : 'فعال‌سازی بیومتریک انجام نشد.',
@@ -430,50 +447,52 @@ class _HomePageState extends State<HomePage> {
   void _showSecurityMenu() {
     showModalBottomSheet<void>(
       context: context,
-      builder: (sheetContext) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(
-                Icons.backup_outlined,
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(
+                  Icons.backup_outlined,
+                ),
+                title: const Text(
+                  'ایجاد نسخه پشتیبان رمزنگاری‌شده',
+                ),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  _createBackup();
+                },
               ),
-              title: const Text(
-                'ایجاد نسخه پشتیبان رمزنگاری‌شده',
+              ListTile(
+                leading: const Icon(
+                  Icons.restore_outlined,
+                ),
+                title: const Text(
+                  'بازیابی نسخه پشتیبان',
+                ),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  _restoreBackup();
+                },
               ),
-              onTap: () {
-                Navigator.pop(sheetContext);
-                _createBackup();
-              },
-            ),
-            ListTile(
-              leading: const Icon(
-                Icons.restore_outlined,
+              ListTile(
+                leading: const Icon(
+                  Icons.fingerprint,
+                ),
+                title: const Text(
+                  'تنظیم ورود بیومتریک',
+                ),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  _configureBiometric();
+                },
               ),
-              title: const Text(
-                'بازیابی نسخه پشتیبان',
-              ),
-              onTap: () {
-                Navigator.pop(sheetContext);
-                _restoreBackup();
-              },
-            ),
-            ListTile(
-              leading: const Icon(
-                Icons.fingerprint,
-              ),
-              title: const Text(
-                'تنظیم ورود بیومتریک',
-              ),
-              onTap: () {
-                Navigator.pop(sheetContext);
-                _configureBiometric();
-              },
-            ),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -522,3 +541,473 @@ class _HomePageState extends State<HomePage> {
     required String label,
     String? initialValue,
   }) async {
+    final controller = TextEditingController(
+      text: initialValue ?? '',
+    );
+
+    final result = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Text(title),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            decoration: InputDecoration(
+              labelText: label,
+              border: const OutlineInputBorder(),
+            ),
+            onSubmitted: (_) {
+              final value = controller.text.trim();
+
+              if (value.isNotEmpty) {
+                Navigator.pop(
+                  dialogContext,
+                  value,
+                );
+              }
+            },
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+              },
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final value = controller.text.trim();
+
+                if (value.isEmpty) {
+                  return;
+                }
+
+                Navigator.pop(
+                  dialogContext,
+                  value,
+                );
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        );
+      },
+    );
+
+    controller.dispose();
+
+    return result;
+  }
+
+  Future<void> createFolder() async {
+    final name = await _askName(
+      title: 'Create Folder',
+      label: 'Folder name',
+    );
+
+    if (name == null || name.isEmpty) {
+      return;
+    }
+
+    try {
+      final id = await _repository.createFolder(
+        name: name,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      final item = TreeItem.folder(
+        name,
+        id: id,
+      );
+
+      setState(() {
+        items.add(item);
+        _itemIds[item] = id;
+      });
+    } catch (error) {
+      _showMessage(
+        'Failed to create folder: $error',
+      );
+    }
+  }
+
+  Future<void> createTable() async {
+    final name = await _askName(
+      title: 'Create Table',
+      label: 'Table name',
+    );
+
+    if (name == null || name.isEmpty) {
+      return;
+    }
+
+    try {
+      final id = await _repository.createTable(
+        name: name,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      final item = TreeItem.table(
+        name,
+        id: id,
+      );
+
+      setState(() {
+        items.add(item);
+        _itemIds[item] = id;
+      });
+    } catch (error) {
+      _showMessage(
+        'Failed to create table: $error',
+      );
+    }
+  }
+
+  Future<void> renameItem(
+    TreeItem item,
+  ) async {
+    final id = _itemIds[item];
+
+    if (id == null) {
+      return;
+    }
+
+    final name = await _askName(
+      title: 'Rename',
+      label: 'Name',
+      initialValue: item.name,
+    );
+
+    if (name == null || name.isEmpty) {
+      return;
+    }
+
+    try {
+      await _repository.renameItem(
+        id: id,
+        name: name,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        item.name = name;
+      });
+    } catch (error) {
+      _showMessage(
+        'Failed to rename item: $error',
+      );
+    }
+  }
+
+  Future<void> deleteItem(
+    TreeItem item,
+  ) async {
+    final id = _itemIds[item];
+
+    if (id == null) {
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Delete'),
+          content: Text(
+            'Delete "${item.name}" and everything inside it?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(
+                  dialogContext,
+                  false,
+                );
+              },
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(
+                  dialogContext,
+                  true,
+                );
+              },
+              child: const Text('Delete'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) {
+      return;
+    }
+
+    try {
+      await _repository.deleteItem(id);
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        items.remove(item);
+        _itemIds.remove(item);
+      });
+    } catch (error) {
+      _showMessage(
+        'Failed to delete item: $error',
+      );
+    }
+  }
+
+  void showItemMenu(
+    TreeItem item,
+  ) {
+    showModalBottomSheet<void>(
+      context: context,
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.edit),
+                title: const Text('Rename'),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  renameItem(item);
+                },
+              ),
+              ListTile(
+                leading: const Icon(
+                  Icons.delete_outline,
+                ),
+                title: const Text('Delete'),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  deleteItem(item);
+                },
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void openItem(
+    TreeItem item,
+  ) {
+    final id = _itemIds[item];
+
+    if (id == null) {
+      return;
+    }
+
+    if (item.type == TreeItemType.table) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) {
+            return TablePage(
+              table: item,
+              tableId: id,
+              onDelete: () {
+                if (!mounted) {
+                  return;
+                }
+
+                setState(() {
+                  items.remove(item);
+                  _itemIds.remove(item);
+                });
+              },
+            );
+          },
+        ),
+      ).then((_) {
+        if (mounted) {
+          setState(() {});
+        }
+      });
+
+      return;
+    }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) {
+          return TreePage(
+            item: item,
+            itemId: id,
+            onDelete: () async {
+              await _repository.deleteItem(id);
+
+              if (!mounted) {
+                return;
+              }
+
+              setState(() {
+                items.remove(item);
+                _itemIds.remove(item);
+              });
+            },
+          );
+        },
+      ),
+    ).then((_) {
+      if (mounted) {
+        setState(() {});
+      }
+    });
+  }
+
+  @override
+  Widget build(
+    BuildContext context,
+  ) {
+    return SecurityGuard(
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text(
+            'Pass Managers',
+          ),
+          actions: [
+            IconButton(
+              onPressed: _showSecurityMenu,
+              icon: const Icon(
+                Icons.security_outlined,
+              ),
+              tooltip: 'Security',
+            ),
+            if (_isExporting)
+              const Padding(
+                padding: EdgeInsets.symmetric(
+                  horizontal: 16,
+                ),
+                child: Center(
+                  child: SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                    ),
+                  ),
+                ),
+              )
+            else
+              IconButton(
+                onPressed: _exportPdf,
+                icon: const Icon(
+                  Icons.picture_as_pdf_outlined,
+                ),
+                tooltip: 'Export PDF',
+              ),
+          ],
+        ),
+        body: _isLoading
+            ? const Center(
+                child: CircularProgressIndicator(),
+              )
+            : items.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.folder_open,
+                          size: 80,
+                        ),
+                        const SizedBox(height: 20),
+                        const Text(
+                          'No items created yet',
+                          style: TextStyle(
+                            fontSize: 18,
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        ElevatedButton.icon(
+                          onPressed: createItem,
+                          icon: const Icon(
+                            Icons.add,
+                          ),
+                          label: const Text(
+                            'Create',
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                : ListView.builder(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: items.length,
+                    itemBuilder: (context, index) {
+                      final item = items[index];
+
+                      final isTable =
+                          item.type == TreeItemType.table;
+
+                      return Card(
+                        child: ListTile(
+                          leading: Icon(
+                            isTable
+                                ? Icons.table_chart
+                                : Icons.folder,
+                          ),
+                          title: Text(
+                            item.name,
+                          ),
+                          subtitle: isTable
+                              ? Text(
+                                  '${item.rows.length} rows • '
+                                  '${item.columns.length} columns',
+                                )
+                              : null,
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                onPressed: () {
+                                  showItemMenu(item);
+                                },
+                                icon: const Icon(
+                                  Icons.more_vert,
+                                ),
+                                tooltip: 'Options',
+                              ),
+                              const Icon(
+                                Icons.chevron_right,
+                              ),
+                            ],
+                          ),
+                          onTap: () {
+                            openItem(item);
+                          },
+                        ),
+                      );
+                    },
+                  ),
+        floatingActionButton: FloatingActionButton(
+          onPressed: createItem,
+          child: const Icon(
+            Icons.add,
+          ),
+        ),
+      ),
+    );
+  }
+}
