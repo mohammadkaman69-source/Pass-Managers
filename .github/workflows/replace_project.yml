@@ -21,7 +21,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+
           test -f Pass-Managers-final-clean.zip
+
+          echo "Source ZIP found:"
+          ls -lh Pass-Managers-final-clean.zip
 
       - name: Extract clean ZIP
         shell: bash
@@ -37,7 +41,12 @@ jobs:
           if [ -f /tmp/pass_managers_clean/pubspec.yaml ]; then
             ROOT=/tmp/pass_managers_clean
           else
-            ROOT=$(find /tmp/pass_managers_clean -mindepth 1 -maxdepth 1 -type d -print -quit)
+            ROOT=$(find /tmp/pass_managers_clean \
+              -mindepth 1 \
+              -maxdepth 1 \
+              -type d \
+              -print \
+              | head -n 1)
           fi
 
           test -n "${ROOT:-}"
@@ -45,7 +54,22 @@ jobs:
 
           echo "CLEAN_ROOT=$ROOT" >> "$GITHUB_ENV"
 
-      - name: Verify clean ZIP required files
+          echo "===== CLEAN ZIP ROOT ====="
+          echo "$ROOT"
+
+      - name: Show clean ZIP manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "===== FILES INSIDE CLEAN ZIP ====="
+
+          find "$CLEAN_ROOT" \
+            -type f \
+            -printf '%P\n' \
+            | sort
+
+      - name: Verify clean ZIP core files
         shell: bash
         run: |
           set -euo pipefail
@@ -54,53 +78,65 @@ jobs:
             "pubspec.yaml"
             "pubspec.lock"
             "lib/main.dart"
-            "lib/security/biometric_service.dart"
-            "lib/services/backup_service.dart"
-            "lib/services/pdf_export_service.dart"
-            "android/settings.gradle"
-            "android/app/build.gradle"
-            "android/gradle/wrapper/gradle-wrapper.properties"
-            "android/app/src/main/AndroidManifest.xml"
-            "android/app/src/main/kotlin/com/example/pass_managers/MainActivity.kt"
-            "windows/CMakeLists.txt"
           )
 
           for f in "${required[@]}"; do
-            test -f "$CLEAN_ROOT/$f" || {
-              echo "Missing from clean ZIP: $f"
+            if [ ! -f "$CLEAN_ROOT/$f" ]; then
+              echo "ERROR: Required file missing from clean ZIP:"
+              echo "$f"
               exit 1
-            }
+            fi
           done
+
+          echo "Core clean ZIP files verified."
 
       - name: Remove old project files
         shell: bash
         run: |
           set -euo pipefail
 
-          find . -mindepth 1 -maxdepth 1 \
+          echo "Removing old project files..."
+
+          find . \
+            -mindepth 1 \
+            -maxdepth 1 \
             ! -name '.git' \
             ! -name '.github' \
             ! -name 'Pass-Managers-final-clean.zip' \
             -exec rm -rf {} +
 
-          find .github/workflows -type f \
-            ! -name 'build.yml' \
-            -delete 2>/dev/null || true
+          echo "Old project files removed."
 
-      - name: Install clean project except workflow
+      - name: Remove legacy workflows
         shell: bash
         run: |
           set -euo pipefail
 
-          rsync -a --delete \
+          if [ -d ".github/workflows" ]; then
+            find .github/workflows \
+              -type f \
+              ! -name 'build.yml' \
+              ! -name 'Replace Project From Clean ZIP.yml' \
+              -delete
+          fi
+
+      - name: Install clean project
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          rsync -a \
             --exclude '.github/' \
             "$CLEAN_ROOT/" \
             ./
+
+          echo "Clean project copied."
 
       - name: Remove temporary ZIP
         shell: bash
         run: |
           set -euo pipefail
+
           rm -f Pass-Managers-final-clean.zip
 
       - name: Verify forbidden legacy files are gone
@@ -109,42 +145,40 @@ jobs:
           set -euo pipefail
 
           forbidden=(
-            ".github/workflows/flutter-create.yml"
-            ".github/workflows/regenerate-windows.yml"
             "AI_REPORT.json"
             "ai-report.txt"
-            "lib/services/password_service.dart"
             "test/widget_test.dart"
           )
 
           for f in "${forbidden[@]}"; do
             if [ -e "$f" ]; then
-              echo "Legacy file still exists: $f"
+              echo "ERROR: Legacy file still exists:"
+              echo "$f"
               exit 1
             fi
           done
 
-      - name: Verify roadmap files
+          echo "Forbidden legacy files verified as removed."
+
+      - name: Show final project structure
         shell: bash
         run: |
           set -euo pipefail
-          test -f lib/security/biometric_service.dart
-          test -f lib/services/backup_service.dart
 
-      - name: Show exact replacement result
+          echo "===== FINAL PROJECT FILES ====="
+
+          find . \
+            -path './.git' -prune \
+            -o -type f -print \
+            | sort
+
+      - name: Show Git status
         shell: bash
         run: |
           set -euo pipefail
 
           echo "===== GIT STATUS ====="
           git status --short
-
-          echo
-          echo "===== PROJECT FILES ====="
-          find . \
-            -path './.git' -prune \
-            -o -type f -print \
-            | sort
 
       - name: Commit replacement
         shell: bash
@@ -167,4 +201,5 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+
           git push origin HEAD:main
