@@ -6,6 +6,9 @@ name: Pass Managers Build
 permissions:
   contents: read
 
+env:
+  FLUTTER_VERSION: "3.44.7"
+
 jobs:
   android-build:
     name: Android Build
@@ -15,26 +18,52 @@ jobs:
       - name: Checkout source
         uses: actions/checkout@v4
 
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
+      - name: Setup Java
+        uses: actions/setup-java@v4
         with:
-          flutter-version: "3.44.7"
-          channel: stable
+          distribution: temurin
+          java-version: "17"
 
-      - name: Show Flutter version
-        run: flutter --version
+      - name: Download Flutter SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          url="https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_${FLUTTER_VERSION}-stable.tar.xz"
+          archive="$RUNNER_TEMP/flutter.tar.xz"
+          sdk="$RUNNER_TEMP/flutter"
+
+          rm -rf "$sdk"
+          mkdir -p "$sdk"
+
+          curl --fail --location --retry 5 --retry-all-errors --retry-delay 3 \
+            -o "$archive" "$url"
+
+          tar -xJf "$archive" -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
+
+      - name: Verify Flutter
+        shell: bash
+        run: |
+          set -euo pipefail
+          flutter --version
+
+      - name: Install Android SDK 36
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platform-tools" "platforms;android-36" "build-tools;35.0.0"
 
       - name: Verify Android project
         shell: bash
         run: |
           set -euo pipefail
-
           test -f android/settings.gradle
-          test -f android/app/build.gradle.kts
+          test -f android/app/build.gradle
           test -f android/gradle/wrapper/gradle-wrapper.properties
           test -f android/app/src/main/AndroidManifest.xml
-
-          echo "Android project exists."
 
       - name: Get dependencies
         run: flutter pub get
@@ -42,7 +71,7 @@ jobs:
       - name: Analyze
         run: flutter analyze
 
-      - name: Build Android APK
+      - name: Build APK
         run: flutter build apk --release
 
       - name: Upload APK
@@ -50,7 +79,6 @@ jobs:
         with:
           name: PassManagers-Android
           path: build/app/outputs/flutter-apk/app-release.apk
-
 
   windows-build:
     name: Windows Build
@@ -60,14 +88,29 @@ jobs:
       - name: Checkout source
         uses: actions/checkout@v4
 
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: "3.44.7"
-          channel: stable
+      - name: Download Flutter SDK
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
 
-      - name: Show Flutter version
-        run: flutter --version
+          $url = "https://storage.googleapis.com/flutter_infra_release/releases/stable/windows/flutter_windows_${env:FLUTTER_VERSION}-stable.zip"
+          $archive = Join-Path $env:RUNNER_TEMP "flutter.zip"
+          $sdkRoot = Join-Path $env:RUNNER_TEMP "flutter"
+
+          if (Test-Path $sdkRoot) {
+            Remove-Item -Recurse -Force $sdkRoot
+          }
+
+          Invoke-WebRequest -Uri $url -OutFile $archive
+          Expand-Archive -Path $archive -DestinationPath $env:RUNNER_TEMP -Force
+
+          Add-Content -Path $env:GITHUB_PATH -Value (Join-Path $sdkRoot "bin")
+
+      - name: Verify Flutter
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          flutter --version
 
       - name: Enable Windows desktop
         run: flutter config --enable-windows-desktop
@@ -77,23 +120,19 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
 
-          if (!(Test-Path "windows")) {
-            throw "windows/ directory does not exist in the repository."
-          }
-
           if (!(Test-Path "windows/CMakeLists.txt")) {
             throw "windows/CMakeLists.txt is missing."
           }
 
-          if (!(Test-Path "windows/runner")) {
-            throw "windows/runner directory is missing."
+          if (!(Test-Path "windows/flutter/CMakeLists.txt")) {
+            throw "windows/flutter/CMakeLists.txt is missing."
           }
 
-          if (!(Test-Path "windows/flutter")) {
-            throw "windows/flutter directory is missing."
+          if (!(Test-Path "windows/runner/CMakeLists.txt")) {
+            throw "windows/runner/CMakeLists.txt is missing."
           }
 
-          Write-Host "Windows project exists."
+          Write-Host "Windows project files are present."
 
       - name: Get dependencies
         run: flutter pub get
