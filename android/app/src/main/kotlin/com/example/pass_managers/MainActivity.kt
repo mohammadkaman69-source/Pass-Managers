@@ -1,7 +1,9 @@
 package com.example.pass_managers
 
 import android.app.Activity
+import android.content.ActivityNotFoundException
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -16,6 +18,7 @@ class MainActivity : FlutterFragmentActivity() {
 
         private const val METHOD_SAVE_PDF = "savePdf"
         private const val METHOD_SAVE_BACKUP = "saveBackup"
+        private const val METHOD_OPEN_PDF = "openPdf"
 
         private const val REQUEST_CREATE_PDF = 9001
         private const val REQUEST_CREATE_BACKUP = 9002
@@ -33,7 +36,9 @@ class MainActivity : FlutterFragmentActivity() {
             flutterEngine.dartExecutor.binaryMessenger,
             CHANNEL
         ).setMethodCallHandler { call, result ->
+
             when (call.method) {
+
                 METHOD_SAVE_PDF -> {
                     createDocument(
                         call = call,
@@ -49,6 +54,13 @@ class MainActivity : FlutterFragmentActivity() {
                         result = result,
                         requestCode = REQUEST_CREATE_BACKUP,
                         mimeType = "application/octet-stream"
+                    )
+                }
+
+                METHOD_OPEN_PDF -> {
+                    openPdf(
+                        call = call,
+                        result = result
                     )
                 }
 
@@ -108,9 +120,71 @@ class MainActivity : FlutterFragmentActivity() {
             startActivityForResult(intent, requestCode)
         } catch (exception: Exception) {
             clearPendingSave()
+
             result.error(
                 "LAUNCH_FAILED",
                 exception.message ?: "Could not open the file picker.",
+                null
+            )
+        }
+    }
+
+    private fun openPdf(
+        call: MethodCall,
+        result: MethodChannel.Result
+    ) {
+        val uriString = call.argument<String>("uri")
+
+        if (uriString.isNullOrBlank()) {
+            result.error(
+                "INVALID_URI",
+                "PDF URI is empty.",
+                null
+            )
+            return
+        }
+
+        val uri = try {
+            Uri.parse(uriString)
+        } catch (exception: Exception) {
+            result.error(
+                "INVALID_URI",
+                exception.message ?: "Invalid PDF URI.",
+                null
+            )
+            return
+        }
+
+        val intent = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(
+                uri,
+                "application/pdf"
+            )
+
+            addCategory(Intent.CATEGORY_DEFAULT)
+
+            addFlags(
+                Intent.FLAG_GRANT_READ_URI_PERMISSION
+            )
+
+            addFlags(
+                Intent.FLAG_ACTIVITY_NEW_TASK
+            )
+        }
+
+        try {
+            startActivity(intent)
+            result.success(true)
+        } catch (_: ActivityNotFoundException) {
+            result.error(
+                "NO_PDF_APP",
+                "No application is available to open PDF files.",
+                null
+            )
+        } catch (exception: Exception) {
+            result.error(
+                "OPEN_PDF_FAILED",
+                exception.message ?: "Failed to open PDF.",
                 null
             )
         }
@@ -127,12 +201,14 @@ class MainActivity : FlutterFragmentActivity() {
         super.onActivityResult(requestCode, resultCode, data)
 
         if (requestCode != REQUEST_CREATE_PDF &&
-            requestCode != REQUEST_CREATE_BACKUP) {
+            requestCode != REQUEST_CREATE_BACKUP
+        ) {
             return
         }
 
         val result = pendingResult
         val bytes = pendingBytes
+
         clearPendingSave()
 
         if (result == null) {
@@ -145,6 +221,7 @@ class MainActivity : FlutterFragmentActivity() {
         }
 
         val uri = data?.data
+
         if (uri == null) {
             result.error(
                 "NO_URI",
@@ -164,15 +241,27 @@ class MainActivity : FlutterFragmentActivity() {
         }
 
         try {
-            val outputStream = contentResolver.openOutputStream(uri)
-                ?: throw IOException("Could not open output stream.")
+            val outputStream =
+                contentResolver.openOutputStream(uri)
+                    ?: throw IOException(
+                        "Could not open output stream."
+                    )
 
             outputStream.use {
                 it.write(bytes)
                 it.flush()
             }
 
+            /*
+             * For both PDF and backup we return the selected URI.
+             *
+             * Backup behavior is therefore unchanged.
+             *
+             * PdfExportService is responsible for subsequently
+             * calling openPdf for PDF files.
+             */
             result.success(uri.toString())
+
         } catch (exception: Exception) {
             result.error(
                 "SAVE_FAILED",
@@ -203,6 +292,7 @@ class MainActivity : FlutterFragmentActivity() {
         }
 
         clearPendingSave()
+
         super.onDestroy()
     }
 }
