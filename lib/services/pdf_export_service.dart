@@ -9,6 +9,18 @@ class PdfExportService {
   static const MethodChannel _channel =
       MethodChannel('pass_managers/file_saver');
 
+  static final RegExp _rtlCharacter = RegExp(
+    r'[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]',
+  );
+
+  static final RegExp _ltrCharacter = RegExp(
+    r'[A-Za-z0-9]',
+  );
+
+  static final RegExp _ltrRunCharacter = RegExp(
+    r'''[A-Za-z0-9@._:/\\+\-=%,#?&~*()[\]{}]''',
+  );
+
   Future<String?> exportTree({
     required Map<String, dynamic> root,
   }) async {
@@ -43,7 +55,6 @@ class PdfExportService {
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
         margin: const pw.EdgeInsets.all(28),
-
         header: (_) {
           final title = root['name']?.toString() ?? 'Pass Managers';
 
@@ -59,7 +70,6 @@ class PdfExportService {
             ),
           );
         },
-
         footer: (context) {
           return pw.Container(
             width: double.infinity,
@@ -72,12 +82,11 @@ class PdfExportService {
             ),
           );
         },
-
         build: (_) => content,
       ),
     );
 
-    final savedBytes = Uint8List.fromList(await document.save());
+    final savedBytes = List<int>.from(await document.save());
 
     final safeName = _sanitizeFileName(
       root['name']?.toString() ?? 'Pass-Managers',
@@ -86,14 +95,12 @@ class PdfExportService {
     final fileName = '$safeName.pdf';
 
     if (Platform.isAndroid) {
-      final nativeBytes = Uint8List.fromList(savedBytes);
-
       try {
         final result = await _channel.invokeMethod<String>(
           'savePdf',
           <String, dynamic>{
             'fileName': fileName,
-            'bytes': nativeBytes,
+            'bytes': savedBytes,
           },
         );
 
@@ -101,15 +108,6 @@ class PdfExportService {
           return result;
         }
 
-        /*
-         * The Android side returns the URI of the saved PDF.
-         *
-         * We immediately ask Android to open that exact URI with the
-         * device's default PDF application.
-         *
-         * If no PDF application is available, Android simply reports
-         * failure and the saved file remains untouched.
-         */
         try {
           await _channel.invokeMethod<bool>(
             'openPdf',
@@ -118,44 +116,25 @@ class PdfExportService {
             },
           );
         } catch (_) {
-          // Opening is optional.
-          // The PDF has already been successfully saved.
+          // Saving already succeeded.
+          // Opening is a secondary operation.
         }
 
         return result;
       } finally {
-        nativeBytes.fillRange(0, nativeBytes.length, 0);
         savedBytes.fillRange(0, savedBytes.length, 0);
       }
     }
 
-    /*
-     * Desktop:
-     *
-     * FilePicker owns the save operation.
-     * We intentionally do not add printing or another PDF package.
-     */
-    final pickerBytes = Uint8List.fromList(savedBytes);
-
     try {
-      final result = await FilePicker.platform.saveFile(
+      return await FilePicker.platform.saveFile(
         dialogTitle: 'ذخیره PDF Pass Managers',
         fileName: fileName,
         type: FileType.custom,
         allowedExtensions: const <String>['pdf'],
-        bytes: pickerBytes,
+        bytes: savedBytes,
       );
-
-      /*
-       * On desktop FilePicker normally returns the actual saved path.
-       *
-       * We do not attempt to open it here yet because the Android
-       * MethodChannel is the reliable cross-platform part of this
-       * application's existing architecture.
-       */
-      return result;
     } finally {
-      pickerBytes.fillRange(0, pickerBytes.length, 0);
       savedBytes.fillRange(0, savedBytes.length, 0);
     }
   }
@@ -169,7 +148,6 @@ class PdfExportService {
   }) {
     final name = node['name']?.toString() ?? '';
     final type = node['type']?.toString() ?? '';
-
     final indent = level * 18.0;
 
     if (type == 'folder') {
@@ -249,7 +227,7 @@ class PdfExportService {
     final indent = level * 18.0;
 
     content.add(
-      pw.SizedBox(height: 10),
+      const pw.SizedBox(height: 10),
     );
 
     content.add(
@@ -308,7 +286,6 @@ class PdfExportService {
         }
 
         final rawPosition = rawField['position'];
-
         final position = rawPosition is int ? rawPosition : 999999;
 
         final oldPosition = fieldPositions[fieldName];
@@ -333,18 +310,16 @@ class PdfExportService {
     }
 
     final columns = fieldPositions.keys.toList()
-      ..sort(
-        (a, b) {
-          final positionCompare =
-              fieldPositions[a]!.compareTo(fieldPositions[b]!);
+      ..sort((a, b) {
+        final positionCompare =
+            fieldPositions[a]!.compareTo(fieldPositions[b]!);
 
-          if (positionCompare != 0) {
-            return positionCompare;
-          }
+        if (positionCompare != 0) {
+          return positionCompare;
+        }
 
-          return a.compareTo(b);
-        },
-      );
+        return a.compareTo(b);
+      });
 
     final tableRows = <pw.TableRow>[
       pw.TableRow(
@@ -359,14 +334,12 @@ class PdfExportService {
             bold: true,
           ),
           ...columns.map(
-            (column) {
-              return _tableCell(
-                column,
-                persianFont,
-                latinFont,
-                bold: true,
-              );
-            },
+            (column) => _tableCell(
+              column,
+              persianFont,
+              latinFont,
+              bold: true,
+            ),
           ),
         ],
       ),
@@ -374,7 +347,6 @@ class PdfExportService {
 
     for (var i = 0; i < rows.length; i++) {
       final rawRow = rows[i];
-
       final values = rawRow is Map ? rawRow['values'] : null;
 
       tableRows.add(
@@ -462,94 +434,38 @@ class PdfExportService {
   }
 
   bool _containsRtl(String value) {
-    return RegExp(
-      r'[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]',
-    ).hasMatch(value);
+    return _rtlCharacter.hasMatch(value);
   }
 
   bool _containsLtr(String value) {
-    return RegExp(
-      r'[A-Za-z]',
-    ).hasMatch(value);
+    return _ltrCharacter.hasMatch(value);
   }
 
-  bool _containsNumber(String value) {
-    return RegExp(
-      r'[0-9]',
-    ).hasMatch(value);
-  }
-
-  /*
-   * Protect Latin/number runs inside an RTL sentence.
-   *
-   * This is intentionally NOT a reverse() operation.
-   *
-   * LRM (Left-to-Right Mark) tells the PDF BiDi engine that the
-   * enclosed Latin/number section must remain LTR.
-   *
-   * Example:
-   *
-   *   پوشه: Pass Managers
-   *
-   * becomes internally:
-   *
-   *   پوشه: [LRM]Pass Managers[LRM]
-   *
-   * so "Pass Managers" cannot become "sreganaM ssaP".
-   */
   String _prepareBidi(String value) {
-    if (value.isEmpty) {
-      return value;
-    }
-
-    final hasRtl = _containsRtl(value);
-
-    if (!hasRtl) {
+    if (value.isEmpty || !_containsRtl(value)) {
       return value;
     }
 
     final buffer = StringBuffer();
+    var index = 0;
 
-    var i = 0;
+    while (index < value.length) {
+      final character = value[index];
 
-    while (i < value.length) {
-      final codeUnit = value.codeUnitAt(i);
+      if (_ltrCharacter.hasMatch(character)) {
+        final start = index;
 
-      final character = String.fromCharCode(codeUnit);
+        while (index < value.length) {
+          final current = value[index];
 
-      final isAsciiLetter =
-          RegExp(r'[A-Za-z]').hasMatch(character);
-
-      final isDigit =
-          RegExp(r'[0-9]').hasMatch(character);
-
-      if (isAsciiLetter || isDigit) {
-        final start = i;
-
-        while (i < value.length) {
-          final current =
-              String.fromCharCode(value.codeUnitAt(i));
-
-          final isLetter =
-              RegExp(r'[A-Za-z]').hasMatch(current);
-
-          final isDigitCharacter =
-              RegExp(r'[0-9]').hasMatch(current);
-
-          final isLtrPunctuation = RegExp(
-            r'''[A-Za-z0-9@._:/\\+\-=%,#?&~*()[\]{}]''',
-          ).hasMatch(current);
-
-          if (!isLetter &&
-              !isDigitCharacter &&
-              !isLtrPunctuation) {
+          if (!_ltrRunCharacter.hasMatch(current)) {
             break;
           }
 
-          i++;
+          index++;
         }
 
-        final run = value.substring(start, i);
+        final run = value.substring(start, index);
 
         buffer
           ..write('\u200E')
@@ -560,7 +476,7 @@ class PdfExportService {
       }
 
       buffer.write(character);
-      i++;
+      index++;
     }
 
     return buffer.toString();
@@ -574,16 +490,7 @@ class PdfExportService {
     bool bold = false,
   }) {
     final hasRtl = _containsRtl(value);
-    
 
-    /*
-     * Pure LTR:
-     *
-     * Pass Managers
-     * user@example.com
-     * https://example.com
-     * com.example.pass_managers
-     */
     if (!hasRtl) {
       return pw.Text(
         value,
@@ -599,12 +506,6 @@ class PdfExportService {
       );
     }
 
-    /*
-     * RTL or mixed RTL/LTR.
-     *
-     * Persian remains RTL.
-     * Latin and numbers are protected with LRM.
-     */
     final prepared = _prepareBidi(value);
 
     return pw.Text(
@@ -629,8 +530,6 @@ class PdfExportService {
         )
         .trim();
 
-    return sanitized.isEmpty
-        ? 'Pass-Managers'
-        : sanitized;
+    return sanitized.isEmpty ? 'Pass-Managers' : sanitized;
   }
 }
