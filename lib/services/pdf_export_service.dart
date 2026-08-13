@@ -1,5 +1,3 @@
-import 'dart:typed_data';
-
 import 'package:flutter/services.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -16,9 +14,11 @@ class PdfExportService {
     final fontData = await rootBundle.load(
       'assets/fonts/BNazanin.ttf',
     );
+
     final font = pw.Font.ttf(fontData);
 
     final content = <pw.Widget>[];
+
     _buildTreeContent(
       node: root,
       content: content,
@@ -44,7 +44,9 @@ class PdfExportService {
         pageFormat: PdfPageFormat.a4,
         textDirection: pw.TextDirection.rtl,
         margin: const pw.EdgeInsets.all(28),
-        theme: pw.ThemeData.withFont(base: font),
+        theme: pw.ThemeData.withFont(
+          base: font,
+        ),
         header: (context) => pw.Align(
           alignment: pw.Alignment.centerRight,
           child: pw.Text(
@@ -72,7 +74,7 @@ class PdfExportService {
       ),
     );
 
-    final bytes = Uint8List.fromList(await document.save());
+    final bytes = await document.save();
 
     final safeName = _sanitizeFileName(
       root['name']?.toString() ?? 'Pass-Managers',
@@ -118,6 +120,7 @@ class PdfExportService {
       );
 
       final children = node['children'];
+
       if (children is List) {
         for (final child in children) {
           if (child is Map) {
@@ -130,6 +133,7 @@ class PdfExportService {
           }
         }
       }
+
       return;
     }
 
@@ -140,6 +144,7 @@ class PdfExportService {
         font: font,
         level: level,
       );
+
       return;
     }
 
@@ -171,7 +176,12 @@ class PdfExportService {
     final name = node['name']?.toString() ?? '';
     final indent = level * 18.0;
 
-    content.add(pw.SizedBox(height: 10));
+    content.add(
+      pw.SizedBox(
+        height: 10,
+      ),
+    );
+
     content.add(
       pw.Padding(
         padding: pw.EdgeInsets.only(
@@ -191,6 +201,7 @@ class PdfExportService {
     );
 
     final rows = node['rows'];
+
     if (rows is! List || rows.isEmpty) {
       content.add(
         _message(
@@ -199,26 +210,45 @@ class PdfExportService {
           indent + 10,
         ),
       );
+
       return;
     }
 
     final fieldPositions = <String, int>{};
 
     for (final rawRow in rows) {
-      if (rawRow is! Map) continue;
+      if (rawRow is! Map) {
+        continue;
+      }
+
       final fields = rawRow['fields'];
-      if (fields is! List) continue;
+
+      if (fields is! List) {
+        continue;
+      }
 
       for (final rawField in fields) {
-        if (rawField is! Map) continue;
-        final fieldName = rawField['name']?.toString() ?? '';
-        if (fieldName.isEmpty) continue;
+        if (rawField is! Map) {
+          continue;
+        }
+
+        final fieldName =
+            rawField['name']?.toString() ?? '';
+
+        if (fieldName.isEmpty) {
+          continue;
+        }
 
         final rawPosition = rawField['position'];
-        final position = rawPosition is int ? rawPosition : 999999;
-        final oldPosition = fieldPositions[fieldName];
 
-        if (oldPosition == null || position < oldPosition) {
+        final position =
+            rawPosition is int ? rawPosition : 999999;
+
+        final oldPosition =
+            fieldPositions[fieldName];
+
+        if (oldPosition == null ||
+            position < oldPosition) {
           fieldPositions[fieldName] = position;
         }
       }
@@ -232,29 +262,39 @@ class PdfExportService {
           indent + 10,
         ),
       );
+
       return;
     }
 
     final columns = fieldPositions.keys.toList()
-      ..sort((a, b) {
-        final positionCompare =
-            fieldPositions[a]!.compareTo(fieldPositions[b]!);
-        return positionCompare != 0
-            ? positionCompare
-            : a.compareTo(b);
-      });
+      ..sort(
+        (a, b) {
+          final positionCompare =
+              fieldPositions[a]!.compareTo(
+            fieldPositions[b]!,
+          );
+
+          return positionCompare != 0
+              ? positionCompare
+              : a.compareTo(b);
+        },
+      );
 
     final tableData = <List<String>>[];
 
     for (final rawRow in rows) {
-      if (rawRow is! Map) continue;
+      if (rawRow is! Map) {
+        continue;
+      }
 
       final values = rawRow['values'];
       final rowValues = <String>[];
 
       for (final columnName in columns) {
         var value = '';
-        if (values is Map && values[columnName] != null) {
+
+        if (values is Map &&
+            values[columnName] != null) {
           value = values[columnName].toString();
         }
 
@@ -266,7 +306,7 @@ class PdfExportService {
 
     content.add(
       pw.Padding(
-        padding: pw.EdgeInsets.only(
+        padding: EdgeInsets.only(
           right: indent,
           bottom: 16,
         ),
@@ -285,13 +325,16 @@ class PdfExportService {
           headerDecoration: const pw.BoxDecoration(
             color: PdfColors.grey300,
           ),
-          cellAlignment: pw.Alignment.centerRight,
-          headerAlignment: pw.Alignment.centerRight,
+          cellAlignment:
+              pw.Alignment.centerRight,
+          headerAlignment:
+              pw.Alignment.centerRight,
           border: pw.TableBorder.all(
             color: PdfColors.grey500,
             width: 0.5,
           ),
-          cellPadding: const pw.EdgeInsets.all(4),
+          cellPadding:
+              const pw.EdgeInsets.all(4),
         ),
       ),
     );
@@ -318,12 +361,16 @@ class PdfExportService {
     );
   }
 
-
   String _sanitizeFileName(String name) {
     final sanitized = name
-        .replaceAll(RegExp(r'[<>:"/\\|?*]'), '_')
+        .replaceAll(
+          RegExp(r'[<>:"/\\|?*]'),
+          '_',
+        )
         .trim();
 
-    return sanitized.isEmpty ? 'Pass-Managers' : sanitized;
+    return sanitized.isEmpty
+        ? 'Pass-Managers'
+        : sanitized;
   }
 }
