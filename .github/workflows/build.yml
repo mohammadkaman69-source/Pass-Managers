@@ -25,17 +25,6 @@ jobs:
       - name: Enable Windows desktop
         run: flutter config --enable-windows-desktop
 
-      - name: Recreate Windows platform
-        shell: pwsh
-        run: |
-          if (Test-Path windows) {
-            Remove-Item -Recurse -Force windows
-          }
-
-          flutter create `
-            --platforms=windows `
-            --project-name pass_managers .
-
       - name: Remove generated sample test
         shell: pwsh
         run: |
@@ -85,108 +74,33 @@ jobs:
       - name: Enable Android
         run: flutter config --enable-android
 
-      # ---------------------------------------------------------
-      # Backup custom native Android code
-      # ---------------------------------------------------------
-      - name: Backup custom MainActivity
+      # IMPORTANT:
+      # Do NOT delete or recreate the android directory.
+      # The Android project in the repository contains our custom
+      # Gradle, Kotlin, biometric, PDF and native configuration.
+
+      - name: Verify Android compileSdk configuration
         shell: bash
         run: |
-          set -e
+          set -euo pipefail
 
-          MAIN_ACTIVITY="android/app/src/main/kotlin/com/example/pass_managers/MainActivity.kt"
+          test -f android/app/build.gradle.kts
 
-          if [ ! -f "$MAIN_ACTIVITY" ]; then
-            echo "ERROR: Custom MainActivity.kt was not found."
-            exit 1
-          fi
+          echo "===== android/app/build.gradle.kts ====="
+          cat android/app/build.gradle.kts
 
-          mkdir -p /tmp/pass_managers_android_backup
+          grep -q 'compileSdk = 36' android/app/build.gradle.kts
 
-          cp "$MAIN_ACTIVITY" \
-            /tmp/pass_managers_android_backup/MainActivity.kt
-
-          echo "Custom MainActivity.kt backed up successfully."
-
-      # ---------------------------------------------------------
-      # Recreate Android platform using Flutter 3.44.7
-      #
-      # This intentionally removes the old AGP/Kotlin/Gradle
-      # configuration instead of trying to guess versions.
-      # ---------------------------------------------------------
-      - name: Recreate Android platform
+      - name: Verify Android project files
         shell: bash
         run: |
-          set -e
+          set -euo pipefail
 
-          rm -rf android
-
-          flutter create \
-            --platforms=android \
-            --project-name pass_managers .
-
-      # ---------------------------------------------------------
-      # Restore custom PDF MethodChannel
-      # ---------------------------------------------------------
-      - name: Restore custom MainActivity
-        shell: bash
-        run: |
-          set -e
-
-          TARGET="android/app/src/main/kotlin/com/example/pass_managers/MainActivity.kt"
-
-          if [ ! -f "/tmp/pass_managers_android_backup/MainActivity.kt" ]; then
-            echo "ERROR: Backup MainActivity.kt was not found."
-            exit 1
-          fi
-
-          mkdir -p "$(dirname "$TARGET")"
-
-          cp \
-            /tmp/pass_managers_android_backup/MainActivity.kt \
-            "$TARGET"
-
-          echo "Custom MainActivity.kt restored successfully."
-
-      # ---------------------------------------------------------
-      # Verify the MethodChannel required by PDF export
-      # ---------------------------------------------------------
-      - name: Verify PDF native integration
-        shell: bash
-        run: |
-          set -e
-
-          MAIN_ACTIVITY="android/app/src/main/kotlin/com/example/pass_managers/MainActivity.kt"
-
-          grep -q 'pass_managers/file_saver' "$MAIN_ACTIVITY"
-
-          grep -q 'savePdf' "$MAIN_ACTIVITY"
-
-          grep -q 'ACTION_CREATE_DOCUMENT' "$MAIN_ACTIVITY"
-
-          echo "PDF native integration verified."
-
-      # ---------------------------------------------------------
-      # Show generated Android versions
-      # ---------------------------------------------------------
-      - name: Show Android Gradle configuration
-        shell: bash
-        run: |
-          echo "===== settings.gradle.kts ====="
-
-          if [ -f android/settings.gradle.kts ]; then
-            cat android/settings.gradle.kts
-          fi
-
-          echo ""
-          echo "===== gradle-wrapper.properties ====="
-
-          if [ -f android/gradle/wrapper/gradle-wrapper.properties ]; then
-            cat android/gradle/wrapper/gradle-wrapper.properties
-          fi
-
-      - name: Remove generated sample test
-        run: |
-          rm -rf test
+          test -f android/settings.gradle
+          test -f android/app/build.gradle.kts
+          test -f android/gradle/wrapper/gradle-wrapper.properties
+          test -f android/app/src/main/AndroidManifest.xml
+          test -f android/app/src/main/kotlin/com/example/pass_managers/MainActivity.kt
 
       - name: Clean Flutter
         run: flutter clean
@@ -196,6 +110,18 @@ jobs:
 
       - name: Analyze
         run: flutter analyze
+
+      - name: Show Android configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "===== compileSdk ====="
+          grep -n "compileSdk" android/app/build.gradle.kts
+
+          echo
+          echo "===== Gradle wrapper ====="
+          cat android/gradle/wrapper/gradle-wrapper.properties
 
       - name: Build APK
         run: flutter build apk --release
