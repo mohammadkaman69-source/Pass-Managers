@@ -47,29 +47,37 @@ class PdfExportService {
         theme: pw.ThemeData.withFont(
           base: font,
         ),
-        header: (context) => pw.Align(
-          alignment: pw.Alignment.centerRight,
-          child: pw.Text(
-            root['name']?.toString() ?? 'Pass Managers',
-            textDirection: pw.TextDirection.rtl,
-            style: pw.TextStyle(
-              font: font,
-              fontSize: 20,
-              fontWeight: pw.FontWeight.bold,
+        header: (context) {
+          return pw.Align(
+            alignment: pw.Alignment.centerRight,
+            child: pw.Text(
+              root['name']?.toString() ??
+                  'Pass Managers',
+              textDirection:
+                  pw.TextDirection.rtl,
+              style: pw.TextStyle(
+                font: font,
+                fontSize: 20,
+                fontWeight:
+                    pw.FontWeight.bold,
+              ),
             ),
-          ),
-        ),
-        footer: (context) => pw.Align(
-          alignment: pw.Alignment.centerLeft,
-          child: pw.Text(
-            'صفحه ${context.pageNumber} / ${context.pagesCount}',
-            textDirection: pw.TextDirection.rtl,
-            style: pw.TextStyle(
-              font: font,
-              fontSize: 9,
+          );
+        },
+        footer: (context) {
+          return pw.Align(
+            alignment: pw.Alignment.centerLeft,
+            child: pw.Text(
+              'صفحه ${context.pageNumber} / ${context.pagesCount}',
+              textDirection:
+                  pw.TextDirection.rtl,
+              style: pw.TextStyle(
+                font: font,
+                fontSize: 9,
+              ),
             ),
-          ),
-        ),
+          );
+        },
         build: (context) => content,
       ),
     );
@@ -77,7 +85,8 @@ class PdfExportService {
     final bytes = await document.save();
 
     final safeName = _sanitizeFileName(
-      root['name']?.toString() ?? 'Pass-Managers',
+      root['name']?.toString() ??
+          'Pass-Managers',
     );
 
     return _channel.invokeMethod<String>(
@@ -95,8 +104,12 @@ class PdfExportService {
     required pw.Font font,
     required int level,
   }) {
-    final name = node['name']?.toString() ?? '';
-    final type = node['type']?.toString() ?? '';
+    final name =
+        node['name']?.toString() ?? '';
+
+    final type =
+        node['type']?.toString() ?? '';
+
     final indent = level * 18.0;
 
     if (type == 'folder') {
@@ -109,11 +122,14 @@ class PdfExportService {
           ),
           child: pw.Text(
             'پوشه: $name',
-            textDirection: pw.TextDirection.rtl,
+            textDirection:
+                pw.TextDirection.rtl,
             style: pw.TextStyle(
               font: font,
-              fontSize: level == 0 ? 20 : 16,
-              fontWeight: pw.FontWeight.bold,
+              fontSize:
+                  level == 0 ? 20 : 16,
+              fontWeight:
+                  pw.FontWeight.bold,
             ),
           ),
         ),
@@ -125,7 +141,10 @@ class PdfExportService {
         for (final child in children) {
           if (child is Map) {
             _buildTreeContent(
-              node: Map<String, dynamic>.from(child),
+              node:
+                  Map<String, dynamic>.from(
+                child,
+              ),
               content: content,
               font: font,
               level: level + 1,
@@ -157,7 +176,8 @@ class PdfExportService {
         ),
         child: pw.Text(
           name,
-          textDirection: pw.TextDirection.rtl,
+          textDirection:
+              pw.TextDirection.rtl,
           style: pw.TextStyle(
             font: font,
             fontSize: 14,
@@ -173,13 +193,13 @@ class PdfExportService {
     required pw.Font font,
     required int level,
   }) {
-    final name = node['name']?.toString() ?? '';
+    final name =
+        node['name']?.toString() ?? '';
+
     final indent = level * 18.0;
 
     content.add(
-      pw.SizedBox(
-        height: 10,
-      ),
+      pw.SizedBox(height: 10),
     );
 
     content.add(
@@ -190,11 +210,13 @@ class PdfExportService {
         ),
         child: pw.Text(
           'جدول: $name',
-          textDirection: pw.TextDirection.rtl,
+          textDirection:
+              pw.TextDirection.rtl,
           style: pw.TextStyle(
             font: font,
             fontSize: 17,
-            fontWeight: pw.FontWeight.bold,
+            fontWeight:
+                pw.FontWeight.bold,
           ),
         ),
       ),
@@ -202,7 +224,8 @@ class PdfExportService {
 
     final rows = node['rows'];
 
-    if (rows is! List || rows.isEmpty) {
+    if (rows is! List ||
+        rows.isEmpty) {
       content.add(
         _message(
           'این جدول رکوردی ندارد.',
@@ -214,7 +237,8 @@ class PdfExportService {
       return;
     }
 
-    final fieldPositions = <String, int>{};
+    final fieldPositions =
+        <String, int>{};
 
     for (final rawRow in rows) {
       if (rawRow is! Map) {
@@ -233,23 +257,28 @@ class PdfExportService {
         }
 
         final fieldName =
-            rawField['name']?.toString() ?? '';
+            rawField['name']?.toString() ??
+                '';
 
         if (fieldName.isEmpty) {
           continue;
         }
 
-        final rawPosition = rawField['position'];
+        final rawPosition =
+            rawField['position'];
 
         final position =
-            rawPosition is int ? rawPosition : 999999;
+            rawPosition is int
+                ? rawPosition
+                : 999999;
 
         final oldPosition =
             fieldPositions[fieldName];
 
         if (oldPosition == null ||
             position < oldPosition) {
-          fieldPositions[fieldName] = position;
+          fieldPositions[fieldName] =
+              position;
         }
       }
     }
@@ -266,21 +295,24 @@ class PdfExportService {
       return;
     }
 
-    final columns = fieldPositions.keys.toList()
-      ..sort(
-        (a, b) {
-          final positionCompare =
-              fieldPositions[a]!.compareTo(
-            fieldPositions[b]!,
+    final columns =
+        fieldPositions.keys.toList()
+          ..sort(
+            (a, b) {
+              final positionCompare =
+                  fieldPositions[a]!
+                      .compareTo(
+                fieldPositions[b]!,
+              );
+
+              return positionCompare != 0
+                  ? positionCompare
+                  : a.compareTo(b);
+            },
           );
 
-          return positionCompare != 0
-              ? positionCompare
-              : a.compareTo(b);
-        },
-      );
-
-    final tableData = <List<String>>[];
+    final tableData =
+        <List<String>>[];
 
     for (final rawRow in rows) {
       if (rawRow is! Map) {
@@ -288,14 +320,20 @@ class PdfExportService {
       }
 
       final values = rawRow['values'];
-      final rowValues = <String>[];
 
-      for (final columnName in columns) {
+      final rowValues =
+          <String>[];
+
+      for (final columnName
+          in columns) {
         var value = '';
 
         if (values is Map &&
-            values[columnName] != null) {
-          value = values[columnName].toString();
+            values[columnName] !=
+                null) {
+          value =
+              values[columnName]
+                  .toString();
         }
 
         rowValues.add(value);
@@ -306,31 +344,38 @@ class PdfExportService {
 
     content.add(
       pw.Padding(
-        padding: EdgeInsets.only(
+        padding: pw.EdgeInsets.only(
           right: indent,
           bottom: 16,
         ),
-        child: pw.TableHelper.fromTextArray(
+        child:
+            pw.TableHelper.fromTextArray(
           headers: columns,
           data: tableData,
-          headerStyle: pw.TextStyle(
+          headerStyle:
+              pw.TextStyle(
             font: font,
             fontSize: 9,
-            fontWeight: pw.FontWeight.bold,
+            fontWeight:
+                pw.FontWeight.bold,
           ),
-          cellStyle: pw.TextStyle(
+          cellStyle:
+              pw.TextStyle(
             font: font,
             fontSize: 8,
           ),
-          headerDecoration: const pw.BoxDecoration(
+          headerDecoration:
+              const pw.BoxDecoration(
             color: PdfColors.grey300,
           ),
           cellAlignment:
               pw.Alignment.centerRight,
           headerAlignment:
               pw.Alignment.centerRight,
-          border: pw.TableBorder.all(
-            color: PdfColors.grey500,
+          border:
+              pw.TableBorder.all(
+            color:
+                PdfColors.grey500,
             width: 0.5,
           ),
           cellPadding:
@@ -352,7 +397,8 @@ class PdfExportService {
       ),
       child: pw.Text(
         message,
-        textDirection: pw.TextDirection.rtl,
+        textDirection:
+            pw.TextDirection.rtl,
         style: pw.TextStyle(
           font: font,
           fontSize: 10,
@@ -361,7 +407,9 @@ class PdfExportService {
     );
   }
 
-  String _sanitizeFileName(String name) {
+  String _sanitizeFileName(
+    String name,
+  ) {
     final sanitized = name
         .replaceAll(
           RegExp(r'[<>:"/\\|?*]'),
