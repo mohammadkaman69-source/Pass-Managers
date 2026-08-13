@@ -8,274 +8,228 @@ permissions:
 
 jobs:
   replace-project:
-    name: Replace project safely from clean ZIP
+    name: Replace project from clean ZIP
     runs-on: ubuntu-latest
 
     steps:
 
-      # ============================================================
-      # 1. Checkout current repository
-      # ============================================================
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          token: ${{ secrets.AI_GITHUB_TOKEN }}
 
-      # ============================================================
-      # 2. Verify ZIP exists
-      # ============================================================
-      - name: Verify clean ZIP
+      - name: Check repository
         shell: bash
         run: |
           set -euo pipefail
 
-          ZIP="Pass-Managers-final-clean.zip"
+          echo "Repository:"
+          git remote -v
 
-          if [ ! -f "$ZIP" ]; then
-            echo "ERROR: $ZIP was not found in repository root."
+          echo
+          echo "Branch:"
+          git branch --show-current
+
+          echo
+          echo "Current files:"
+          find . \
+            -path './.git' -prune \
+            -o -type f -print \
+            | sort
+
+      - name: Verify clean ZIP exists
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ ! -f "Pass-Managers-final-clean.zip" ]; then
+            echo "ERROR: Pass-Managers-final-clean.zip was not found."
             echo
-            echo "Repository root:"
-            find . -maxdepth 2 -type f | sort
+            echo "ZIP files currently available:"
+            find . -maxdepth 2 -type f -iname '*.zip' -print
             exit 1
           fi
 
-          echo "ZIP found:"
-          ls -lh "$ZIP"
+          echo "Clean ZIP found."
 
-      # ============================================================
-      # 3. Inspect ZIP without changing project
-      # ============================================================
-      - name: Inspect clean ZIP
+      - name: Inspect ZIP before changing anything
         shell: bash
         run: |
           set -euo pipefail
 
-          ZIP="Pass-Managers-final-clean.zip"
+          rm -rf /tmp/pass_managers_zip
+          mkdir -p /tmp/pass_managers_zip
 
-          echo "================================================"
-          echo "CLEAN ZIP CONTENTS"
-          echo "================================================"
+          unzip -q "Pass-Managers-final-clean.zip" \
+            -d /tmp/pass_managers_zip
 
-          unzip -Z1 "$ZIP" | sort
+          echo "===== ZIP CONTENT ====="
 
-          echo
-          echo "================================================"
-          echo "TOP LEVEL DIRECTORIES"
-          echo "================================================"
-
-          unzip -Z1 "$ZIP" \
-            | awk -F/ 'NF > 1 {print $1}' \
-            | sort -u
-
-      # ============================================================
-      # 4. Extract ZIP safely
-      # ============================================================
-      - name: Extract clean ZIP
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          ZIP="Pass-Managers-final-clean.zip"
-          EXTRACT_DIR="$RUNNER_TEMP/pass_managers_clean"
-
-          rm -rf "$EXTRACT_DIR"
-          mkdir -p "$EXTRACT_DIR"
-
-          unzip -q -o "$ZIP" -d "$EXTRACT_DIR"
+          find /tmp/pass_managers_zip \
+            -type f \
+            -print \
+            | sort
 
           echo
-          echo "Extracted ZIP:"
-          find "$EXTRACT_DIR" -maxdepth 3 -type f | sort
+          echo "===== DETECT PROJECT ROOT ====="
 
-          # --------------------------------------------------------
-          # Detect whether ZIP itself contains the project root
-          # or contains one enclosing directory.
-          # --------------------------------------------------------
-
-          if [ -f "$EXTRACT_DIR/pubspec.yaml" ]; then
-
-            CLEAN_ROOT="$EXTRACT_DIR"
-
+          if [ -f "/tmp/pass_managers_zip/pubspec.yaml" ]; then
+            ROOT="/tmp/pass_managers_zip"
           else
-
-            PROJECT_ROOTS=()
-
-            while IFS= read -r -d '' DIR; do
-              if [ -f "$DIR/pubspec.yaml" ]; then
-                PROJECT_ROOTS+=("$DIR")
-              fi
-            done < <(
-              find "$EXTRACT_DIR" \
-                -mindepth 1 \
-                -maxdepth 2 \
-                -type d \
-                -print0
-            )
-
-            if [ "${#PROJECT_ROOTS[@]}" -ne 1 ]; then
-              echo "ERROR: Could not uniquely identify project root inside ZIP."
-
-              echo
-              echo "Directories containing pubspec.yaml:"
-              printf '%s\n' "${PROJECT_ROOTS[@]:-NONE}"
-
-              exit 1
-            fi
-
-            CLEAN_ROOT="${PROJECT_ROOTS[0]}"
+            ROOT="$(find /tmp/pass_managers_zip \
+              -mindepth 1 \
+              -maxdepth 1 \
+              -type d \
+              -print \
+              | head -n 1)"
           fi
 
-          test -f "$CLEAN_ROOT/pubspec.yaml"
+          if [ -z "${ROOT:-}" ]; then
+            echo "ERROR: Could not find project root."
+            exit 1
+          fi
 
-          echo
-          echo "CLEAN_ROOT=$CLEAN_ROOT"
+          if [ ! -f "$ROOT/pubspec.yaml" ]; then
+            echo "ERROR: pubspec.yaml not found in:"
+            echo "$ROOT"
+            exit 1
+          fi
 
-          echo "CLEAN_ROOT=$CLEAN_ROOT" >> "$GITHUB_ENV"
+          echo "Project root:"
+          echo "$ROOT"
 
-      # ============================================================
-      # 5. Verify important files in clean ZIP
-      #
-      # IMPORTANT:
-      # We DO NOT require windows/CMakeLists.txt here.
-      # If Windows exists, it will be preserved/copied.
-      # ============================================================
-      - name: Verify clean ZIP structure
+          echo "CLEAN_ROOT=$ROOT" >> "$GITHUB_ENV"
+
+      - name: Verify critical project files
         shell: bash
         run: |
           set -euo pipefail
 
-          echo "Checking mandatory Flutter files..."
-
-          REQUIRED=(
+          required=(
             "pubspec.yaml"
+            "pubspec.lock"
             "lib/main.dart"
+
+            "lib/screens/home_page.dart"
+            "lib/screens/table_page.dart"
+            "lib/screens/tree_page.dart"
+
+            "lib/services/backup_service.dart"
+            "lib/services/pdf_export_service.dart"
+
+            "lib/security/biometric_service.dart"
+            "lib/security/security_guard.dart"
+            "lib/security/security_manager.dart"
+
+            "lib/models/tree_item.dart"
+            "lib/repositories/tree_repository.dart"
+
+            "android/settings.gradle"
+            "android/app/build.gradle"
+            "android/gradle/wrapper/gradle-wrapper.properties"
+            "android/app/src/main/AndroidManifest.xml"
+            "android/app/src/main/kotlin/com/example/pass_managers/MainActivity.kt"
+
+            "windows"
           )
 
-          for FILE in "${REQUIRED[@]}"; do
-            if [ ! -f "$CLEAN_ROOT/$FILE" ]; then
-              echo "ERROR: Required file missing from clean ZIP:"
-              echo "  $FILE"
+          for path in "${required[@]}"; do
+            if [ ! -e "$CLEAN_ROOT/$path" ]; then
+              echo "ERROR: Required item missing from clean ZIP:"
+              echo "$path"
               exit 1
             fi
           done
 
-          echo
-          echo "Checking optional project components..."
+          echo "All critical project files are present."
 
-          OPTIONAL=(
-            "android"
-            "windows"
-            "assets"
-            "lib/security"
-            "lib/services"
-          )
-
-          for ITEM in "${OPTIONAL[@]}"; do
-            if [ -e "$CLEAN_ROOT/$ITEM" ]; then
-              echo "FOUND: $ITEM"
-            else
-              echo "NOT IN CLEAN ZIP: $ITEM"
-            fi
-          done
-
-      # ============================================================
-      # 6. BACKUP CURRENT PROJECT STATE
-      #
-      # This creates a local copy inside the runner before changing
-      # anything. It is not committed.
-      # ============================================================
-      - name: Backup current repository state
+      - name: Verify Windows project exists
         shell: bash
         run: |
           set -euo pipefail
 
-          BACKUP_DIR="$RUNNER_TEMP/current_project_backup"
+          if [ ! -d "$CLEAN_ROOT/windows" ]; then
+            echo "ERROR: windows directory is missing."
+            exit 1
+          fi
 
-          rm -rf "$BACKUP_DIR"
-          mkdir -p "$BACKUP_DIR"
+          if [ ! -f "$CLEAN_ROOT/windows/CMakeLists.txt" ]; then
+            echo "WARNING: windows/CMakeLists.txt is not present."
 
-          echo "Backing up current project..."
+            echo
+            echo "Windows ZIP contents:"
+            find "$CLEAN_ROOT/windows" \
+              -maxdepth 3 \
+              -type f \
+              -print \
+              | sort
+          fi
 
-          rsync -a \
-            --exclude='.git/' \
-            --exclude='Pass-Managers-final-clean.zip' \
-            ./ \
-            "$BACKUP_DIR/"
+          echo "Windows directory detected."
 
-          echo "Backup created at:"
-          echo "$BACKUP_DIR"
-
-          echo "CURRENT_BACKUP=$BACKUP_DIR" >> "$GITHUB_ENV"
-
-      # ============================================================
-      # 7. Remove ONLY explicitly unwanted files
-      #
-      # DO NOT use rm -rf on android/windows/lib.
-      # ============================================================
-      - name: Remove known unwanted files
+      - name: Create replacement staging area
         shell: bash
         run: |
           set -euo pipefail
 
-          echo "Removing only explicitly known unwanted files..."
-
-          FILES_TO_REMOVE=(
-            "AI_REPORT.json"
-            "ai-report.txt"
-            "test/widget_test.dart"
-          )
-
-          WORKFLOW_FILES_TO_REMOVE=(
-            ".github/workflows/flutter-create.yml"
-            ".github/workflows/regenerate-windows.yml"
-          )
-
-          for FILE in "${FILES_TO_REMOVE[@]}"; do
-            if [ -e "$FILE" ]; then
-              echo "Removing: $FILE"
-              rm -rf "$FILE"
-            else
-              echo "Already absent: $FILE"
-            fi
-          done
-
-          for FILE in "${WORKFLOW_FILES_TO_REMOVE[@]}"; do
-            if [ -e "$FILE" ]; then
-              echo "Removing workflow: $FILE"
-              rm -f "$FILE"
-            else
-              echo "Already absent: $FILE"
-            fi
-          done
-
-      # ============================================================
-      # 8. Copy clean ZIP files over existing project
-      #
-      # NO --delete
-      #
-      # Therefore:
-      # - android is not deleted
-      # - windows is not deleted
-      # - lib is not deleted
-      # - existing files absent from ZIP remain
-      # ============================================================
-      - name: Install clean ZIP files safely
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          echo "Copying files from clean ZIP..."
+          rm -rf /tmp/pass_managers_final
+          mkdir -p /tmp/pass_managers_final
 
           rsync -a \
             "$CLEAN_ROOT/" \
+            /tmp/pass_managers_final/
+
+          rm -rf /tmp/pass_managers_final/.github
+
+          echo "Staging area created."
+
+      - name: Preserve GitHub workflow directory
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mkdir -p /tmp/pass_managers_workflows
+
+          if [ -d ".github/workflows" ]; then
+            cp -a .github/workflows/. \
+              /tmp/pass_managers_workflows/
+          fi
+
+          echo "Existing workflow files preserved."
+
+      - name: Replace project files safely
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "Removing old project files..."
+
+          find . \
+            -mindepth 1 \
+            -maxdepth 1 \
+            ! -name '.git' \
+            ! -name '.github' \
+            ! -name 'Pass-Managers-final-clean.zip' \
+            -exec rm -rf {} +
+
+          echo "Installing clean project..."
+
+          rsync -a \
+            /tmp/pass_managers_final/ \
             ./
 
-          echo
-          echo "Clean ZIP files copied."
+          echo "Restoring workflow directory..."
 
-      # ============================================================
-      # 9. Never commit ZIP itself
-      # ============================================================
+          mkdir -p .github/workflows
+
+          if [ -d "/tmp/pass_managers_workflows" ]; then
+            cp -a /tmp/pass_managers_workflows/. \
+              .github/workflows/
+          fi
+
+          echo "Replacement completed."
+
       - name: Remove ZIP from repository
         shell: bash
         run: |
@@ -283,212 +237,67 @@ jobs:
 
           rm -f Pass-Managers-final-clean.zip
 
-          echo "Temporary ZIP removed from working tree."
+          echo "Temporary ZIP removed."
 
-      # ============================================================
-      # 10. Verify Windows was not accidentally deleted
-      # ============================================================
-      - name: Verify Windows project
+      - name: Verify project structure
         shell: bash
         run: |
           set -euo pipefail
 
-          if [ -d "windows" ]; then
-            echo "Windows directory EXISTS."
+          echo "===== FINAL PROJECT STRUCTURE ====="
 
-            echo
-            echo "Windows files:"
-            find windows -type f | sort
-
-          else
-            echo
-            echo "WARNING: windows/ does not exist after replacement."
-
-            echo
-            echo "This is NOT caused by this Runner deleting it."
-
-            echo "Checking whether Windows existed before replacement..."
-
-            if [ -d "$CURRENT_BACKUP/windows" ]; then
-              echo "Windows existed in the previous repository."
-
-              echo
-              echo "Restoring previous Windows directory..."
-
-              mkdir -p windows
-
-              rsync -a \
-                "$CURRENT_BACKUP/windows/" \
-                windows/
-
-              echo "Windows directory restored from previous project."
-
-            else
-              echo "Windows did not exist in previous project either."
-              echo "Nothing to restore."
-            fi
-          fi
-
-      # ============================================================
-      # 11. Verify Android project
-      # ============================================================
-      - name: Verify Android project
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          if [ ! -d "android" ]; then
-            echo "ERROR: android/ directory is missing."
-            exit 1
-          fi
-
-          echo "Android directory exists."
-
-          echo
-          echo "Android important files:"
-
-          find android \
-            -type f \
-            \( \
-              -name "*.gradle" \
-              -o -name "*.gradle.kts" \
-              -o -name "AndroidManifest.xml" \
-              -o -name "gradle-wrapper.properties" \
-              -o -name "*.kt" \
-            \) \
+          find . \
+            -path './.git' -prune \
+            -o -type f -print \
             | sort
 
-      # ============================================================
-      # 12. Verify roadmap/security files
-      # ============================================================
-      - name: Verify security and roadmap
+          echo
+          echo "===== VERIFY WINDOWS ====="
+
+          test -d windows
+
+          echo
+          echo "===== VERIFY ANDROID ====="
+
+          test -d android
+          test -f android/settings.gradle
+          test -f android/app/build.gradle
+
+          echo
+          echo "===== VERIFY FLUTTER ====="
+
+          test -f pubspec.yaml
+          test -d lib
+
+          echo
+          echo "Project structure verified."
+
+      - name: Remove known unwanted files
         shell: bash
         run: |
           set -euo pipefail
 
-          echo "Checking roadmap/security components..."
-
-          for FILE in \
-            "lib/security/biometric_service.dart" \
-            "lib/services/backup_service.dart" \
-            "lib/services/pdf_export_service.dart"
-          do
-
-            if [ -f "$FILE" ]; then
-              echo "FOUND: $FILE"
-            else
-              echo "WARNING: missing: $FILE"
-            fi
-
-          done
-
-      # ============================================================
-      # 13. Check forbidden legacy files
-      # ============================================================
-      - name: Verify known unwanted files are gone
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          FORBIDDEN=(
+          unwanted=(
             "AI_REPORT.json"
             "ai-report.txt"
             "test/widget_test.dart"
-            ".github/workflows/flutter-create.yml"
-            ".github/workflows/regenerate-windows.yml"
           )
 
-          FAILED=0
-
-          for FILE in "${FORBIDDEN[@]}"; do
-
-            if [ -e "$FILE" ]; then
-              echo "ERROR: unwanted file still exists:"
-              echo "  $FILE"
-              FAILED=1
-            else
-              echo "OK: $FILE"
+          for file in "${unwanted[@]}"; do
+            if [ -e "$file" ]; then
+              rm -rf "$file"
+              echo "Removed: $file"
             fi
-
           done
 
-          if [ "$FAILED" -ne 0 ]; then
-            exit 1
-          fi
-
-      # ============================================================
-      # 14. Flutter analyze
-      #
-      # This does NOT recreate Android or Windows.
-      # ============================================================
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: "3.44.7"
-          channel: stable
-
-      - name: Flutter version
-        run: flutter --version
-
-      - name: Flutter pub get
-        run: flutter pub get
-
-      - name: Flutter analyze
-        run: flutter analyze
-
-      # ============================================================
-      # 15. Show final project status
-      # ============================================================
-      - name: Show final project status
+      - name: Show Git changes
         shell: bash
         run: |
           set -euo pipefail
 
-          echo
-          echo "================================================"
-          echo "GIT STATUS"
-          echo "================================================"
-
+          echo "===== GIT STATUS ====="
           git status --short
 
-          echo
-          echo "================================================"
-          echo "TOP LEVEL PROJECT"
-          echo "================================================"
-
-          find . \
-            -mindepth 1 \
-            -maxdepth 1 \
-            ! -name '.git' \
-            -printf '%f\n' \
-            | sort
-
-          echo
-          echo "================================================"
-          echo "ANDROID EXISTS?"
-          echo "================================================"
-
-          if [ -d android ]; then
-            echo "YES"
-          else
-            echo "NO"
-            exit 1
-          fi
-
-          echo
-          echo "================================================"
-          echo "WINDOWS EXISTS?"
-          echo "================================================"
-
-          if [ -d windows ]; then
-            echo "YES"
-          else
-            echo "NO"
-          fi
-
-      # ============================================================
-      # 16. Commit
-      # ============================================================
       - name: Commit replacement
         shell: bash
         run: |
@@ -500,16 +309,13 @@ jobs:
           git add -A
 
           if git diff --cached --quiet; then
-            echo "No changes detected."
+            echo "No changes to commit."
             exit 0
           fi
 
           git commit \
-            -m "Safely replace project from clean ZIP"
+            -m "Replace project with clean final project"
 
-      # ============================================================
-      # 17. Push
-      # ============================================================
       - name: Push replacement
         shell: bash
         run: |
