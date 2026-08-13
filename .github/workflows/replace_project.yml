@@ -1,0 +1,122 @@
+name: Replace Project From Clean ZIP
+
+"on":
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  replace-project:
+    name: Replace repository with Pass-Managers-final-clean.zip
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Verify clean ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          ZIP="Pass-Managers-final-clean.zip"
+          EXPECTED_SHA256="c7e3c2337c92187e370888c450332fd0dd26867337905a64004663521303ea50"
+
+          if [ ! -f "$ZIP" ]; then
+            echo "ERROR: $ZIP was not found in the repository root."
+            exit 1
+          fi
+
+          ACTUAL_SHA256="$(sha256sum "$ZIP" | awk '{print $1}')"
+
+          echo "Expected SHA256: $EXPECTED_SHA256"
+          echo "Actual SHA256:   $ACTUAL_SHA256"
+
+          if [ "$ACTUAL_SHA256" != "$EXPECTED_SHA256" ]; then
+            echo "ERROR: The ZIP is not the exact clean project ZIP."
+            exit 1
+          fi
+
+      - name: Save ZIP outside repository
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp "Pass-Managers-final-clean.zip" /tmp/Pass-Managers-final-clean.zip
+
+      - name: Remove everything not present in clean project
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # The ZIP is already safe in /tmp.
+          # This removes tracked and untracked project files,
+          # while keeping the .git directory required for the commit.
+          git clean -fdx
+
+      - name: Extract clean project
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          unzip -q /tmp/Pass-Managers-final-clean.zip -d .
+
+          if [ ! -f "pubspec.yaml" ]; then
+            echo "ERROR: pubspec.yaml was not found after extraction."
+            exit 1
+          fi
+
+          if [ ! -f "lib/main.dart" ]; then
+            echo "ERROR: lib/main.dart was not found after extraction."
+            exit 1
+          fi
+
+          if [ ! -f "android/app/src/main/kotlin/com/example/pass_managers/MainActivity.kt" ]; then
+            echo "ERROR: MainActivity.kt was not found after extraction."
+            exit 1
+          fi
+
+          echo "Clean project extracted successfully."
+
+      - name: Show final project status
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "===== Git status ====="
+          git status --short
+
+          echo
+          echo "===== Top-level files ====="
+          find . -maxdepth 1 -mindepth 1 -not -path './.git' -printf '%f\n' | sort
+
+          echo
+          echo "===== Workflows ====="
+          find .github/workflows -maxdepth 1 -type f -printf '%p\n' | sort
+
+      - name: Commit replacement
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add -A
+
+          if git diff --cached --quiet; then
+            echo "No changes detected."
+            exit 0
+          fi
+
+          git commit -m "Replace project with clean final project"
+
+      - name: Push replacement
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git push origin "HEAD:${GITHUB_REF_NAME}"
+
