@@ -133,28 +133,18 @@ class _HomePageState extends State<HomePage> {
         return;
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            fileUri == null || fileUri.isEmpty
-                ? 'ذخیره PDF لغو شد.'
-                : 'PDF با موفقیت ذخیره شد.',
-          ),
-          duration: const Duration(seconds: 4),
-        ),
+      _showMessage(
+        fileUri == null || fileUri.isEmpty
+            ? 'ذخیره PDF لغو شد.'
+            : 'PDF با موفقیت ذخیره شد.',
       );
     } catch (error) {
       if (!mounted) {
         return;
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'خطا در ساخت PDF:\n$error',
-          ),
-          duration: const Duration(seconds: 5),
-        ),
+      _showMessage(
+        'خطا در ساخت PDF:\n$error',
       );
     } finally {
       if (mounted) {
@@ -783,8 +773,12 @@ class _HomePageState extends State<HomePage> {
             mainAxisSize: MainAxisSize.min,
             children: [
               ListTile(
-                leading: const Icon(Icons.edit),
-                title: const Text('Rename'),
+                leading: const Icon(
+                  Icons.edit,
+                ),
+                title: const Text(
+                  'Rename',
+                ),
                 onTap: () {
                   Navigator.pop(sheetContext);
                   renameItem(item);
@@ -794,7 +788,9 @@ class _HomePageState extends State<HomePage> {
                 leading: const Icon(
                   Icons.delete_outline,
                 ),
-                title: const Text('Delete'),
+                title: const Text(
+                  'Delete',
+                ),
                 onTap: () {
                   Navigator.pop(sheetContext);
                   deleteItem(item);
@@ -887,13 +883,6 @@ class _HomePageState extends State<HomePage> {
             'Pass Managers',
           ),
           actions: [
-            IconButton(
-              onPressed: _showSecurityMenu,
-              icon: const Icon(
-                Icons.security_outlined,
-              ),
-              tooltip: 'Security',
-            ),
             if (_isExporting)
               const Padding(
                 padding: EdgeInsets.symmetric(
@@ -917,6 +906,13 @@ class _HomePageState extends State<HomePage> {
                 ),
                 tooltip: 'Export PDF',
               ),
+            IconButton(
+              onPressed: _showSecurityMenu,
+              icon: const Icon(
+                Icons.security_outlined,
+              ),
+              tooltip: 'Security',
+            ),
           ],
         ),
         body: _isLoading
