@@ -5,55 +5,6 @@ name: Pass Managers Build
 
 jobs:
 
-  windows-build:
-    name: Windows Build
-    runs-on: windows-latest
-
-    steps:
-      - name: Checkout source
-        uses: actions/checkout@v4
-
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: "3.44.7"
-          channel: stable
-
-      - name: Show Flutter version
-        run: flutter --version
-
-      - name: Enable Windows desktop
-        run: flutter config --enable-windows-desktop
-
-      - name: Remove generated sample test
-        shell: pwsh
-        run: |
-          if (Test-Path test) {
-            Remove-Item -Recurse -Force test
-          }
-
-      - name: Clean Flutter
-        run: flutter clean
-
-      - name: Get dependencies
-        run: flutter pub get
-
-      - name: Analyze
-        run: flutter analyze
-
-      - name: Check Visual Studio
-        run: flutter doctor -v
-
-      - name: Build Windows
-        run: flutter build windows --release -v
-
-      - name: Upload Windows Build
-        uses: actions/upload-artifact@v4
-        with:
-          name: PassManagers-Windows
-          path: build/windows/x64/runner/Release/
-
-
   android-build:
     name: Android Build
     runs-on: ubuntu-latest
@@ -71,36 +22,102 @@ jobs:
       - name: Show Flutter version
         run: flutter --version
 
-      - name: Enable Android
-        run: flutter config --enable-android
-
-      # IMPORTANT:
-      # Do NOT delete or recreate the android directory.
-      # The Android project in the repository contains our custom
-      # Gradle, Kotlin, biometric, PDF and native configuration.
-
-      - name: Verify Android compileSdk configuration
+      - name: Inspect Android project
         shell: bash
         run: |
           set -euo pipefail
 
-          test -f android/app/build.gradle.kts
+          echo "===== CURRENT DIRECTORY ====="
+          pwd
 
-          echo "===== android/app/build.gradle.kts ====="
-          cat android/app/build.gradle.kts
+          echo
+          echo "===== ROOT FILES ====="
+          find . -maxdepth 2 -type f \
+            -not -path './.git/*' \
+            | sort
 
-          grep -q 'compileSdk = 36' android/app/build.gradle.kts
+          echo
+          echo "===== ANDROID FILES ====="
+          find android -type f | sort
 
-      - name: Verify Android project files
+          echo
+          echo "===== CHECK BUILD FILES ====="
+
+          if [ -f "android/app/build.gradle.kts" ]; then
+            echo "FOUND: android/app/build.gradle.kts"
+            echo
+            cat android/app/build.gradle.kts
+          elif [ -f "android/app/build.gradle" ]; then
+            echo "FOUND: android/app/build.gradle"
+            echo
+            cat android/app/build.gradle
+          else
+            echo "ERROR: Neither build.gradle.kts nor build.gradle exists."
+            exit 1
+          fi
+
+      - name: Verify compileSdk
         shell: bash
         run: |
           set -euo pipefail
 
-          test -f android/settings.gradle
-          test -f android/app/build.gradle.kts
-          test -f android/gradle/wrapper/gradle-wrapper.properties
-          test -f android/app/src/main/AndroidManifest.xml
-          test -f android/app/src/main/kotlin/com/example/pass_managers/MainActivity.kt
+          if [ -f "android/app/build.gradle.kts" ]; then
+            echo "Checking Kotlin Gradle file..."
+
+            if grep -qE 'compileSdk[[:space:]]*=[[:space:]]*36' \
+              android/app/build.gradle.kts; then
+
+              echo "SUCCESS: compileSdk = 36"
+
+            else
+              echo "ERROR: compileSdk = 36 was NOT found."
+              echo
+              echo "Actual compileSdk lines:"
+              grep -n "compileSdk" android/app/build.gradle.kts || true
+              exit 1
+            fi
+
+          elif [ -f "android/app/build.gradle" ]; then
+            echo "Checking Groovy Gradle file..."
+
+            if grep -qE 'compileSdk[[:space:]]+36' \
+              android/app/build.gradle; then
+
+              echo "SUCCESS: compileSdk 36"
+
+            else
+              echo "ERROR: compileSdk 36 was NOT found."
+              echo
+              echo "Actual compileSdk lines:"
+              grep -n "compileSdk" android/app/build.gradle || true
+              exit 1
+            fi
+
+          else
+            echo "ERROR: Android Gradle file not found."
+            exit 1
+          fi
+
+      - name: Verify Android project
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          required=(
+            "android/settings.gradle"
+            "android/gradle/wrapper/gradle-wrapper.properties"
+            "android/app/src/main/AndroidManifest.xml"
+            "android/app/src/main/kotlin/com/example/pass_managers/MainActivity.kt"
+          )
+
+          for file in "${required[@]}"; do
+            if [ -f "$file" ]; then
+              echo "OK: $file"
+            else
+              echo "MISSING: $file"
+              exit 1
+            fi
+          done
 
       - name: Clean Flutter
         run: flutter clean
@@ -111,20 +128,23 @@ jobs:
       - name: Analyze
         run: flutter analyze
 
-      - name: Show Android configuration
+      - name: Build APK
+        run: flutter build apk --release
+
+      - name: Verify APK
         shell: bash
         run: |
           set -euo pipefail
 
-          echo "===== compileSdk ====="
-          grep -n "compileSdk" android/app/build.gradle.kts
+          APK="build/app/outputs/flutter-apk/app-release.apk"
 
-          echo
-          echo "===== Gradle wrapper ====="
-          cat android/gradle/wrapper/gradle-wrapper.properties
-
-      - name: Build APK
-        run: flutter build apk --release
+          if [ -f "$APK" ]; then
+            echo "APK successfully created:"
+            ls -lh "$APK"
+          else
+            echo "ERROR: APK was not created."
+            exit 1
+          fi
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
