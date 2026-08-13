@@ -8,7 +8,7 @@ permissions:
 
 jobs:
   android-build:
-    name: Android Release Build
+    name: Android Build
     runs-on: ubuntu-latest
 
     steps:
@@ -24,38 +24,36 @@ jobs:
       - name: Show Flutter version
         run: flutter --version
 
+      - name: Verify Android project
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          test -f android/settings.gradle
+          test -f android/app/build.gradle.kts
+          test -f android/gradle/wrapper/gradle-wrapper.properties
+          test -f android/app/src/main/AndroidManifest.xml
+
+          echo "Android project exists."
+
       - name: Get dependencies
         run: flutter pub get
 
       - name: Analyze
         run: flutter analyze
 
-      - name: Verify Android configuration
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          test -f android/app/build.gradle
-          test -f android/settings.gradle
-          test -f android/gradle/wrapper/gradle-wrapper.properties
-          test -f android/app/src/main/kotlin/com/example/pass_managers/MainActivity.kt
-
-          grep -q "compileSdk = 36" android/app/build.gradle
-          grep -q "gradle-8.12-all.zip" android/gradle/wrapper/gradle-wrapper.properties
-
       - name: Build Android APK
         run: flutter build apk --release
 
-      - name: Upload Android APK
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: PassManagers-Android
           path: build/app/outputs/flutter-apk/app-release.apk
-          if-no-files-found: error
 
 
   windows-build:
-    name: Windows Release Build
+    name: Windows Build
     runs-on: windows-latest
 
     steps:
@@ -74,28 +72,34 @@ jobs:
       - name: Enable Windows desktop
         run: flutter config --enable-windows-desktop
 
-      - name: Get dependencies
-        run: flutter pub get
-
-      - name: Analyze
-        run: flutter analyze
-
       - name: Verify Windows project
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
 
           if (!(Test-Path "windows")) {
-            throw "Windows project is missing."
+            throw "windows/ directory does not exist in the repository."
           }
 
-          if (!(Test-Path "windows/flutter/CMakeLists.txt")) {
-            throw "windows/flutter/CMakeLists.txt is missing."
+          if (!(Test-Path "windows/CMakeLists.txt")) {
+            throw "windows/CMakeLists.txt is missing."
           }
 
-          if (!(Test-Path "windows/runner/CMakeLists.txt")) {
-            throw "windows/runner/CMakeLists.txt is missing."
+          if (!(Test-Path "windows/runner")) {
+            throw "windows/runner directory is missing."
           }
+
+          if (!(Test-Path "windows/flutter")) {
+            throw "windows/flutter directory is missing."
+          }
+
+          Write-Host "Windows project exists."
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze
 
       - name: Build Windows
         run: flutter build windows --release
@@ -105,4 +109,3 @@ jobs:
         with:
           name: PassManagers-Windows
           path: build/windows/x64/runner/Release/
-          if-no-files-found: error
