@@ -1,153 +1,518 @@
-name: Pass Managers Build
+name: Replace Project From Clean ZIP
 
 "on":
   workflow_dispatch:
 
-jobs:
+permissions:
+  contents: write
 
-  android-build:
-    name: Android Build
+jobs:
+  replace-project:
+    name: Replace project safely from clean ZIP
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout source
-        uses: actions/checkout@v4
 
+      # ============================================================
+      # 1. Checkout current repository
+      # ============================================================
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # ============================================================
+      # 2. Verify ZIP exists
+      # ============================================================
+      - name: Verify clean ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          ZIP="Pass-Managers-final-clean.zip"
+
+          if [ ! -f "$ZIP" ]; then
+            echo "ERROR: $ZIP was not found in repository root."
+            echo
+            echo "Repository root:"
+            find . -maxdepth 2 -type f | sort
+            exit 1
+          fi
+
+          echo "ZIP found:"
+          ls -lh "$ZIP"
+
+      # ============================================================
+      # 3. Inspect ZIP without changing project
+      # ============================================================
+      - name: Inspect clean ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          ZIP="Pass-Managers-final-clean.zip"
+
+          echo "================================================"
+          echo "CLEAN ZIP CONTENTS"
+          echo "================================================"
+
+          unzip -Z1 "$ZIP" | sort
+
+          echo
+          echo "================================================"
+          echo "TOP LEVEL DIRECTORIES"
+          echo "================================================"
+
+          unzip -Z1 "$ZIP" \
+            | awk -F/ 'NF > 1 {print $1}' \
+            | sort -u
+
+      # ============================================================
+      # 4. Extract ZIP safely
+      # ============================================================
+      - name: Extract clean ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          ZIP="Pass-Managers-final-clean.zip"
+          EXTRACT_DIR="$RUNNER_TEMP/pass_managers_clean"
+
+          rm -rf "$EXTRACT_DIR"
+          mkdir -p "$EXTRACT_DIR"
+
+          unzip -q -o "$ZIP" -d "$EXTRACT_DIR"
+
+          echo
+          echo "Extracted ZIP:"
+          find "$EXTRACT_DIR" -maxdepth 3 -type f | sort
+
+          # --------------------------------------------------------
+          # Detect whether ZIP itself contains the project root
+          # or contains one enclosing directory.
+          # --------------------------------------------------------
+
+          if [ -f "$EXTRACT_DIR/pubspec.yaml" ]; then
+
+            CLEAN_ROOT="$EXTRACT_DIR"
+
+          else
+
+            PROJECT_ROOTS=()
+
+            while IFS= read -r -d '' DIR; do
+              if [ -f "$DIR/pubspec.yaml" ]; then
+                PROJECT_ROOTS+=("$DIR")
+              fi
+            done < <(
+              find "$EXTRACT_DIR" \
+                -mindepth 1 \
+                -maxdepth 2 \
+                -type d \
+                -print0
+            )
+
+            if [ "${#PROJECT_ROOTS[@]}" -ne 1 ]; then
+              echo "ERROR: Could not uniquely identify project root inside ZIP."
+
+              echo
+              echo "Directories containing pubspec.yaml:"
+              printf '%s\n' "${PROJECT_ROOTS[@]:-NONE}"
+
+              exit 1
+            fi
+
+            CLEAN_ROOT="${PROJECT_ROOTS[0]}"
+          fi
+
+          test -f "$CLEAN_ROOT/pubspec.yaml"
+
+          echo
+          echo "CLEAN_ROOT=$CLEAN_ROOT"
+
+          echo "CLEAN_ROOT=$CLEAN_ROOT" >> "$GITHUB_ENV"
+
+      # ============================================================
+      # 5. Verify important files in clean ZIP
+      #
+      # IMPORTANT:
+      # We DO NOT require windows/CMakeLists.txt here.
+      # If Windows exists, it will be preserved/copied.
+      # ============================================================
+      - name: Verify clean ZIP structure
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "Checking mandatory Flutter files..."
+
+          REQUIRED=(
+            "pubspec.yaml"
+            "lib/main.dart"
+          )
+
+          for FILE in "${REQUIRED[@]}"; do
+            if [ ! -f "$CLEAN_ROOT/$FILE" ]; then
+              echo "ERROR: Required file missing from clean ZIP:"
+              echo "  $FILE"
+              exit 1
+            fi
+          done
+
+          echo
+          echo "Checking optional project components..."
+
+          OPTIONAL=(
+            "android"
+            "windows"
+            "assets"
+            "lib/security"
+            "lib/services"
+          )
+
+          for ITEM in "${OPTIONAL[@]}"; do
+            if [ -e "$CLEAN_ROOT/$ITEM" ]; then
+              echo "FOUND: $ITEM"
+            else
+              echo "NOT IN CLEAN ZIP: $ITEM"
+            fi
+          done
+
+      # ============================================================
+      # 6. BACKUP CURRENT PROJECT STATE
+      #
+      # This creates a local copy inside the runner before changing
+      # anything. It is not committed.
+      # ============================================================
+      - name: Backup current repository state
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          BACKUP_DIR="$RUNNER_TEMP/current_project_backup"
+
+          rm -rf "$BACKUP_DIR"
+          mkdir -p "$BACKUP_DIR"
+
+          echo "Backing up current project..."
+
+          rsync -a \
+            --exclude='.git/' \
+            --exclude='Pass-Managers-final-clean.zip' \
+            ./ \
+            "$BACKUP_DIR/"
+
+          echo "Backup created at:"
+          echo "$BACKUP_DIR"
+
+          echo "CURRENT_BACKUP=$BACKUP_DIR" >> "$GITHUB_ENV"
+
+      # ============================================================
+      # 7. Remove ONLY explicitly unwanted files
+      #
+      # DO NOT use rm -rf on android/windows/lib.
+      # ============================================================
+      - name: Remove known unwanted files
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "Removing only explicitly known unwanted files..."
+
+          FILES_TO_REMOVE=(
+            "AI_REPORT.json"
+            "ai-report.txt"
+            "test/widget_test.dart"
+          )
+
+          WORKFLOW_FILES_TO_REMOVE=(
+            ".github/workflows/flutter-create.yml"
+            ".github/workflows/regenerate-windows.yml"
+          )
+
+          for FILE in "${FILES_TO_REMOVE[@]}"; do
+            if [ -e "$FILE" ]; then
+              echo "Removing: $FILE"
+              rm -rf "$FILE"
+            else
+              echo "Already absent: $FILE"
+            fi
+          done
+
+          for FILE in "${WORKFLOW_FILES_TO_REMOVE[@]}"; do
+            if [ -e "$FILE" ]; then
+              echo "Removing workflow: $FILE"
+              rm -f "$FILE"
+            else
+              echo "Already absent: $FILE"
+            fi
+          done
+
+      # ============================================================
+      # 8. Copy clean ZIP files over existing project
+      #
+      # NO --delete
+      #
+      # Therefore:
+      # - android is not deleted
+      # - windows is not deleted
+      # - lib is not deleted
+      # - existing files absent from ZIP remain
+      # ============================================================
+      - name: Install clean ZIP files safely
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "Copying files from clean ZIP..."
+
+          rsync -a \
+            "$CLEAN_ROOT/" \
+            ./
+
+          echo
+          echo "Clean ZIP files copied."
+
+      # ============================================================
+      # 9. Never commit ZIP itself
+      # ============================================================
+      - name: Remove ZIP from repository
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          rm -f Pass-Managers-final-clean.zip
+
+          echo "Temporary ZIP removed from working tree."
+
+      # ============================================================
+      # 10. Verify Windows was not accidentally deleted
+      # ============================================================
+      - name: Verify Windows project
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ -d "windows" ]; then
+            echo "Windows directory EXISTS."
+
+            echo
+            echo "Windows files:"
+            find windows -type f | sort
+
+          else
+            echo
+            echo "WARNING: windows/ does not exist after replacement."
+
+            echo
+            echo "This is NOT caused by this Runner deleting it."
+
+            echo "Checking whether Windows existed before replacement..."
+
+            if [ -d "$CURRENT_BACKUP/windows" ]; then
+              echo "Windows existed in the previous repository."
+
+              echo
+              echo "Restoring previous Windows directory..."
+
+              mkdir -p windows
+
+              rsync -a \
+                "$CURRENT_BACKUP/windows/" \
+                windows/
+
+              echo "Windows directory restored from previous project."
+
+            else
+              echo "Windows did not exist in previous project either."
+              echo "Nothing to restore."
+            fi
+          fi
+
+      # ============================================================
+      # 11. Verify Android project
+      # ============================================================
+      - name: Verify Android project
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ ! -d "android" ]; then
+            echo "ERROR: android/ directory is missing."
+            exit 1
+          fi
+
+          echo "Android directory exists."
+
+          echo
+          echo "Android important files:"
+
+          find android \
+            -type f \
+            \( \
+              -name "*.gradle" \
+              -o -name "*.gradle.kts" \
+              -o -name "AndroidManifest.xml" \
+              -o -name "gradle-wrapper.properties" \
+              -o -name "*.kt" \
+            \) \
+            | sort
+
+      # ============================================================
+      # 12. Verify roadmap/security files
+      # ============================================================
+      - name: Verify security and roadmap
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "Checking roadmap/security components..."
+
+          for FILE in \
+            "lib/security/biometric_service.dart" \
+            "lib/services/backup_service.dart" \
+            "lib/services/pdf_export_service.dart"
+          do
+
+            if [ -f "$FILE" ]; then
+              echo "FOUND: $FILE"
+            else
+              echo "WARNING: missing: $FILE"
+            fi
+
+          done
+
+      # ============================================================
+      # 13. Check forbidden legacy files
+      # ============================================================
+      - name: Verify known unwanted files are gone
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          FORBIDDEN=(
+            "AI_REPORT.json"
+            "ai-report.txt"
+            "test/widget_test.dart"
+            ".github/workflows/flutter-create.yml"
+            ".github/workflows/regenerate-windows.yml"
+          )
+
+          FAILED=0
+
+          for FILE in "${FORBIDDEN[@]}"; do
+
+            if [ -e "$FILE" ]; then
+              echo "ERROR: unwanted file still exists:"
+              echo "  $FILE"
+              FAILED=1
+            else
+              echo "OK: $FILE"
+            fi
+
+          done
+
+          if [ "$FAILED" -ne 0 ]; then
+            exit 1
+          fi
+
+      # ============================================================
+      # 14. Flutter analyze
+      #
+      # This does NOT recreate Android or Windows.
+      # ============================================================
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: "3.44.7"
           channel: stable
 
-      - name: Show Flutter version
+      - name: Flutter version
         run: flutter --version
 
-      - name: Inspect Android project
+      - name: Flutter pub get
+        run: flutter pub get
+
+      - name: Flutter analyze
+        run: flutter analyze
+
+      # ============================================================
+      # 15. Show final project status
+      # ============================================================
+      - name: Show final project status
         shell: bash
         run: |
           set -euo pipefail
 
-          echo "===== CURRENT DIRECTORY ====="
-          pwd
+          echo
+          echo "================================================"
+          echo "GIT STATUS"
+          echo "================================================"
+
+          git status --short
 
           echo
-          echo "===== ROOT FILES ====="
-          find . -maxdepth 2 -type f \
-            -not -path './.git/*' \
+          echo "================================================"
+          echo "TOP LEVEL PROJECT"
+          echo "================================================"
+
+          find . \
+            -mindepth 1 \
+            -maxdepth 1 \
+            ! -name '.git' \
+            -printf '%f\n' \
             | sort
 
           echo
-          echo "===== ANDROID FILES ====="
-          find android -type f | sort
+          echo "================================================"
+          echo "ANDROID EXISTS?"
+          echo "================================================"
+
+          if [ -d android ]; then
+            echo "YES"
+          else
+            echo "NO"
+            exit 1
+          fi
 
           echo
-          echo "===== CHECK BUILD FILES ====="
+          echo "================================================"
+          echo "WINDOWS EXISTS?"
+          echo "================================================"
 
-          if [ -f "android/app/build.gradle.kts" ]; then
-            echo "FOUND: android/app/build.gradle.kts"
-            echo
-            cat android/app/build.gradle.kts
-          elif [ -f "android/app/build.gradle" ]; then
-            echo "FOUND: android/app/build.gradle"
-            echo
-            cat android/app/build.gradle
+          if [ -d windows ]; then
+            echo "YES"
           else
-            echo "ERROR: Neither build.gradle.kts nor build.gradle exists."
-            exit 1
+            echo "NO"
           fi
 
-      - name: Verify compileSdk
+      # ============================================================
+      # 16. Commit
+      # ============================================================
+      - name: Commit replacement
         shell: bash
         run: |
           set -euo pipefail
 
-          if [ -f "android/app/build.gradle.kts" ]; then
-            echo "Checking Kotlin Gradle file..."
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-            if grep -qE 'compileSdk[[:space:]]*=[[:space:]]*36' \
-              android/app/build.gradle.kts; then
+          git add -A
 
-              echo "SUCCESS: compileSdk = 36"
-
-            else
-              echo "ERROR: compileSdk = 36 was NOT found."
-              echo
-              echo "Actual compileSdk lines:"
-              grep -n "compileSdk" android/app/build.gradle.kts || true
-              exit 1
-            fi
-
-          elif [ -f "android/app/build.gradle" ]; then
-            echo "Checking Groovy Gradle file..."
-
-            if grep -qE 'compileSdk[[:space:]]+36' \
-              android/app/build.gradle; then
-
-              echo "SUCCESS: compileSdk 36"
-
-            else
-              echo "ERROR: compileSdk 36 was NOT found."
-              echo
-              echo "Actual compileSdk lines:"
-              grep -n "compileSdk" android/app/build.gradle || true
-              exit 1
-            fi
-
-          else
-            echo "ERROR: Android Gradle file not found."
-            exit 1
+          if git diff --cached --quiet; then
+            echo "No changes detected."
+            exit 0
           fi
 
-      - name: Verify Android project
+          git commit \
+            -m "Safely replace project from clean ZIP"
+
+      # ============================================================
+      # 17. Push
+      # ============================================================
+      - name: Push replacement
         shell: bash
         run: |
           set -euo pipefail
 
-          required=(
-            "android/settings.gradle"
-            "android/gradle/wrapper/gradle-wrapper.properties"
-            "android/app/src/main/AndroidManifest.xml"
-            "android/app/src/main/kotlin/com/example/pass_managers/MainActivity.kt"
-          )
-
-          for file in "${required[@]}"; do
-            if [ -f "$file" ]; then
-              echo "OK: $file"
-            else
-              echo "MISSING: $file"
-              exit 1
-            fi
-          done
-
-      - name: Clean Flutter
-        run: flutter clean
-
-      - name: Get dependencies
-        run: flutter pub get
-
-      - name: Analyze
-        run: flutter analyze
-
-      - name: Build APK
-        run: flutter build apk --release
-
-      - name: Verify APK
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          APK="build/app/outputs/flutter-apk/app-release.apk"
-
-          if [ -f "$APK" ]; then
-            echo "APK successfully created:"
-            ls -lh "$APK"
-          else
-            echo "ERROR: APK was not created."
-            exit 1
-          fi
-
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: PassManagers-Android
-          path: build/app/outputs/flutter-apk/app-release.apk
+          git push origin HEAD:main
