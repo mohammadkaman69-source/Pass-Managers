@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:local_auth/local_auth.dart';
@@ -36,7 +37,7 @@ class BiometricService {
     try {
       return await _auth.getAvailableBiometrics();
     } catch (_) {
-      return const [];
+      return const <BiometricType>[];
     }
   }
 
@@ -88,8 +89,12 @@ class BiometricService {
     }
 
     try {
-      final key = base64Decode(encoded);
-      SecuritySession.instance.unlock(key);
+      final key = Uint8List.fromList(base64Decode(encoded));
+      try {
+        SecuritySession.instance.unlock(key);
+      } finally {
+        key.fillRange(0, key.length, 0);
+      }
       return true;
     } catch (_) {
       return false;
@@ -100,11 +105,8 @@ class BiometricService {
     try {
       return await _auth.authenticate(
         localizedReason: 'برای ورود به Pass Managers احراز هویت کنید.',
-        options: const AuthenticationOptions(
-          biometricOnly: false,
-          stickyAuth: true,
-          useErrorDialogs: true,
-        ),
+        persistAcrossBackgrounding: true,
+        biometricOnly: false,
       );
     } catch (_) {
       return false;

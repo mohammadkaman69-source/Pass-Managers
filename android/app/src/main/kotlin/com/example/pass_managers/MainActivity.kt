@@ -93,7 +93,7 @@ class MainActivity : FlutterFragmentActivity() {
             return
         }
 
-        pendingBytes = bytes
+        pendingBytes = bytes.copyOf()
         pendingFileName = fileName
         pendingResult = result
         pendingRequestCode = requestCode

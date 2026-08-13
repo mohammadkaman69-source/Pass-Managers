@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:cryptography/cryptography.dart';
 import 'package:file_picker/file_picker.dart';
@@ -24,7 +25,6 @@ class BackupService {
 
   Future<bool> createBackup({required String masterPassword}) async {
     final tree = await _repository.getCompleteTree();
-
     final payload = jsonEncode({
       'format': 'pass_managers_backup',
       'version': _formatVersion,
@@ -51,35 +51,35 @@ class BackupService {
         'ciphertext': encrypted,
       });
 
-      final bytes = Uint8List.fromList(
-        utf8.encode(backupText),
-      );
-      final fileName =
-          'Pass-Managers-Backup-${_timestamp()}.pmb';
+      final bytes = Uint8List.fromList(utf8.encode(backupText));
+      final fileName = 'Pass-Managers-Backup-${_timestamp()}.pmb';
 
-      // file_picker.saveFile(bytes: ...) is not supported on every Android
-      // implementation. Use the same native document picker bridge used by
-      // PDF export on Android.
       if (Platform.isAndroid) {
+        final nativeBytes = Uint8List.fromList(bytes);
         final path = await _channel.invokeMethod<String>(
           'saveBackup',
           <String, dynamic>{
             'fileName': fileName,
-            'bytes': bytes,
+            'bytes': nativeBytes,
           },
         );
+        nativeBytes.fillRange(0, nativeBytes.length, 0);
         return path != null && path.isNotEmpty;
       }
 
-      final path = await FilePicker.platform.saveFile(
-        dialogTitle: 'ذخیره نسخه پشتیبان Pass Managers',
-        fileName: fileName,
-        type: FileType.custom,
-        allowedExtensions: const ['pmb'],
-        bytes: bytes,
-      );
-
-      return path != null && path.isNotEmpty;
+      final pickerBytes = Uint8List.fromList(bytes);
+      try {
+        final path = await FilePicker.platform.saveFile(
+          dialogTitle: 'ذخیره نسخه پشتیبان Pass Managers',
+          fileName: fileName,
+          type: FileType.custom,
+          allowedExtensions: const ['pmb'],
+          bytes: pickerBytes,
+        );
+        return path != null && path.isNotEmpty;
+      } finally {
+        pickerBytes.fillRange(0, pickerBytes.length, 0);
+      }
     } finally {
       final keyBytes = List<int>.from(await key.extractBytes());
       keyBytes.fillRange(0, keyBytes.length, 0);
@@ -99,100 +99,91 @@ class BackupService {
       throw const BackupCancelledException();
     }
 
-    final bytes = result.files.single.bytes;
-    if (bytes == null || bytes.isEmpty) {
-      throw const BackupFormatException(
-        'فایل پشتیبان قابل خواندن نیست.',
-      );
+    final source = result.files.single.bytes;
+    if (source == null || source.isEmpty) {
+      throw const BackupFormatException('فایل پشتیبان قابل خواندن نیست.');
     }
 
-    final outer = jsonDecode(utf8.decode(bytes));
-    if (outer is! Map ||
-        outer['format'] != 'pass_managers_encrypted_backup') {
-      throw const BackupFormatException(
-        'فرمت نسخه پشتیبان معتبر نیست.',
-      );
-    }
-
-    if (outer['version'] != _formatVersion) {
-      throw BackupFormatException(
-        'نسخه پشتیبان پشتیبانی نمی‌شود: ${outer['version']}',
-      );
-    }
-
-    final ciphertext = outer['ciphertext']?.toString();
-    if (ciphertext == null || ciphertext.isEmpty) {
-      throw const BackupFormatException(
-        'داده رمزنگاری‌شده پیدا نشد.',
-      );
-    }
-
-    final saltValue = outer['salt']?.toString();
-    if (saltValue == null || saltValue.isEmpty) {
-      throw const BackupFormatException(
-        'نسخه پشتیبان فاقد salt است.',
-      );
-    }
-
-    final salt = Uint8List.fromList(
-      base64Decode(saltValue),
-    );
-
-    final key = await _securityManager.cryptoService.deriveKey(
-      masterPassword: masterPassword,
-      salt: salt,
-    );
-
+    final bytes = Uint8List.fromList(source);
     try {
-      final payload = await _securityManager.cryptoService.decrypt(
-        encryptedText: ciphertext,
-        key: key,
+      final outer = jsonDecode(utf8.decode(bytes));
+      if (outer is! Map ||
+          outer['format'] != 'pass_managers_encrypted_backup') {
+        throw const BackupFormatException('فرمت نسخه پشتیبان معتبر نیست.');
+      }
+
+      if (outer['version'] != _formatVersion) {
+        throw BackupFormatException(
+          'نسخه پشتیبان پشتیبانی نمی‌شود: ${outer['version']}',
+        );
+      }
+
+      final ciphertext = outer['ciphertext']?.toString();
+      if (ciphertext == null || ciphertext.isEmpty) {
+        throw const BackupFormatException('داده رمزنگاری‌شده پیدا نشد.');
+      }
+
+      final saltValue = outer['salt']?.toString();
+      if (saltValue == null || saltValue.isEmpty) {
+        throw const BackupFormatException('نسخه پشتیبان فاقد salt است.');
+      }
+
+      final salt = Uint8List.fromList(base64Decode(saltValue));
+      final key = await _securityManager.cryptoService.deriveKey(
+        masterPassword: masterPassword,
+        salt: salt,
       );
 
-      final decoded = jsonDecode(payload);
-      if (decoded is! Map ||
-          decoded['format'] != 'pass_managers_backup') {
-        throw const BackupFormatException(
-          'محتوای نسخه پشتیبان معتبر نیست.',
+      try {
+        final payload = await _securityManager.cryptoService.decrypt(
+          encryptedText: ciphertext,
+          key: key,
         );
-      }
 
-      final data = decoded['data'];
-      if (data is! List) {
-        throw const BackupFormatException(
-          'ساختار داده نسخه پشتیبان خراب است.',
-        );
-      }
-
-      final roots = <Map<String, dynamic>>[];
-      for (final item in data) {
-        if (item is Map) {
-          roots.add(
-            Map<String, dynamic>.from(item),
+        final decoded = jsonDecode(payload);
+        if (decoded is! Map ||
+            decoded['format'] != 'pass_managers_backup') {
+          throw const BackupFormatException(
+            'محتوای نسخه پشتیبان معتبر نیست.',
           );
         }
-      }
 
-      await _repository.replaceFromBackup(roots);
-    } on SecretBoxAuthenticationError {
-      throw const BackupFormatException(
-        'نسخه پشتیبان با کلید امنیتی فعلی قابل بازگشایی نیست.',
-      );
-    } on FormatException {
-      throw const BackupFormatException(
-        'فایل نسخه پشتیبان خراب یا نامعتبر است.',
-      );
+        final data = decoded['data'];
+        if (data is! List) {
+          throw const BackupFormatException(
+            'ساختار داده نسخه پشتیبان خراب است.',
+          );
+        }
+
+        final roots = <Map<String, dynamic>>[];
+        for (final item in data) {
+          if (item is Map) {
+            roots.add(Map<String, dynamic>.from(item));
+          }
+        }
+
+        await _repository.replaceFromBackup(roots);
+      } on SecretBoxAuthenticationError {
+        throw const BackupFormatException(
+          'نسخه پشتیبان با کلید امنیتی فعلی قابل بازگشایی نیست.',
+        );
+      } on FormatException {
+        throw const BackupFormatException(
+          'فایل نسخه پشتیبان خراب یا نامعتبر است.',
+        );
+      } finally {
+        final keyBytes = List<int>.from(await key.extractBytes());
+        keyBytes.fillRange(0, keyBytes.length, 0);
+        salt.fillRange(0, salt.length, 0);
+      }
     } finally {
-      final keyBytes = List<int>.from(await key.extractBytes());
-      keyBytes.fillRange(0, keyBytes.length, 0);
-      salt.fillRange(0, salt.length, 0);
+      bytes.fillRange(0, bytes.length, 0);
     }
   }
 
   String _timestamp() {
     final now = DateTime.now();
-    String two(int value) =>
-        value.toString().padLeft(2, '0');
+    String two(int value) => value.toString().padLeft(2, '0');
 
     return '${now.year}${two(now.month)}${two(now.day)}-'
         '${two(now.hour)}${two(now.minute)}${two(now.second)}';

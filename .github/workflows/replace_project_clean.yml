@@ -16,365 +16,149 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.AI_GITHUB_TOKEN }}
 
       - name: Find uploaded ZIP
+        id: zip
         shell: bash
         run: |
           set -euo pipefail
+          shopt -s nullglob
+          zips=(Pass-Managers-*.zip)
 
-          echo "===== SEARCHING FOR PROJECT ZIP ====="
-
-          ZIP_FILE=""
-
-          while IFS= read -r file; do
-            case "$file" in
-              ./Pass-Managers*.zip)
-                ZIP_FILE="$file"
-                break
-                ;;
-            esac
-          done < <(
-            find . \
-              -maxdepth 1 \
-              -type f \
-              -iname "*.zip" \
-              -print
-          )
-
-          if [ -z "$ZIP_FILE" ]; then
-            echo "ERROR: No Pass-Managers ZIP file was found."
-            echo
-            echo "ZIP files currently present:"
-            find . \
-              -maxdepth 1 \
-              -type f \
-              -iname "*.zip" \
-              -print || true
+          if [ "${#zips[@]}" -ne 1 ]; then
+            echo "Expected exactly one Pass-Managers-*.zip in repository root."
+            printf 'Found: %s\n' "${zips[@]:-<none>}"
             exit 1
           fi
 
-          echo "ZIP_FILE=$ZIP_FILE" >> "$GITHUB_ENV"
+          echo "zip=${zips[0]}" >> "$GITHUB_OUTPUT"
+          echo "Using ${zips[0]}"
 
-          echo "Found:"
-          echo "$ZIP_FILE"
-
-      - name: Validate ZIP
+      - name: Extract and validate ZIP
+        id: project
         shell: bash
+        env:
+          ZIP_FILE: ${{ steps.zip.outputs.zip }}
         run: |
           set -euo pipefail
 
-          echo "===== VALIDATING ZIP ====="
+          ROOT="$RUNNER_TEMP/pass_managers"
+          rm -rf "$ROOT"
+          mkdir -p "$ROOT"
+          unzip -q -o "$ZIP_FILE" -d "$ROOT"
 
-          unzip -t "$ZIP_FILE"
-
-          echo "ZIP validation successful."
-
-      - name: Prepare temporary extraction directory
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          rm -rf "$RUNNER_TEMP/pass_managers_project"
-
-          mkdir -p "$RUNNER_TEMP/pass_managers_project"
-
-          unzip -q "$ZIP_FILE" \
-            -d "$RUNNER_TEMP/pass_managers_project"
-
-          echo "Extraction completed."
-
-      - name: Detect project root
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          echo "===== DETECTING PROJECT ROOT ====="
-
-          PROJECT_ROOT=""
-
-          if [ -f "$RUNNER_TEMP/pass_managers_project/pubspec.yaml" ]; then
-            PROJECT_ROOT="$RUNNER_TEMP/pass_managers_project"
+          if [ -f "$ROOT/pubspec.yaml" ]; then
+            PROJECT_ROOT="$ROOT"
           else
-            FOUND_PUBSPEC="$(
-              find "$RUNNER_TEMP/pass_managers_project" \
-                -mindepth 1 \
-                -maxdepth 3 \
-                -type f \
-                -name "pubspec.yaml" \
-                -print \
-                -quit
-            )"
-
-            if [ -z "$FOUND_PUBSPEC" ]; then
-              echo "ERROR: pubspec.yaml was not found inside ZIP."
-              exit 1
-            fi
-
-            PROJECT_ROOT="$(dirname "$FOUND_PUBSPEC")"
+            PROJECT_ROOT="$(find "$ROOT" -mindepth 1 -maxdepth 1 -type d -print -quit)"
           fi
+
+          test -n "${PROJECT_ROOT:-}"
+          test -f "$PROJECT_ROOT/pubspec.yaml"
+          test -f "$PROJECT_ROOT/lib/main.dart"
+          test -d "$PROJECT_ROOT/lib"
+          test -d "$PROJECT_ROOT/android"
+          test -d "$PROJECT_ROOT/windows"
+          test -f "$PROJECT_ROOT/.github/workflows/build.yml"
+
+          grep -q 'compileSdk = 36' "$PROJECT_ROOT/android/app/build.gradle"
+          grep -q 'applicationId = "com.example.pass_managers"' "$PROJECT_ROOT/android/app/build.gradle"
+          grep -q 'local_auth: \^3.0.2' "$PROJECT_ROOT/pubspec.yaml"
+          grep -q 'function(APPLY_STANDARD_SETTINGS TARGET)' "$PROJECT_ROOT/windows/CMakeLists.txt"
+          grep -q '_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS' "$PROJECT_ROOT/windows/CMakeLists.txt"
+          grep -q 'cxx_std_20' "$PROJECT_ROOT/windows/CMakeLists.txt"
 
           echo "PROJECT_ROOT=$PROJECT_ROOT" >> "$GITHUB_ENV"
+          echo "ZIP_FILE=$ZIP_FILE" >> "$GITHUB_ENV"
 
-          echo "Project root:"
-          echo "$PROJECT_ROOT"
-
-      - name: Validate Flutter project
+      - name: Remove old project tree
         shell: bash
         run: |
           set -euo pipefail
 
-          echo "===== VALIDATING PROJECT STRUCTURE ====="
-
-          REQUIRED_FILES=(
-            "pubspec.yaml"
-            "lib/main.dart"
-            "android/app/build.gradle"
-            "windows/CMakeLists.txt"
-            "windows/flutter/CMakeLists.txt"
-            "windows/runner/CMakeLists.txt"
-            ".github/workflows/build.yml"
-          )
-
-          for FILE in "${REQUIRED_FILES[@]}"; do
-            if [ ! -f "$PROJECT_ROOT/$FILE" ]; then
-              echo "ERROR: Required file is missing:"
-              echo "$FILE"
-              exit 1
-            fi
-
-            echo "OK: $FILE"
-          done
-
-          REQUIRED_DIRS=(
-            "lib"
-            "android"
-            "windows"
-          )
-
-          for DIR in "${REQUIRED_DIRS[@]}"; do
-            if [ ! -d "$PROJECT_ROOT/$DIR" ]; then
-              echo "ERROR: Required directory is missing:"
-              echo "$DIR"
-              exit 1
-            fi
-
-            echo "OK: $DIR/"
-          done
-
-      - name: Validate application ID
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          echo "===== VALIDATING APPLICATION ID ====="
-
-          BUILD_FILE="$PROJECT_ROOT/android/app/build.gradle"
-
-          if ! grep -q 'applicationId = "com.example.pass_managers"' "$BUILD_FILE"; then
-            echo "ERROR: Expected applicationId was not found."
-
-            grep -n "applicationId" "$BUILD_FILE" || true
-
-            exit 1
-          fi
-
-          if ! grep -q 'namespace = "com.example.pass_managers"' "$BUILD_FILE"; then
-            echo "ERROR: Expected Android namespace was not found."
-
-            grep -n "namespace" "$BUILD_FILE" || true
-
-            exit 1
-          fi
-
-          echo "Application ID: com.example.pass_managers"
-          echo "Namespace: com.example.pass_managers"
-
-      - name: Validate compile SDK
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          echo "===== VALIDATING COMPILE SDK ====="
-
-          BUILD_FILE="$PROJECT_ROOT/android/app/build.gradle"
-
-          if ! grep -q 'compileSdk = 36' "$BUILD_FILE"; then
-            echo "ERROR: compileSdk 36 is required."
-
-            grep -n "compileSdk" "$BUILD_FILE" || true
-
-            exit 1
-          fi
-
-          echo "compileSdk = 36"
-
-      - name: Preserve Git metadata and replace project
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          echo "===== REPLACING PROJECT ====="
-
-          if [ ! -d ".git" ]; then
-            echo "ERROR: .git directory does not exist before replacement."
-            exit 1
-          fi
-
-          echo "Git repository detected."
-
-          find . \
-            -mindepth 1 \
-            -maxdepth 1 \
-            ! -name ".git" \
-            ! -name ".github" \
-            ! -name "$(basename "$ZIP_FILE")" \
+          # Preserve Git metadata and this workflow while the replacement runs.
+          # All normal project files are removed, including stale generated files.
+          find . -mindepth 1 -maxdepth 1 \
+            ! -name '.git' \
+            ! -name '.github' \
+            ! -name "$ZIP_FILE" \
             -exec rm -rf {} +
 
-          rsync -a \
-            --delete \
-            --exclude=".git/" \
-            "$PROJECT_ROOT/" \
-            ./
+          find .github/workflows -mindepth 1 -maxdepth 1 -type f \
+            ! -name 'replace_project_clean.yml' \
+            -delete 2>/dev/null || true
 
-          echo "Project files replaced successfully."
-
-      - name: Restore workflow directory
+      - name: Install project from ZIP
         shell: bash
         run: |
           set -euo pipefail
+          rsync -a --delete --exclude=".git/" "$PROJECT_ROOT/" ./
+          rm -f "$ZIP_FILE"
 
-          echo "===== VERIFYING GITHUB WORKFLOWS ====="
-
-          if [ ! -d ".github/workflows" ]; then
-            echo "ERROR: .github/workflows directory is missing."
-            exit 1
-          fi
-
-          if [ ! -f ".github/workflows/build.yml" ]; then
-            echo "ERROR: build.yml is missing after replacement."
-            exit 1
-          fi
-
-          if [ ! -f ".github/workflows/replace_project_clean.yml" ]; then
-            echo "ERROR: replace_project_clean.yml is missing after replacement."
-            exit 1
-          fi
-
-          echo "Workflow files verified."
-
-      - name: Remove uploaded ZIP
+      - name: Remove generated build state
         shell: bash
         run: |
           set -euo pipefail
-
-          echo "===== REMOVING UPLOADED ZIP ====="
-
-          if [ -f "$(basename "$ZIP_FILE")" ]; then
-            rm -f "$(basename "$ZIP_FILE")"
-          fi
-
-          echo "Uploaded ZIP removed."
-
-      - name: Remove generated Flutter files
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          echo "===== REMOVING GENERATED FILES ====="
-
-          rm -rf build
-          rm -rf .dart_tool
-
+          rm -rf build .dart_tool
           rm -rf windows/flutter/ephemeral
-
           rm -f android/local.properties
 
-          echo "Generated local files removed."
-
-      - name: Verify Git repository still exists
+      - name: Verify final tree
         shell: bash
         run: |
           set -euo pipefail
 
-          echo "===== VERIFYING GIT REPOSITORY ====="
-
-          if [ ! -d ".git" ]; then
-            echo "ERROR: .git directory was removed."
+          # The repository metadata must survive the ZIP replacement.
+          if [ ! -d .git ]; then
+            echo "ERROR: .git directory was removed during project replacement."
+            echo "The ZIP copy must never delete Git metadata."
             exit 1
           fi
 
-          git rev-parse --is-inside-work-tree
+          test -f pubspec.yaml
+          test -f lib/main.dart
+          test -f android/settings.gradle
+          test -f android/app/build.gradle
+          test -f windows/CMakeLists.txt
+          test -f windows/flutter/CMakeLists.txt
+          test -f windows/runner/CMakeLists.txt
+          test -f .github/workflows/build.yml
 
+          test ! -d windows/flutter/ephemeral
+          test ! -d build
+          test ! -d .dart_tool
+          test ! -f android/local.properties
+
+          echo '===== FINAL PROJECT STATUS ====='
           git status --short
 
-          echo "Git repository is valid."
-
-      - name: Verify final project
+      - name: Commit replacement
         shell: bash
         run: |
           set -euo pipefail
-
-          echo "===== FINAL PROJECT CHECK ====="
-
-          CHECK_FILES=(
-            "pubspec.yaml"
-            "lib/main.dart"
-            "android/app/build.gradle"
-            "windows/CMakeLists.txt"
-            "windows/flutter/CMakeLists.txt"
-            "windows/runner/CMakeLists.txt"
-            ".github/workflows/build.yml"
-            ".github/workflows/replace_project_clean.yml"
-          )
-
-          for FILE in "${CHECK_FILES[@]}"; do
-            if [ ! -f "$FILE" ]; then
-              echo "ERROR: Final project file is missing:"
-              echo "$FILE"
-              exit 1
-            fi
-
-            echo "OK: $FILE"
-          done
-
-          echo
-          echo "===== FINAL PROJECT STATUS ====="
-
-          git rev-parse --show-toplevel
-
-          git status --short
-
-          echo
-          echo "Git repository is valid."
-
-      - name: Commit project replacement
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          echo "===== COMMITTING CHANGES ====="
-
-          git config user.name "Pass-Managers AI Runner"
-          git config user.email "actions@github.com"
-
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -A
 
           if git diff --cached --quiet; then
-            echo "No changes detected."
+            echo 'No changes detected.'
             exit 0
           fi
 
-          git commit \
-            -m "Replace project with audited Pass-Managers source"
+          git commit -m 'Replace Pass-Managers project from ZIP'
 
-      - name: Push to main
+      - name: Push replacement
         shell: bash
+        env:
+          AI_GITHUB_TOKEN: ${{ secrets.AI_GITHUB_TOKEN }}
         run: |
           set -euo pipefail
 
-          echo "===== PUSHING PROJECT ====="
-
-          git push origin HEAD:main
-
-          echo "Project successfully pushed to main."
+          if [ -n "${AI_GITHUB_TOKEN:-}" ]; then
+            git remote set-url origin "https://x-access-token:${AI_GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+            git push origin HEAD:main
+          else
+            echo 'Using GITHUB_TOKEN.'
+            echo 'If build.yml itself was changed, the token must have GitHub workflow-file write permission.'
+            git push origin HEAD:main
+          fi
