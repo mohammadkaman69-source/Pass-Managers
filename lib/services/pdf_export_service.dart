@@ -261,7 +261,7 @@ class PdfExportService {
 
     final tableRows = <pw.TableRow>[
       pw.TableRow(
-        decoration: const pw.BoxDecoration(
+        decoration: pw.BoxDecoration(
           color: PdfColors.grey300,
         ),
         children: <pw.Widget>[
