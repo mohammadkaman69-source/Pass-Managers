@@ -97,7 +97,7 @@ jobs:
           dependency_overrides:
             flutter_secure_storage: 10.3.1
             flutter_secure_storage_windows: 4.2.2
-            file_picker: 12.0.0-beta.7
+            file_picker: 11.0.2
           "@ | Set-Content -Encoding UTF8 "pubspec_overrides.yaml"
 
           Write-Host ""
@@ -112,14 +112,50 @@ jobs:
 
           flutter pub get
 
-      - name: Verify Resolved Dependencies
+          if ($LASTEXITCODE -ne 0) {
+            throw "Flutter pub get failed."
+          }
+
+      - name: Verify Resolved File Picker Version
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
 
-          Write-Host "===== RESOLVED DEPENDENCIES ====="
+          Write-Host "===== VERIFYING FILE PICKER ====="
 
-          flutter pub deps
+          $deps = flutter pub deps
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "Unable to read resolved dependencies."
+          }
+
+          $deps | Out-Host
+
+          if ($deps -notmatch "file_picker 11\.0\.2") {
+            throw "Expected file_picker 11.0.2 was not resolved."
+          }
+
+          Write-Host "OK: file_picker 11.0.2"
+
+      - name: Verify Secure Storage Versions
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          Write-Host "===== VERIFYING SECURE STORAGE ====="
+
+          $deps = flutter pub deps
+
+          if ($deps -notmatch "flutter_secure_storage 10\.3\.1") {
+            throw "Expected flutter_secure_storage 10.3.1 was not resolved."
+          }
+
+          if ($deps -notmatch "flutter_secure_storage_windows 4\.2\.2") {
+            throw "Expected flutter_secure_storage_windows 4.2.2 was not resolved."
+          }
+
+          Write-Host "OK: flutter_secure_storage 10.3.1"
+          Write-Host "OK: flutter_secure_storage_windows 4.2.2"
 
       - name: Flutter Analyze
         shell: pwsh
@@ -128,7 +164,13 @@ jobs:
 
           Write-Host "===== FLUTTER ANALYZE ====="
 
-          flutter analyze --no-fatal-infos
+          flutter analyze
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "Flutter analyze failed."
+          }
+
+          Write-Host "===== FLUTTER ANALYZE PASSED ====="
 
       - name: Build Windows Release
         shell: pwsh
@@ -138,6 +180,10 @@ jobs:
           Write-Host "===== BUILDING WINDOWS ====="
 
           flutter build windows --release
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "Windows release build failed."
+          }
 
       - name: Verify Windows Executable
         shell: pwsh
@@ -194,6 +240,8 @@ jobs:
         if: always()
         shell: pwsh
         run: |
+          Write-Host "===== CLEANUP ====="
+
           if (Test-Path "pubspec_overrides.yaml") {
             Remove-Item -Force "pubspec_overrides.yaml"
             Write-Host "Temporary pubspec_overrides.yaml removed."
