@@ -161,6 +161,16 @@ class BackupService {
         }
 
         await _repository.replaceFromBackup(roots);
+
+        // Verify the database contains the same tree structure that was in
+        // the decrypted backup. A successful SQL transaction alone is not
+        // enough; this catches silently skipped folders/tables during restore.
+        final restoredTree = await _repository.getCompleteTree();
+        if (_treeSignature(restoredTree) != _treeSignature(roots)) {
+          throw const BackupFormatException(
+            'بازیابی کامل انجام نشد؛ ساختار نسخه پشتیبان با داده بازیابی‌شده مطابقت ندارد.',
+          );
+        }
       } on SecretBoxAuthenticationError {
         throw const BackupFormatException(
           'نسخه پشتیبان با کلید امنیتی فعلی قابل بازگشایی نیست.',
@@ -177,6 +187,35 @@ class BackupService {
     } finally {
       bytes.fillRange(0, bytes.length, 0);
     }
+  }
+
+  String _treeSignature(List<Map<String, dynamic>> nodes) {
+    final normalized = nodes.map(_normalizeNode).toList();
+    return jsonEncode(normalized);
+  }
+
+  Map<String, dynamic> _normalizeNode(Map<String, dynamic> node) {
+    final normalized = <String, dynamic>{
+      'name': node['name']?.toString() ?? '',
+      'type': node['type']?.toString() ?? '',
+    };
+
+    if (normalized['type'] == 'folder') {
+      final children = node['children'];
+      normalized['children'] = children is List
+          ? children
+              .whereType<Map>()
+              .map((child) => _normalizeNode(
+                    Map<String, dynamic>.from(child),
+                  ))
+              .toList()
+          : <Map<String, dynamic>>[];
+    } else if (normalized['type'] == 'table') {
+      final rows = node['rows'];
+      normalized['row_count'] = rows is List ? rows.length : 0;
+    }
+
+    return normalized;
   }
 
   String _timestamp() {
