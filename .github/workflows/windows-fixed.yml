@@ -2,9 +2,6 @@ name: Windows Fixed Build
 
 "on":
   workflow_dispatch:
-  push:
-    branches:
-      - main
 
 permissions:
   contents: read
@@ -59,7 +56,7 @@ jobs:
           Write-Host $deps
           if ($deps -notmatch "flutter_secure_storage 10\.3\.1") { throw "flutter_secure_storage 10.3.1 was not resolved." }
           if ($deps -notmatch "flutter_secure_storage_windows 4\.2\.2") { throw "flutter_secure_storage_windows 4.2.2 was not resolved." }
-          if ($deps -notmatch "file_picker 12\.0\.0-beta\.7") { throw "file_picker 12.0.0-beta.7 was not resolved." }
+          if ($deps -notmatch "file_picker 12\.0\.0") { throw "file_picker 12.0.0 was not resolved." }
           if ($deps -notmatch "win32 6\.") { throw "win32 6.x was not resolved." }
           Write-Host "Project dependency versions are resolved correctly."
 
