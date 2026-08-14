@@ -5,6 +5,9 @@ import 'package:flutter/services.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
+/// PDF export is intentionally separated into a small document model and a
+/// layout layer. This keeps database-shaped input away from PDF widgets and
+/// makes RTL, pagination and table rendering deterministic.
 class PdfExportService {
   static const MethodChannel _channel =
       MethodChannel('pass_managers/file_saver');
@@ -14,60 +17,60 @@ class PdfExportService {
     final fontData = await rootBundle.load('assets/fonts/BNazanin.ttf');
     final persianFont = pw.Font.ttf(fontData);
     final latinFont = pw.Font.helvetica();
-    final content = <pw.Widget>[];
 
-    _buildTreeContent(
-      node: root,
-      content: content,
-      persianFont: persianFont,
-      latinFont: latinFont,
-      level: 0,
-    );
-
-    if (content.isEmpty) {
-      content.add(
-        _text(
-          'محتوایی برای Export وجود ندارد.',
-          persianFont: persianFont,
-          latinFont: latinFont,
-          fontSize: 14,
-        ),
-      );
-    }
+    final model = _PdfDocumentModel.fromRoot(root);
 
     document.addPage(
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
-        margin: const pw.EdgeInsets.all(28),
-        header: (_) => pw.Container(
-          width: double.infinity,
-          margin: const pw.EdgeInsets.only(bottom: 12),
-          child: _text(
-            root['name']?.toString() ?? 'Pass Managers',
-            persianFont: persianFont,
-            latinFont: latinFont,
-            fontSize: 20,
-            bold: true,
-          ),
+        margin: const pw.EdgeInsets.fromLTRB(28, 34, 28, 32),
+        header: (context) => _buildHeader(
+          model.title,
+          persianFont,
+          latinFont,
         ),
-        footer: (context) => pw.Container(
-          width: double.infinity,
-          margin: const pw.EdgeInsets.only(top: 10),
-          child: _text(
-            'صفحه ${context.pageNumber} / ${context.pagesCount}',
-            persianFont: persianFont,
-            latinFont: latinFont,
-            fontSize: 9,
-          ),
+        footer: (context) => _buildFooter(
+          context,
+          persianFont,
+          latinFont,
         ),
-        build: (_) => content,
+        build: (_) {
+          final widgets = <pw.Widget>[];
+          for (final folder in model.folders) {
+            widgets.add(
+              _buildFolder(
+                folder,
+                persianFont,
+                latinFont,
+              ),
+            );
+          }
+          for (final table in model.rootTables) {
+            widgets.add(
+              _buildTable(
+                table,
+                persianFont,
+                latinFont,
+              ),
+            );
+          }
+          if (widgets.isEmpty) {
+            widgets.add(
+              _buildText(
+                'محتوایی برای Export وجود ندارد.',
+                persianFont,
+                latinFont,
+                fontSize: 14,
+              ),
+            );
+          }
+          return widgets;
+        },
       ),
     );
 
     final savedBytes = await document.save();
-    final safeName = _sanitizeFileName(
-      root['name']?.toString() ?? 'Pass-Managers',
-    );
+    final safeName = _sanitizeFileName(model.title);
     final fileName = '$safeName.pdf';
 
     if (Platform.isAndroid) {
@@ -108,205 +111,194 @@ class PdfExportService {
     }
   }
 
-  void _buildTreeContent({
-    required Map<String, dynamic> node,
-    required List<pw.Widget> content,
-    required pw.Font persianFont,
-    required pw.Font latinFont,
-    required int level,
-  }) {
-    final name = node['name']?.toString() ?? '';
-    final type = node['type']?.toString() ?? '';
-    final indent = level * 18.0;
-
-    if (type == 'folder') {
-      content.add(
-        pw.Padding(
-          padding: pw.EdgeInsets.only(
-            right: indent,
-            top: level == 0 ? 0 : 12,
-            bottom: 7,
-          ),
-          child: _text(
-            'پوشه: $name',
-            persianFont: persianFont,
-            latinFont: latinFont,
-            fontSize: level == 0 ? 20 : 16,
-            bold: true,
+  pw.Widget _buildHeader(
+    String title,
+    pw.Font persianFont,
+    pw.Font latinFont,
+  ) {
+    return pw.Container(
+      width: double.infinity,
+      padding: const pw.EdgeInsets.only(bottom: 10),
+      margin: const pw.EdgeInsets.only(bottom: 10),
+      decoration: const pw.BoxDecoration(
+        border: pw.Border(
+          bottom: pw.BorderSide(
+            color: PdfColors.grey500,
+            width: 0.7,
           ),
         ),
-      );
-
-      final children = node['children'];
-      if (children is List) {
-        for (final child in children) {
-          if (child is Map) {
-            _buildTreeContent(
-              node: Map<String, dynamic>.from(child),
-              content: content,
-              persianFont: persianFont,
-              latinFont: latinFont,
-              level: level + 1,
-            );
-          }
-        }
-      }
-      return;
-    }
-
-    if (type == 'table') {
-      _buildTableContent(
-        node: node,
-        content: content,
-        persianFont: persianFont,
-        latinFont: latinFont,
-        level: level,
-      );
-      return;
-    }
-
-    content.add(
-      pw.Padding(
-        padding: pw.EdgeInsets.only(
-          right: indent,
-          top: 8,
-          bottom: 4,
-        ),
-        child: _text(
-          name,
-          persianFont: persianFont,
-          latinFont: latinFont,
-          fontSize: 14,
+      ),
+      child: pw.Directionality(
+        textDirection: pw.TextDirection.rtl,
+        child: _buildText(
+          title.isEmpty ? 'Pass Managers' : title,
+          persianFont,
+          latinFont,
+          fontSize: 20,
+          bold: true,
+          align: pw.TextAlign.right,
         ),
       ),
     );
   }
 
-  void _buildTableContent({
-    required Map<String, dynamic> node,
-    required List<pw.Widget> content,
-    required pw.Font persianFont,
-    required pw.Font latinFont,
-    required int level,
-  }) {
-    final name = node['name']?.toString() ?? '';
-    final indent = level * 18.0;
-
-    content.add(pw.SizedBox(height: 10));
-    content.add(
-      pw.Padding(
-        padding: pw.EdgeInsets.only(
-          right: indent,
-          bottom: 8,
+  pw.Widget _buildFooter(
+    pw.Context context,
+    pw.Font persianFont,
+    pw.Font latinFont,
+  ) {
+    return pw.Container(
+      width: double.infinity,
+      padding: const pw.EdgeInsets.only(top: 8),
+      margin: const pw.EdgeInsets.only(top: 8),
+      decoration: const pw.BoxDecoration(
+        border: pw.Border(
+          top: pw.BorderSide(
+            color: PdfColors.grey400,
+            width: 0.5,
+          ),
         ),
-        child: _text(
-          'جدول: $name',
-          persianFont: persianFont,
-          latinFont: latinFont,
-          fontSize: 17,
+      ),
+      child: pw.Directionality(
+        textDirection: pw.TextDirection.rtl,
+        child: _buildText(
+          'صفحه ${context.pageNumber} از ${context.pagesCount}',
+          persianFont,
+          latinFont,
+          fontSize: 9,
+          align: pw.TextAlign.center,
+        ),
+      ),
+    );
+  }
+
+  pw.Widget _buildFolder(
+    _PdfFolder folder,
+    pw.Font persianFont,
+    pw.Font latinFont,
+  ) {
+    final children = <pw.Widget>[
+      pw.Container(
+        margin: const pw.EdgeInsets.only(top: 12, bottom: 7),
+        padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+        decoration: const pw.BoxDecoration(
+          color: PdfColors.grey200,
+          borderRadius: pw.BorderRadius.all(pw.Radius.circular(3)),
+        ),
+        child: pw.Directionality(
+          textDirection: pw.TextDirection.rtl,
+          child: _buildText(
+            'پوشه: ${folder.name}',
+            persianFont,
+            latinFont,
+            fontSize: 16,
+            bold: true,
+            align: pw.TextAlign.right,
+          ),
+        ),
+      ),
+    ];
+
+    for (final table in folder.tables) {
+      children.add(_buildTable(table, persianFont, latinFont));
+    }
+    for (final child in folder.children) {
+      children.add(_buildFolder(child, persianFont, latinFont));
+    }
+
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+      children: children,
+    );
+  }
+
+  pw.Widget _buildTable(
+    _PdfTable table,
+    pw.Font persianFont,
+    pw.Font latinFont,
+  ) {
+    final heading = pw.Padding(
+      padding: const pw.EdgeInsets.only(top: 10, bottom: 7),
+      child: pw.Directionality(
+        textDirection: pw.TextDirection.rtl,
+        child: _buildText(
+          'جدول: ${table.name}',
+          persianFont,
+          latinFont,
+          fontSize: 16,
           bold: true,
+          align: pw.TextAlign.right,
         ),
       ),
     );
 
-    final rows = node['rows'];
-    if (rows is! List || rows.isEmpty) {
-      content.add(
-        _message(
-          'این جدول رکوردی ندارد.',
-          persianFont,
-          latinFont,
-          indent + 10,
-        ),
-      );
-      return;
-    }
-
-    final fieldPositions = <String, int>{};
-    for (final rawRow in rows) {
-      if (rawRow is! Map) continue;
-      final fields = rawRow['fields'];
-      if (fields is! List) continue;
-      for (final rawField in fields) {
-        if (rawField is! Map) continue;
-        final fieldName = rawField['name']?.toString() ?? '';
-        if (fieldName.isEmpty) continue;
-        final rawPosition = rawField['position'];
-        final position = rawPosition is int ? rawPosition : 999999;
-        final oldPosition = fieldPositions[fieldName];
-        if (oldPosition == null || position < oldPosition) {
-          fieldPositions[fieldName] = position;
-        }
-      }
-    }
-
-    if (fieldPositions.isEmpty) {
-      content.add(
-        _message(
-          'این جدول فیلدی ندارد.',
-          persianFont,
-          latinFont,
-          indent + 10,
-        ),
-      );
-      return;
-    }
-
-    final columns = fieldPositions.keys.toList()
-      ..sort((a, b) {
-        final positionCompare =
-            fieldPositions[a]!.compareTo(fieldPositions[b]!);
-        return positionCompare != 0 ? positionCompare : a.compareTo(b);
-      });
-
-    final tableRows = <pw.TableRow>[
-      pw.TableRow(
-        decoration: pw.BoxDecoration(
-          color: PdfColors.grey300,
-        ),
+    if (table.columns.isEmpty) {
+      return pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.stretch,
         children: <pw.Widget>[
-          _tableCell('#', persianFont, latinFont, bold: true),
-          ...columns.map(
-            (column) => _tableCell(
-              column,
-              persianFont,
-              latinFont,
-              bold: true,
-            ),
+          heading,
+          _buildMessage(
+            'این جدول فیلدی ندارد.',
+            persianFont,
+            latinFont,
           ),
         ],
-      ),
-    ];
+      );
+    }
 
-    for (var i = 0; i < rows.length; i++) {
-      final rawRow = rows[i];
-      final values = rawRow is Map ? rawRow['values'] : null;
-      tableRows.add(
+    if (table.rows.isEmpty) {
+      return pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+        children: <pw.Widget>[
+          heading,
+          _buildMessage(
+            'این جدول رکوردی ندارد.',
+            persianFont,
+            latinFont,
+          ),
+        ],
+      );
+    }
+
+    final header = pw.TableRow(
+      decoration: const pw.BoxDecoration(color: PdfColors.grey300),
+      children: <pw.Widget>[
+        _tableCell('#', persianFont, latinFont, bold: true),
+        ...table.columns.map(
+          (column) => _tableCell(
+            column,
+            persianFont,
+            latinFont,
+            bold: true,
+          ),
+        ),
+      ],
+    );
+
+    final rows = <pw.TableRow>[header];
+    for (var index = 0; index < table.rows.length; index++) {
+      final row = table.rows[index];
+      rows.add(
         pw.TableRow(
           children: <pw.Widget>[
-            _tableCell('${i + 1}', persianFont, latinFont),
-            ...columns.map((column) {
-              final value = values is Map && values[column] != null
-                  ? values[column].toString()
-                  : '';
-              return _tableCell(
-                value.isEmpty ? '—' : value,
+            _tableCell('${index + 1}', persianFont, latinFont),
+            ...table.columns.map(
+              (column) => _tableCell(
+                row.values[column] ?? '—',
                 persianFont,
                 latinFont,
-              );
-            }),
+              ),
+            ),
           ],
         ),
       );
     }
 
-    content.add(
-      pw.Padding(
-        padding: pw.EdgeInsets.only(
-          right: indent,
-          bottom: 16,
-        ),
-        child: pw.Directionality(
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+      children: <pw.Widget>[
+        heading,
+        pw.Directionality(
           textDirection: pw.TextDirection.rtl,
           child: pw.Table(
             border: pw.TableBorder.all(
@@ -315,10 +307,11 @@ class PdfExportService {
             ),
             defaultVerticalAlignment:
                 pw.TableCellVerticalAlignment.middle,
-            children: tableRows,
+            children: rows,
           ),
         ),
-      ),
+        pw.SizedBox(height: 12),
+      ],
     );
   }
 
@@ -328,34 +321,61 @@ class PdfExportService {
     pw.Font latinFont, {
     bool bold = false,
   }) {
+    final rtl = _containsRtl(value);
     return pw.Padding(
-      padding: const pw.EdgeInsets.all(4),
-      child: _text(
-        value,
-        persianFont: persianFont,
-        latinFont: latinFont,
-        fontSize: bold ? 9 : 8,
-        bold: bold,
+      padding: const pw.EdgeInsets.all(5),
+      child: pw.Directionality(
+        textDirection: rtl ? pw.TextDirection.rtl : pw.TextDirection.ltr,
+        child: _buildText(
+          value,
+          persianFont,
+          latinFont,
+          fontSize: bold ? 9 : 8,
+          bold: bold,
+          align: rtl ? pw.TextAlign.right : pw.TextAlign.left,
+        ),
       ),
     );
   }
 
-  pw.Widget _message(
+  pw.Widget _buildMessage(
     String message,
     pw.Font persianFont,
     pw.Font latinFont,
-    double right,
   ) {
-    return pw.Padding(
-      padding: pw.EdgeInsets.only(
-        right: right,
-        bottom: 10,
+    return pw.Container(
+      padding: const pw.EdgeInsets.fromLTRB(8, 6, 8, 10),
+      child: pw.Directionality(
+        textDirection: pw.TextDirection.rtl,
+        child: _buildText(
+          message,
+          persianFont,
+          latinFont,
+          fontSize: 10,
+          align: pw.TextAlign.right,
+        ),
       ),
-      child: _text(
-        message,
-        persianFont: persianFont,
-        latinFont: latinFont,
-        fontSize: 10,
+    );
+  }
+
+  pw.Text _buildText(
+    String value,
+    pw.Font persianFont,
+    pw.Font latinFont, {
+    double fontSize = 14,
+    bool bold = false,
+    pw.TextAlign align = pw.TextAlign.left,
+  }) {
+    final rtl = _containsRtl(value);
+    return pw.Text(
+      value,
+      textDirection: rtl ? pw.TextDirection.rtl : pw.TextDirection.ltr,
+      textAlign: align,
+      style: pw.TextStyle(
+        font: rtl ? persianFont : latinFont,
+        fontFallback: <pw.Font>[rtl ? latinFont : persianFont],
+        fontSize: fontSize,
+        fontWeight: bold ? pw.FontWeight.bold : pw.FontWeight.normal,
       ),
     );
   }
@@ -364,37 +384,149 @@ class PdfExportService {
         r'[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]',
       ).hasMatch(value);
 
-  pw.Text _text(
-    String value, {
-    required pw.Font persianFont,
-    required pw.Font latinFont,
-    double fontSize = 14,
-    bool bold = false,
-  }) {
-    final hasRtl = _containsRtl(value);
-
-    return pw.Text(
-      value,
-      textDirection:
-          hasRtl ? pw.TextDirection.rtl : pw.TextDirection.ltr,
-      textAlign:
-          hasRtl ? pw.TextAlign.right : pw.TextAlign.left,
-      style: pw.TextStyle(
-        font: hasRtl ? persianFont : latinFont,
-        fontFallback: <pw.Font>[
-          hasRtl ? latinFont : persianFont,
-        ],
-        fontSize: fontSize,
-        fontWeight:
-            bold ? pw.FontWeight.bold : pw.FontWeight.normal,
-      ),
-    );
-  }
-
   String _sanitizeFileName(String name) {
     final sanitized = name
         .replaceAll(RegExp(r'[<>:"/\\|?*]'), '_')
         .trim();
     return sanitized.isEmpty ? 'Pass-Managers' : sanitized;
   }
+}
+
+class _PdfDocumentModel {
+  const _PdfDocumentModel({
+    required this.title,
+    required this.folders,
+    required this.rootTables,
+  });
+
+  final String title;
+  final List<_PdfFolder> folders;
+  final List<_PdfTable> rootTables;
+
+  factory _PdfDocumentModel.fromRoot(Map<String, dynamic> root) {
+    final folders = <_PdfFolder>[];
+    final rootTables = <_PdfTable>[];
+    final children = root['children'];
+
+    if (children is List) {
+      for (final child in children) {
+        if (child is! Map) continue;
+        final map = Map<String, dynamic>.from(child);
+        final type = map['type']?.toString();
+        if (type == 'folder') {
+          folders.add(_PdfFolder.fromMap(map));
+        } else if (type == 'table') {
+          rootTables.add(_PdfTable.fromMap(map));
+        }
+      }
+    }
+
+    return _PdfDocumentModel(
+      title: root['name']?.toString() ?? 'Pass Managers',
+      folders: folders,
+      rootTables: rootTables,
+    );
+  }
+}
+
+class _PdfFolder {
+  const _PdfFolder({
+    required this.name,
+    required this.tables,
+    required this.children,
+  });
+
+  final String name;
+  final List<_PdfTable> tables;
+  final List<_PdfFolder> children;
+
+  factory _PdfFolder.fromMap(Map<String, dynamic> map) {
+    final tables = <_PdfTable>[];
+    final children = <_PdfFolder>[];
+    final rawChildren = map['children'];
+
+    if (rawChildren is List) {
+      for (final child in rawChildren) {
+        if (child is! Map) continue;
+        final childMap = Map<String, dynamic>.from(child);
+        switch (childMap['type']?.toString()) {
+          case 'table':
+            tables.add(_PdfTable.fromMap(childMap));
+          case 'folder':
+            children.add(_PdfFolder.fromMap(childMap));
+        }
+      }
+    }
+
+    return _PdfFolder(
+      name: map['name']?.toString() ?? '',
+      tables: tables,
+      children: children,
+    );
+  }
+}
+
+class _PdfTable {
+  const _PdfTable({
+    required this.name,
+    required this.columns,
+    required this.rows,
+  });
+
+  final String name;
+  final List<String> columns;
+  final List<_PdfRow> rows;
+
+  factory _PdfTable.fromMap(Map<String, dynamic> map) {
+    final rawRows = map['rows'];
+    final positions = <String, int>{};
+    final parsedRows = <_PdfRow>[];
+
+    if (rawRows is List) {
+      for (final rawRow in rawRows) {
+        if (rawRow is! Map) continue;
+        final fields = rawRow['fields'];
+        if (fields is List) {
+          for (final rawField in fields) {
+            if (rawField is! Map) continue;
+            final name = rawField['name']?.toString() ?? '';
+            if (name.isEmpty) continue;
+            final rawPosition = rawField['position'];
+            final position = rawPosition is int ? rawPosition : 999999;
+            final previous = positions[name];
+            if (previous == null || position < previous) {
+              positions[name] = position;
+            }
+          }
+        }
+
+        final values = <String, String>{};
+        final rawValues = rawRow['values'];
+        if (rawValues is Map) {
+          rawValues.forEach((key, value) {
+            values[key.toString()] = value?.toString() ?? '';
+          });
+        }
+        parsedRows.add(_PdfRow(values));
+      }
+    }
+
+    final columns = positions.keys.toList()
+      ..sort((a, b) {
+        final compare = positions[a]!.compareTo(positions[b]!);
+        return compare == 0 ? a.compareTo(b) : compare;
+      });
+
+    return _PdfTable(
+      name: map['name']?.toString() ?? '',
+      columns: columns,
+      rows: parsedRows,
+    );
+  }
+}
+
+class _PdfRow {
+  const _PdfRow(this.values);
+
+  final Map<String, String> values;
 }
