@@ -35,20 +35,8 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-          $requiredFiles = @(
-            "pubspec.yaml",
-            "lib/main.dart",
-            "windows/CMakeLists.txt",
-            "windows/flutter/CMakeLists.txt",
-            "windows/runner/CMakeLists.txt",
-            "windows/runner/main.cpp",
-            "windows/runner/flutter_window.cpp",
-            "windows/runner/flutter_window.h"
-          )
-          foreach ($file in $requiredFiles) {
-            if (-not (Test-Path $file)) { throw "Required Windows project file is missing: $file" }
-            Write-Host "OK: $file"
-          }
+          $requiredFiles = @("pubspec.yaml","lib/main.dart","windows/CMakeLists.txt","windows/flutter/CMakeLists.txt","windows/runner/CMakeLists.txt","windows/runner/main.cpp","windows/runner/flutter_window.cpp","windows/runner/flutter_window.h")
+          foreach ($file in $requiredFiles) { if (-not (Test-Path $file)) { throw "Required Windows project file is missing: $file" } }
 
       - name: Clean generated Windows files
         shell: pwsh
@@ -69,9 +57,10 @@ jobs:
           $ErrorActionPreference = "Stop"
           $deps = (flutter pub deps --style=compact | Out-String)
           Write-Host $deps
-          if ($deps -notmatch "flutter_secure_storage 9\.2\.4") { throw "flutter_secure_storage 9.2.4 was not resolved." }
+          if ($deps -notmatch "flutter_secure_storage 10\.3\.1") { throw "flutter_secure_storage 10.3.1 was not resolved." }
           if ($deps -notmatch "flutter_secure_storage_windows 4\.2\.2") { throw "flutter_secure_storage_windows 4.2.2 was not resolved." }
-          if ($deps -notmatch "file_picker 8\.3\.7") { throw "file_picker 8.3.7 was not resolved." }
+          if ($deps -notmatch "file_picker 12\.0\.0-beta\.7") { throw "file_picker 12.0.0-beta.7 was not resolved." }
+          if ($deps -notmatch "win32 6\.") { throw "win32 6.x was not resolved." }
           Write-Host "Project dependency versions are resolved correctly."
 
       - name: Analyze Flutter project
@@ -84,15 +73,9 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-          if (-not (Test-Path "test")) {
-            Write-Host "No test directory exists in this project; there are no Flutter tests to run."
-            exit 0
-          }
+          if (-not (Test-Path "test")) { Write-Host "No test directory exists; skipping tests."; exit 0 }
           $testFiles = Get-ChildItem -Path "test" -Recurse -Filter "*_test.dart" -File -ErrorAction SilentlyContinue
-          if ($null -eq $testFiles -or $testFiles.Count -eq 0) {
-            Write-Host "Test directory exists but contains no *_test.dart files; there are no Flutter tests to run."
-            exit 0
-          }
+          if ($null -eq $testFiles -or $testFiles.Count -eq 0) { Write-Host "No Flutter test files found; skipping tests."; exit 0 }
           flutter test
 
       - name: Build Windows Release
