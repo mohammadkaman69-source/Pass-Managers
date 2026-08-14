@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:cryptography/cryptography.dart';
 import 'package:file_picker/file_picker.dart';
@@ -68,12 +69,12 @@ class BackupService {
 
       final pickerBytes = Uint8List.fromList(bytes);
       try {
-        final path = await FilePicker.platform.saveFile(
+        final path = await FilePicker.saveFile(
           dialogTitle: 'ذخیره نسخه پشتیبان Pass Managers',
           fileName: fileName,
+          bytes: pickerBytes,
           type: FileType.custom,
           allowedExtensions: const ['pmb'],
-          bytes: pickerBytes,
         );
         return path != null && path.isNotEmpty;
       } finally {
@@ -87,19 +88,18 @@ class BackupService {
   }
 
   Future<void> restoreBackup({required String masterPassword}) async {
-    final result = await FilePicker.platform.pickFiles(
+    final file = await FilePicker.pickFile(
       dialogTitle: 'انتخاب نسخه پشتیبان Pass Managers',
       type: FileType.custom,
       allowedExtensions: const ['pmb'],
-      withData: true,
     );
 
-    if (result == null || result.files.isEmpty) {
+    if (file == null) {
       throw const BackupCancelledException();
     }
 
-    final source = result.files.single.bytes;
-    if (source == null || source.isEmpty) {
+    final source = await file.readAsBytes();
+    if (source.isEmpty) {
       throw const BackupFormatException('فایل پشتیبان قابل خواندن نیست.');
     }
 
