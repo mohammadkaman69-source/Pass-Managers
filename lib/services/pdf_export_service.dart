@@ -265,12 +265,7 @@ class PdfExportService {
           color: PdfColors.grey300,
         ),
         children: <pw.Widget>[
-          _tableCell(
-            '#',
-            persianFont,
-            latinFont,
-            bold: true,
-          ),
+          _tableCell('#', persianFont, latinFont, bold: true),
           ...columns.map(
             (column) => _tableCell(
               column,
@@ -305,9 +300,9 @@ class PdfExportService {
       );
     }
 
-    // The pdf package has native Unicode BiDi handling and Directionality.
-    // We deliberately do not reverse strings ourselves: doing so breaks
-    // mixed Persian + English + numbers (for example IP addresses).
+    // The pdf package already implements Unicode BiDi support. We must not
+    // reverse strings manually because that breaks mixed Persian + English +
+    // numbers such as IP addresses and passwords.
     content.add(
       pw.Padding(
         padding: pw.EdgeInsets.only(
@@ -317,7 +312,6 @@ class PdfExportService {
         child: pw.Directionality(
           textDirection: pw.TextDirection.rtl,
           child: pw.Table(
-            textDirection: pw.TextDirection.rtl,
             border: pw.TableBorder.all(
               color: PdfColors.grey500,
               width: 0.5,
@@ -389,8 +383,6 @@ class PdfExportService {
       textAlign:
           hasRtl ? pw.TextAlign.right : pw.TextAlign.left,
       style: pw.TextStyle(
-        // BNazanin remains the project's embedded Persian font. The PDF
-        // engine handles shaping/BiDi; Helvetica is only a Latin fallback.
         font: hasRtl ? persianFont : latinFont,
         fontFallback: <pw.Font>[
           hasRtl ? latinFont : persianFont,
