@@ -192,7 +192,7 @@ class PdfExportService {
     final name = node['name']?.toString() ?? '';
     final indent = level * 18.0;
 
-    content.add(const pw.SizedBox(height: 10));
+    content.add(pw.SizedBox(height: 10));
     content.add(
       pw.Padding(
         padding: pw.EdgeInsets.only(
@@ -300,9 +300,6 @@ class PdfExportService {
       );
     }
 
-    // The pdf package already implements Unicode BiDi support. We must not
-    // reverse strings manually because that breaks mixed Persian + English +
-    // numbers such as IP addresses and passwords.
     content.add(
       pw.Padding(
         padding: pw.EdgeInsets.only(
