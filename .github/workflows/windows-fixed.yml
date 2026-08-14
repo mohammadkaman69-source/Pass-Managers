@@ -10,13 +10,10 @@ permissions:
   contents: read
 
 jobs:
-
   windows-fixed-build:
     name: Windows Fixed Release
     runs-on: windows-latest
-
     steps:
-
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -31,17 +28,13 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-          Write-Host "===== FLUTTER VERSION ====="
           flutter --version
-          Write-Host ""
-          Write-Host "===== FLUTTER DOCTOR ====="
           flutter doctor -v
 
       - name: Verify Windows project
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-          Write-Host "===== WINDOWS PROJECT CHECK ====="
           $requiredFiles = @(
             "pubspec.yaml",
             "lib/main.dart",
@@ -56,7 +49,6 @@ jobs:
             if (-not (Test-Path $file)) { throw "Required Windows project file is missing: $file" }
             Write-Host "OK: $file"
           }
-          Write-Host "Windows project structure is valid."
 
       - name: Clean generated Windows files
         shell: pwsh
@@ -75,7 +67,6 @@ jobs:
             flutter_secure_storage_windows: 4.2.2
             file_picker: 12.0.0-beta.7
           "@ | Set-Content -Path "pubspec_overrides.yaml" -Encoding UTF8
-          Get-Content "pubspec_overrides.yaml"
 
       - name: Get Flutter dependencies
         shell: pwsh
@@ -87,11 +78,12 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-          $deps = flutter pub deps --style=compact
-          $deps
+          $deps = (flutter pub deps --style=compact | Out-String)
+          Write-Host $deps
           if ($deps -notmatch "flutter_secure_storage 10\.3\.1") { throw "flutter_secure_storage 10.3.1 was not resolved." }
           if ($deps -notmatch "flutter_secure_storage_windows 4\.2\.2") { throw "flutter_secure_storage_windows 4.2.2 was not resolved." }
           if ($deps -notmatch "file_picker 12\.0\.0-beta\.7") { throw "file_picker 12.0.0-beta.7 was not resolved." }
+          Write-Host "Required Windows dependency versions are resolved correctly."
 
       - name: Analyze Flutter project
         shell: pwsh
@@ -119,7 +111,6 @@ jobs:
           if (-not (Test-Path $releasePath)) { throw "Windows Release directory was not generated." }
           $exeFiles = Get-ChildItem -Path $releasePath -Filter "*.exe" -File
           if ($null -eq $exeFiles -or $exeFiles.Count -eq 0) { throw "Windows executable was not generated." }
-          Get-ChildItem $releasePath -Recurse | Select-Object FullName, Length
 
       - name: Package Windows Release
         shell: pwsh
@@ -130,7 +121,6 @@ jobs:
           if (Test-Path $destination) { Remove-Item $destination -Force }
           Compress-Archive -Path "$source/*" -DestinationPath $destination -Force
           if (-not (Test-Path $destination)) { throw "Windows ZIP was not created." }
-          Get-Item $destination | Select-Object FullName, Length
 
       - name: Remove temporary dependency overrides
         if: always()
