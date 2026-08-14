@@ -94,11 +94,11 @@ class BackupService {
       withData: true,
     );
 
-    if (result == null || result.files.isEmpty) {
+    if (result == null || result.isEmpty) {
       throw const BackupCancelledException();
     }
 
-    final source = result.files.single.bytes;
+    final source = result.single.bytes;
     if (source == null || source.isEmpty) {
       throw const BackupFormatException('فایل پشتیبان قابل خواندن نیست.');
     }
