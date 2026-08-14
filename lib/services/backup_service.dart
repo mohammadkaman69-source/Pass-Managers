@@ -75,7 +75,7 @@ class BackupService {
           allowedExtensions: const ['pmb'],
           bytes: pickerBytes,
         );
-        return path != null && path.isNotEmpty;
+        return path != null && path.toString().isNotEmpty;
       } finally {
         pickerBytes.fillRange(0, pickerBytes.length, 0);
       }
@@ -87,19 +87,18 @@ class BackupService {
   }
 
   Future<void> restoreBackup({required String masterPassword}) async {
-    final result = await FilePicker.pickFiles(
+    final sourceFile = await FilePicker.pickFile(
       dialogTitle: 'انتخاب نسخه پشتیبان Pass Managers',
       type: FileType.custom,
       allowedExtensions: const ['pmb'],
-      withData: true,
     );
 
-    if (result == null || result.isEmpty) {
+    if (sourceFile == null) {
       throw const BackupCancelledException();
     }
 
-    final source = result.single.bytes;
-    if (source == null || source.isEmpty) {
+    final source = await sourceFile.readAsBytes();
+    if (source.isEmpty) {
       throw const BackupFormatException('فایل پشتیبان قابل خواندن نیست.');
     }
 
