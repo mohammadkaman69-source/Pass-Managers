@@ -95,6 +95,15 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
+          if (-not (Test-Path "test")) {
+            Write-Host "No test directory exists in this project; there are no Flutter tests to run."
+            exit 0
+          }
+          $testFiles = Get-ChildItem -Path "test" -Recurse -Filter "*_test.dart" -File -ErrorAction SilentlyContinue
+          if ($null -eq $testFiles -or $testFiles.Count -eq 0) {
+            Write-Host "Test directory exists but contains no *_test.dart files; there are no Flutter tests to run."
+            exit 0
+          }
           flutter test
 
       - name: Build Windows Release
