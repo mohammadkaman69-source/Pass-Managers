@@ -114,7 +114,7 @@ class PdfExportService {
       }
     }
 
-    final result = await FilePicker.saveFile(
+    final result = await FilePicker.platform.saveFile(
       dialogTitle: 'ذخیره PDF Pass Managers',
       fileName: fileName,
       type: FileType.custom,
