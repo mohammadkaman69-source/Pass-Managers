@@ -91,15 +91,14 @@ class BackupService {
       dialogTitle: 'انتخاب نسخه پشتیبان Pass Managers',
       type: FileType.custom,
       allowedExtensions: const ['pmb'],
-      withData: true,
     );
 
     if (result == null || result.files.isEmpty) {
       throw const BackupCancelledException();
     }
 
-    final source = result.files.single.bytes;
-    if (source == null || source.isEmpty) {
+    final source = await result.files.single.readAsBytes();
+    if (source.isEmpty) {
       throw const BackupFormatException('فایل پشتیبان قابل خواندن نیست.');
     }
 
