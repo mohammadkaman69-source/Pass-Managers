@@ -12,8 +12,18 @@ jobs:
     runs-on: windows-latest
 
     steps:
+
+      # ============================================================
+      # CHECKOUT
+      # ============================================================
+
       - name: Checkout repository
         uses: actions/checkout@v4
+
+
+      # ============================================================
+      # FLUTTER
+      # ============================================================
 
       - name: Setup Flutter 3.44.7
         uses: subosito/flutter-action@v2
@@ -28,11 +38,23 @@ jobs:
           $ErrorActionPreference = "Stop"
 
           Write-Host "===== FLUTTER VERSION ====="
+
           flutter --version
 
           Write-Host ""
           Write-Host "===== FLUTTER DOCTOR ====="
+
           flutter doctor -v
+
+
+      # ============================================================
+      # WINDOWS PROJECT
+      #
+      # IMPORTANT:
+      # Do NOT regenerate Windows.
+      # Do NOT modify windows/CMakeLists.txt.
+      # Do NOT modify windows/runner.
+      # ============================================================
 
       - name: Verify Windows project
         shell: pwsh
@@ -53,6 +75,7 @@ jobs:
           )
 
           foreach ($file in $requiredFiles) {
+
             if (-not (Test-Path $file)) {
               throw "Required Windows project file is missing: $file"
             }
@@ -63,7 +86,17 @@ jobs:
           Write-Host ""
           Write-Host "Windows project structure is valid."
 
-      - name: Remove stale generated Windows files
+
+      # ============================================================
+      # CLEAN GENERATED WINDOWS BUILD ONLY
+      #
+      # We intentionally do NOT touch:
+      # windows/CMakeLists.txt
+      # windows/runner/*
+      # windows/flutter/CMakeLists.txt
+      # ============================================================
+
+      - name: Clean generated Windows files
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
@@ -72,6 +105,7 @@ jobs:
 
           if (Test-Path "windows/flutter/ephemeral") {
             Write-Host "Removing windows/flutter/ephemeral..."
+
             Remove-Item `
               "windows/flutter/ephemeral" `
               -Recurse `
@@ -80,35 +114,65 @@ jobs:
 
           if (Test-Path "build/windows") {
             Write-Host "Removing build/windows..."
+
             Remove-Item `
               "build/windows" `
               -Recurse `
               -Force
           }
 
+          Write-Host ""
           Write-Host "Generated Windows files cleaned."
 
-      - name: Create temporary Windows dependency override
+
+      # ============================================================
+      # WINDOWS-ONLY DEPENDENCY OVERRIDES
+      #
+      # IMPORTANT:
+      #
+      # pubspec.yaml in the repository is NOT modified.
+      #
+      # Original project:
+      #
+      # file_picker ^8.3.7
+      # flutter_secure_storage ^9.2.4
+      #
+      # Windows fixed runner:
+      #
+      # file_picker 12.0.0-beta.7
+      # flutter_secure_storage_windows 4.2.2
+      #
+      # file_picker 12.x beta migrated Windows to win32 6.x.
+      # flutter_secure_storage_windows 4.2.2 also uses win32 6.x.
+      #
+      # Therefore the two packages can coexist.
+      # ============================================================
+
+      - name: Create Windows dependency overrides
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
 
-          Write-Host "===== WINDOWS DEPENDENCY OVERRIDE ====="
+          Write-Host "===== WINDOWS DEPENDENCY OVERRIDES ====="
 
-          $override = @'
+          @"
           dependency_overrides:
+            file_picker: 12.0.0-beta.7
             flutter_secure_storage_windows: 4.2.2
-            file_picker: 10.2.0
-          '@
-
-          Set-Content `
+          "@ | Set-Content `
             -Path "pubspec_overrides.yaml" `
-            -Value $override `
             -Encoding UTF8
 
           Write-Host ""
-          Write-Host "Temporary pubspec_overrides.yaml:"
+          Write-Host "Created temporary pubspec_overrides.yaml:"
+          Write-Host ""
+
           Get-Content "pubspec_overrides.yaml"
+
+
+      # ============================================================
+      # PUB GET
+      # ============================================================
 
       - name: Get Flutter dependencies
         shell: pwsh
@@ -119,14 +183,40 @@ jobs:
 
           flutter pub get
 
-      - name: Show resolved Windows dependencies
+
+      # ============================================================
+      # VERIFY RESOLVED DEPENDENCIES
+      # ============================================================
+
+      - name: Verify resolved Windows dependencies
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
 
-          Write-Host "===== RESOLVED DEPENDENCIES ====="
+          Write-Host "===== VERIFYING RESOLVED DEPENDENCIES ====="
 
-          flutter pub deps --style=compact
+          $deps = flutter pub deps --style=compact
+
+          Write-Host $deps
+
+          Write-Host ""
+          Write-Host "===== CHECKING REQUIRED WINDOWS PACKAGES ====="
+
+          if ($deps -notmatch "file_picker 12\.0\.0-beta\.7") {
+            throw "file_picker 12.0.0-beta.7 was not resolved."
+          }
+
+          if ($deps -notmatch "flutter_secure_storage_windows 4\.2\.2") {
+            throw "flutter_secure_storage_windows 4.2.2 was not resolved."
+          }
+
+          Write-Host ""
+          Write-Host "Required Windows dependency versions resolved successfully."
+
+
+      # ============================================================
+      # FLUTTER ANALYZE
+      # ============================================================
 
       - name: Analyze Flutter project
         shell: pwsh
@@ -137,6 +227,11 @@ jobs:
 
           flutter analyze
 
+
+      # ============================================================
+      # BUILD WINDOWS
+      # ============================================================
+
       - name: Build Windows Release
         shell: pwsh
         run: |
@@ -145,6 +240,11 @@ jobs:
           Write-Host "===== BUILDING WINDOWS ====="
 
           flutter build windows --release
+
+
+      # ============================================================
+      # VERIFY WINDOWS BUILD
+      # ============================================================
 
       - name: Verify Windows build
         shell: pwsh
@@ -159,22 +259,30 @@ jobs:
             throw "Windows Release directory was not generated."
           }
 
-          $exe = Get-ChildItem `
+          $exeFiles = Get-ChildItem `
             -Path $releasePath `
             -Filter "*.exe" `
             -File
 
-          if ($null -eq $exe) {
+          if ($null -eq $exeFiles -or $exeFiles.Count -eq 0) {
             throw "Windows executable was not generated."
           }
 
           Write-Host ""
           Write-Host "Windows Release generated successfully."
 
+          Write-Host ""
+          Write-Host "===== WINDOWS RELEASE CONTENT ====="
+
           Get-ChildItem `
             $releasePath `
             -Recurse |
             Select-Object FullName, Length
+
+
+      # ============================================================
+      # PACKAGE
+      # ============================================================
 
       - name: Package Windows Release
         shell: pwsh
@@ -184,7 +292,9 @@ jobs:
           Write-Host "===== PACKAGING WINDOWS RELEASE ====="
 
           $source = "build/windows/x64/runner/Release"
-          $destination = "build/Pass-Managers-Windows-Fixed-Release.zip"
+
+          $destination = `
+            "build/Pass-Managers-Windows-Fixed-Release.zip"
 
           if (-not (Test-Path $source)) {
             throw "Windows Release directory does not exist."
@@ -211,7 +321,15 @@ jobs:
           Get-Item $destination |
             Select-Object FullName, Length
 
-      - name: Remove temporary dependency override
+
+      # ============================================================
+      # CLEAN TEMPORARY OVERRIDE
+      #
+      # This is the ONLY temporary dependency modification.
+      # The repository pubspec.yaml remains untouched.
+      # ============================================================
+
+      - name: Remove temporary dependency overrides
         if: always()
         shell: pwsh
         run: |
@@ -223,9 +341,14 @@ jobs:
             Remove-Item `
               "pubspec_overrides.yaml" `
               -Force
+
+            Write-Host "Temporary dependency override removed."
           }
 
-          Write-Host "Temporary dependency override removed."
+
+      # ============================================================
+      # UPLOAD
+      # ============================================================
 
       - name: Upload Windows Release
         uses: actions/upload-artifact@v4
