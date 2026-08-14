@@ -1,0 +1,200 @@
+name: Windows Flutter Fixed Build
+
+"on":
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-fixed-build:
+    name: Windows Fixed Flutter Build
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.44.7"
+          channel: stable
+          cache: true
+
+      - name: Flutter Version
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          Write-Host "===== FLUTTER VERSION ====="
+          flutter --version
+
+      - name: Flutter Doctor
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          Write-Host "===== FLUTTER DOCTOR ====="
+          flutter doctor -v
+
+      - name: Verify Windows Project
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          Write-Host "===== WINDOWS PROJECT CHECK ====="
+
+          $required = @(
+            "pubspec.yaml",
+            "lib\main.dart",
+            "windows\CMakeLists.txt",
+            "windows\flutter\CMakeLists.txt",
+            "windows\runner\CMakeLists.txt",
+            "windows\runner\main.cpp",
+            "windows\runner\flutter_window.cpp",
+            "windows\runner\flutter_window.h"
+          )
+
+          foreach ($file in $required) {
+            if (-not (Test-Path $file)) {
+              throw "Required file is missing: $file"
+            }
+
+            Write-Host "OK: $file"
+          }
+
+          Write-Host ""
+          Write-Host "Windows project structure is valid."
+
+      - name: Clean Generated Flutter Files
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          Write-Host "===== CLEANING GENERATED FILES ====="
+
+          flutter clean
+
+          if (Test-Path "build") {
+            Remove-Item -Recurse -Force "build"
+          }
+
+          if (Test-Path ".dart_tool") {
+            Remove-Item -Recurse -Force ".dart_tool"
+          }
+
+          Write-Host "Generated files cleaned."
+
+      - name: Create Temporary Windows Dependency Overrides
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          Write-Host "===== WINDOWS TEMPORARY DEPENDENCY OVERRIDES ====="
+
+          @"
+          dependency_overrides:
+            flutter_secure_storage: 10.3.1
+            flutter_secure_storage_windows: 4.2.2
+            file_picker: 12.0.0-beta.7
+          "@ | Set-Content -Encoding UTF8 "pubspec_overrides.yaml"
+
+          Write-Host ""
+          Get-Content "pubspec_overrides.yaml"
+
+      - name: Flutter Pub Get
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          Write-Host "===== FLUTTER PUB GET ====="
+
+          flutter pub get
+
+      - name: Verify Resolved Dependencies
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          Write-Host "===== RESOLVED DEPENDENCIES ====="
+
+          flutter pub deps
+
+      - name: Flutter Analyze
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          Write-Host "===== FLUTTER ANALYZE ====="
+
+          flutter analyze --no-fatal-infos
+
+      - name: Build Windows Release
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          Write-Host "===== BUILDING WINDOWS ====="
+
+          flutter build windows --release
+
+      - name: Verify Windows Executable
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          Write-Host "===== VERIFYING WINDOWS BUILD ====="
+
+          $exe = "build\windows\x64\runner\Release\pass_managers.exe"
+
+          if (-not (Test-Path $exe)) {
+            throw "Windows executable was not generated: $exe"
+          }
+
+          Write-Host "OK: $exe"
+
+      - name: Package Windows Release
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          Write-Host "===== PACKAGING WINDOWS RELEASE ====="
+
+          $source = "build\windows\x64\runner\Release"
+          $output = "Pass-Managers-Windows-Release.zip"
+
+          if (-not (Test-Path $source)) {
+            throw "Release directory does not exist: $source"
+          }
+
+          if (Test-Path $output) {
+            Remove-Item -Force $output
+          }
+
+          Compress-Archive `
+            -Path "$source\*" `
+            -DestinationPath $output `
+            -CompressionLevel Optimal
+
+          if (-not (Test-Path $output)) {
+            throw "Failed to create Windows release ZIP."
+          }
+
+          Write-Host "Created: $output"
+
+      - name: Upload Windows Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Pass-Managers-Windows-Release
+          path: Pass-Managers-Windows-Release.zip
+          if-no-files-found: error
+
+      - name: Remove Temporary Dependency Overrides
+        if: always()
+        shell: pwsh
+        run: |
+          if (Test-Path "pubspec_overrides.yaml") {
+            Remove-Item -Force "pubspec_overrides.yaml"
+            Write-Host "Temporary pubspec_overrides.yaml removed."
+          }
