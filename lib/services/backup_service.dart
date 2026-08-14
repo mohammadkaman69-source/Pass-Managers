@@ -17,8 +17,7 @@ class BackupService {
         _securityManager = securityManager ?? SecurityManager();
 
   static const int _formatVersion = 1;
-  static const MethodChannel _channel =
-      MethodChannel('pass_managers/file_saver');
+  static const MethodChannel _channel = MethodChannel('pass_managers/file_saver');
 
   final TreeRepository _repository;
   final SecurityManager _securityManager;
@@ -43,14 +42,12 @@ class BackupService {
         plainText: payload,
         key: key,
       );
-
       final backupText = jsonEncode({
         'format': 'pass_managers_encrypted_backup',
         'version': _formatVersion,
         'salt': base64Encode(salt),
         'ciphertext': encrypted,
       });
-
       final bytes = Uint8List.fromList(utf8.encode(backupText));
       final fileName = 'Pass-Managers-Backup-${_timestamp()}.pmb';
 
@@ -58,10 +55,7 @@ class BackupService {
         final nativeBytes = Uint8List.fromList(bytes);
         final path = await _channel.invokeMethod<String>(
           'saveBackup',
-          <String, dynamic>{
-            'fileName': fileName,
-            'bytes': nativeBytes,
-          },
+          <String, dynamic>{'fileName': fileName, 'bytes': nativeBytes},
         );
         nativeBytes.fillRange(0, nativeBytes.length, 0);
         return path != null && path.isNotEmpty;
@@ -88,17 +82,16 @@ class BackupService {
   }
 
   Future<void> restoreBackup({required String masterPassword}) async {
-    final file = await FilePicker.pickFile(
-      dialogTitle: 'انتخاب نسخه پشتیبان Pass Managers',
+    final result = await FilePicker.pickFiles(
+      allowMultiple: false,
       type: FileType.custom,
       allowedExtensions: const ['pmb'],
     );
-
-    if (file == null) {
+    if (result == null || result.files.isEmpty) {
       throw const BackupCancelledException();
     }
 
-    final source = await file.readAsBytes();
+    final source = await result.xFiles.first.readAsBytes();
     if (source.isEmpty) {
       throw const BackupFormatException('فایل پشتیبان قابل خواندن نیست.');
     }
@@ -106,23 +99,18 @@ class BackupService {
     final bytes = Uint8List.fromList(source);
     try {
       final outer = jsonDecode(utf8.decode(bytes));
-      if (outer is! Map ||
-          outer['format'] != 'pass_managers_encrypted_backup') {
+      if (outer is! Map || outer['format'] != 'pass_managers_encrypted_backup') {
         throw const BackupFormatException('فرمت نسخه پشتیبان معتبر نیست.');
       }
-
       if (outer['version'] != _formatVersion) {
-        throw BackupFormatException(
-          'نسخه پشتیبان پشتیبانی نمی‌شود: ${outer['version']}',
-        );
+        throw BackupFormatException('نسخه پشتیبان پشتیبانی نمی‌شود: ${outer['version']}');
       }
 
       final ciphertext = outer['ciphertext']?.toString();
+      final saltValue = outer['salt']?.toString();
       if (ciphertext == null || ciphertext.isEmpty) {
         throw const BackupFormatException('داده رمزنگاری‌شده پیدا نشد.');
       }
-
-      final saltValue = outer['salt']?.toString();
       if (saltValue == null || saltValue.isEmpty) {
         throw const BackupFormatException('نسخه پشتیبان فاقد salt است.');
       }
@@ -132,44 +120,28 @@ class BackupService {
         masterPassword: masterPassword,
         salt: salt,
       );
-
       try {
         final payload = await _securityManager.cryptoService.decrypt(
           encryptedText: ciphertext,
           key: key,
         );
-
         final decoded = jsonDecode(payload);
-        if (decoded is! Map ||
-            decoded['format'] != 'pass_managers_backup') {
-          throw const BackupFormatException(
-            'محتوای نسخه پشتیبان معتبر نیست.',
-          );
+        if (decoded is! Map || decoded['format'] != 'pass_managers_backup') {
+          throw const BackupFormatException('محتوای نسخه پشتیبان معتبر نیست.');
         }
-
         final data = decoded['data'];
         if (data is! List) {
-          throw const BackupFormatException(
-            'ساختار داده نسخه پشتیبان خراب است.',
-          );
+          throw const BackupFormatException('ساختار داده نسخه پشتیبان خراب است.');
         }
-
         final roots = <Map<String, dynamic>>[];
         for (final item in data) {
-          if (item is Map) {
-            roots.add(Map<String, dynamic>.from(item));
-          }
+          if (item is Map) roots.add(Map<String, dynamic>.from(item));
         }
-
         await _repository.replaceFromBackup(roots);
       } on SecretBoxAuthenticationError {
-        throw const BackupFormatException(
-          'نسخه پشتیبان با کلید امنیتی فعلی قابل بازگشایی نیست.',
-        );
+        throw const BackupFormatException('نسخه پشتیبان با کلید امنیتی فعلی قابل بازگشایی نیست.');
       } on FormatException {
-        throw const BackupFormatException(
-          'فایل نسخه پشتیبان خراب یا نامعتبر است.',
-        );
+        throw const BackupFormatException('فایل نسخه پشتیبان خراب یا نامعتبر است.');
       } finally {
         final keyBytes = List<int>.from(await key.extractBytes());
         keyBytes.fillRange(0, keyBytes.length, 0);
@@ -183,9 +155,7 @@ class BackupService {
   String _timestamp() {
     final now = DateTime.now();
     String two(int value) => value.toString().padLeft(2, '0');
-
-    return '${now.year}${two(now.month)}${two(now.day)}-'
-        '${two(now.hour)}${two(now.minute)}${two(now.second)}';
+    return '${now.year}${two(now.month)}${two(now.day)}-${two(now.hour)}${two(now.minute)}${two(now.second)}';
   }
 }
 
@@ -195,9 +165,7 @@ class BackupCancelledException implements Exception {
 
 class BackupFormatException implements Exception {
   const BackupFormatException(this.message);
-
   final String message;
-
   @override
   String toString() => message;
 }
