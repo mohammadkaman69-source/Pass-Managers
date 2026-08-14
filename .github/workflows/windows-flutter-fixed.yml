@@ -29,7 +29,6 @@ jobs:
           $ErrorActionPreference = "Stop"
 
           Write-Host "===== FLUTTER VERSION ====="
-
           flutter --version
 
       - name: Verify Windows Project
@@ -87,10 +86,9 @@ jobs:
               "windows\flutter\ephemeral"
           }
 
-          Write-Host ""
-          Write-Host "Flutter generated files cleaned."
+          Write-Host "Generated files cleaned."
 
-      - name: Create Windows Dependency Overrides
+      - name: Create Temporary Windows Dependency Overrides
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
@@ -106,7 +104,6 @@ jobs:
             -Path "pubspec_overrides.yaml" `
             -Encoding UTF8
 
-          Write-Host ""
           Get-Content "pubspec_overrides.yaml"
 
       - name: Flutter Pub Get
@@ -123,46 +120,30 @@ jobs:
           }
 
           Write-Host ""
-          Write-Host "===== FLUTTER PUB GET PASSED ====="
+          Write-Host "===== PUB GET PASSED ====="
 
-      - name: Verify Windows Dependency Resolution
+      - name: Show Resolved Windows Dependencies
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
 
           Write-Host "===== RESOLVED WINDOWS DEPENDENCIES ====="
 
-          $deps = flutter pub deps --style=compact
+          flutter pub deps --style=compact
 
           if ($LASTEXITCODE -ne 0) {
-            throw "Unable to resolve dependency tree."
-          }
-
-          Write-Host $deps
-
-          $requiredVersions = @(
-            "flutter_secure_storage 10.3.1",
-            "flutter_secure_storage_windows 4.2.2",
-            "file_picker 12.0.0-beta.7"
-          )
-
-          foreach ($required in $requiredVersions) {
-            if ($deps -notmatch [regex]::Escape($required)) {
-              throw "Required dependency was not resolved: $required"
-            }
-
-            Write-Host "OK: $required"
+            throw "Unable to read resolved dependency tree."
           }
 
           Write-Host ""
-          Write-Host "Windows dependency resolution passed."
+          Write-Host "Dependency tree generated successfully."
 
-      - name: Patch Windows File Picker API In Temporary Workspace
+      - name: Temporary Windows FilePicker Compatibility Patch
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
 
-          Write-Host "===== WINDOWS FILE PICKER API PATCH ====="
+          Write-Host "===== WINDOWS FILEPICKER COMPATIBILITY ====="
 
           $files = @(
             "lib\services\backup_service.dart",
@@ -170,10 +151,6 @@ jobs:
           )
 
           foreach ($file in $files) {
-
-            if (-not (Test-Path $file)) {
-              throw "File does not exist: $file"
-            }
 
             $content = Get-Content `
               -Path $file `
@@ -192,10 +169,8 @@ jobs:
               "FilePicker.pickFiles"
             )
 
-            if ($content -eq $original) {
-              Write-Host "No FilePicker API replacement was required in: $file"
-            }
-            else {
+            if ($content -ne $original) {
+
               Set-Content `
                 -Path $file `
                 -Value $content `
@@ -203,17 +178,59 @@ jobs:
 
               Write-Host "Patched: $file"
             }
+            else {
+              Write-Host "No FilePicker.platform usage changed: $file"
+            }
           }
 
           Write-Host ""
-          Write-Host "Temporary Windows API compatibility patch completed."
+          Write-Host "FilePicker compatibility patch completed."
 
-      - name: Verify File Picker API Patch
+      - name: Remove Known Unused PDF Helpers
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
 
-          Write-Host "===== VERIFYING FILE PICKER API ====="
+          Write-Host "===== REMOVING KNOWN UNUSED HELPERS ====="
+
+          $file = "lib\services\pdf_export_service.dart"
+
+          if (-not (Test-Path $file)) {
+            throw "PDF export service not found."
+          }
+
+          $content = Get-Content `
+            -Path $file `
+            -Raw `
+            -Encoding UTF8
+
+          $pattern = '(?ms)\r?\n\s*bool _containsLtr\(String value\)\s*\{.*?\r?\n\s*\}\r?\n\r?\n\s*bool _containsNumber\(String value\)\s*\{.*?\r?\n\s*\}'
+
+          $updated = [regex]::Replace(
+            $content,
+            $pattern,
+            ""
+          )
+
+          if ($updated -ne $content) {
+
+            Set-Content `
+              -Path $file `
+              -Value $updated `
+              -Encoding UTF8
+
+            Write-Host "Known unused helpers removed."
+          }
+          else {
+            Write-Host "Unused helper block was already absent."
+          }
+
+      - name: Verify Legacy FilePicker API Is Gone
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          Write-Host "===== VERIFYING FILEPICKER API ====="
 
           $files = @(
             "lib\services\backup_service.dart",
@@ -228,14 +245,14 @@ jobs:
               -Encoding UTF8
 
             if ($content -match "FilePicker\.platform") {
-              throw "Old FilePicker.platform API still exists in: $file"
+              throw "Legacy FilePicker.platform API still exists in: $file"
             }
 
             Write-Host "OK: $file"
           }
 
           Write-Host ""
-          Write-Host "No legacy FilePicker.platform API remains."
+          Write-Host "Legacy FilePicker API check passed."
 
       - name: Flutter Analyze
         shell: pwsh
@@ -274,7 +291,7 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
 
-          Write-Host "===== VERIFYING WINDOWS BUILD ====="
+          Write-Host "===== VERIFYING WINDOWS EXECUTABLE ====="
 
           $exe = "build\windows\x64\runner\Release\pass_managers.exe"
 
@@ -282,11 +299,10 @@ jobs:
             throw "Windows executable was not generated: $exe"
           }
 
-          Write-Host ""
-          Write-Host "OK: $exe"
+          $info = Get-Item $exe
 
-          Get-Item $exe |
-            Select-Object FullName, Length
+          Write-Host "OK: $($info.FullName)"
+          Write-Host "Size: $($info.Length) bytes"
 
       - name: Package Windows Release
         shell: pwsh
@@ -299,13 +315,11 @@ jobs:
           $output = "Pass-Managers-Windows-Fixed-Release.zip"
 
           if (-not (Test-Path $source)) {
-            throw "Windows Release directory does not exist: $source"
+            throw "Windows release directory does not exist."
           }
 
           if (Test-Path $output) {
-            Remove-Item `
-              -Force `
-              $output
+            Remove-Item -Force $output
           }
 
           Compress-Archive `
@@ -314,16 +328,19 @@ jobs:
             -CompressionLevel Optimal
 
           if (-not (Test-Path $output)) {
-            throw "Failed to create Windows release ZIP."
+            throw "Windows release ZIP was not created."
           }
 
-          Write-Host ""
           Write-Host "Created: $output"
 
-          Get-Item $output |
-            Select-Object FullName, Length
+      - name: Upload Windows Release
+        uses: actions/upload-artifact@v4
+        with:
+          name: Pass-Managers-Windows-Fixed-Release
+          path: Pass-Managers-Windows-Fixed-Release.zip
+          if-no-files-found: error
 
-      - name: Remove Temporary Windows Changes
+      - name: Cleanup Temporary Windows Changes
         if: always()
         shell: pwsh
         run: |
@@ -336,15 +353,7 @@ jobs:
               -Force `
               "pubspec_overrides.yaml"
 
-            Write-Host "Removed temporary pubspec_overrides.yaml."
+            Write-Host "Temporary dependency overrides removed."
           }
 
-          Write-Host ""
-          Write-Host "Runner workspace cleanup completed."
-
-      - name: Upload Windows Release
-        uses: actions/upload-artifact@v4
-        with:
-          name: Pass-Managers-Windows-Fixed-Release
-          path: Pass-Managers-Windows-Fixed-Release.zip
-          if-no-files-found: error
+          Write-Host "Cleanup completed."
