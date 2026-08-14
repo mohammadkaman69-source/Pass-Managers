@@ -68,7 +68,7 @@ class BackupService {
 
       final pickerBytes = Uint8List.fromList(bytes);
       try {
-        final path = await FilePicker.platform.saveFile(
+        final path = await FilePicker.saveFile(
           dialogTitle: 'ذخیره نسخه پشتیبان Pass Managers',
           fileName: fileName,
           type: FileType.custom,
@@ -87,7 +87,7 @@ class BackupService {
   }
 
   Future<void> restoreBackup({required String masterPassword}) async {
-    final result = await FilePicker.platform.pickFiles(
+    final result = await FilePicker.pickFiles(
       dialogTitle: 'انتخاب نسخه پشتیبان Pass Managers',
       type: FileType.custom,
       allowedExtensions: const ['pmb'],
