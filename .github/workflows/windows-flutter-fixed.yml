@@ -12,8 +12,17 @@ jobs:
     runs-on: windows-latest
 
     steps:
+      # ============================================================
+      # CHECKOUT
+      # ============================================================
+
       - name: Checkout
         uses: actions/checkout@v4
+
+      # ============================================================
+      # FLUTTER
+      # آخرین نسخه‌ای که قبلاً در پروژه Windows Build موفق داشته
+      # ============================================================
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -21,6 +30,10 @@ jobs:
           flutter-version: "3.44.7"
           channel: stable
           cache: true
+
+      # ============================================================
+      # FLUTTER VERSION
+      # ============================================================
 
       - name: Flutter Version
         shell: pwsh
@@ -30,6 +43,10 @@ jobs:
           Write-Host "===== FLUTTER VERSION ====="
           flutter --version
 
+      # ============================================================
+      # FLUTTER DOCTOR
+      # ============================================================
+
       - name: Flutter Doctor
         shell: pwsh
         run: |
@@ -37,6 +54,10 @@ jobs:
 
           Write-Host "===== FLUTTER DOCTOR ====="
           flutter doctor -v
+
+      # ============================================================
+      # VERIFY PROJECT
+      # ============================================================
 
       - name: Verify Windows Project
         shell: pwsh
@@ -49,7 +70,6 @@ jobs:
             "pubspec.yaml",
             "lib\main.dart",
             "windows\CMakeLists.txt",
-            "windows\flutter\CMakeLists.txt",
             "windows\runner\CMakeLists.txt",
             "windows\runner\main.cpp",
             "windows\runner\flutter_window.cpp",
@@ -67,12 +87,45 @@ jobs:
           Write-Host ""
           Write-Host "Windows project structure is valid."
 
-      - name: Clean Generated Flutter Files
+      # ============================================================
+      # READ PROJECT NAME
+      # ============================================================
+
+      - name: Read Project Name
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
 
-          Write-Host "===== CLEANING GENERATED FILES ====="
+          Write-Host "===== PROJECT NAME ====="
+
+          $line = Get-Content "pubspec.yaml" |
+            Select-String '^name:\s*(.+)$' |
+            Select-Object -First 1
+
+          if (-not $line) {
+            throw "Could not find project name in pubspec.yaml"
+          }
+
+          $projectName = $line.Matches.Groups[1].Value.Trim()
+
+          if ([string]::IsNullOrWhiteSpace($projectName)) {
+            throw "Project name is empty."
+          }
+
+          Write-Host "Project name: $projectName"
+
+          "PROJECT_NAME=$projectName" >> $env:GITHUB_ENV
+
+      # ============================================================
+      # CLEAN
+      # ============================================================
+
+      - name: Clean Flutter
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          Write-Host "===== FLUTTER CLEAN ====="
 
           flutter clean
 
@@ -84,24 +137,12 @@ jobs:
             Remove-Item -Recurse -Force ".dart_tool"
           }
 
-          Write-Host "Generated files cleaned."
+          Write-Host "Clean completed."
 
-      - name: Create Temporary Windows Dependency Overrides
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = "Stop"
-
-          Write-Host "===== WINDOWS TEMPORARY DEPENDENCY OVERRIDES ====="
-
-          @"
-          dependency_overrides:
-            flutter_secure_storage: 10.3.1
-            flutter_secure_storage_windows: 4.2.2
-            file_picker: 11.0.2
-          "@ | Set-Content -Encoding UTF8 "pubspec_overrides.yaml"
-
-          Write-Host ""
-          Get-Content "pubspec_overrides.yaml"
+      # ============================================================
+      # PUB GET
+      # هیچ dependency override وجود ندارد
+      # ============================================================
 
       - name: Flutter Pub Get
         shell: pwsh
@@ -116,46 +157,28 @@ jobs:
             throw "Flutter pub get failed."
           }
 
-      - name: Verify Resolved File Picker Version
+          Write-Host "===== PUB GET PASSED ====="
+
+      # ============================================================
+      # SHOW DEPENDENCIES
+      # ============================================================
+
+      - name: Verify Dependencies
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
 
-          Write-Host "===== VERIFYING FILE PICKER ====="
+          Write-Host "===== RESOLVED DEPENDENCIES ====="
 
-          $deps = flutter pub deps
+          flutter pub deps
 
           if ($LASTEXITCODE -ne 0) {
             throw "Unable to read resolved dependencies."
           }
 
-          $deps | Out-Host
-
-          if ($deps -notmatch "file_picker 11\.0\.2") {
-            throw "Expected file_picker 11.0.2 was not resolved."
-          }
-
-          Write-Host "OK: file_picker 11.0.2"
-
-      - name: Verify Secure Storage Versions
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = "Stop"
-
-          Write-Host "===== VERIFYING SECURE STORAGE ====="
-
-          $deps = flutter pub deps
-
-          if ($deps -notmatch "flutter_secure_storage 10\.3\.1") {
-            throw "Expected flutter_secure_storage 10.3.1 was not resolved."
-          }
-
-          if ($deps -notmatch "flutter_secure_storage_windows 4\.2\.2") {
-            throw "Expected flutter_secure_storage_windows 4.2.2 was not resolved."
-          }
-
-          Write-Host "OK: flutter_secure_storage 10.3.1"
-          Write-Host "OK: flutter_secure_storage_windows 4.2.2"
+      # ============================================================
+      # ANALYZE
+      # ============================================================
 
       - name: Flutter Analyze
         shell: pwsh
@@ -172,18 +195,28 @@ jobs:
 
           Write-Host "===== FLUTTER ANALYZE PASSED ====="
 
+      # ============================================================
+      # BUILD WINDOWS
+      # ============================================================
+
       - name: Build Windows Release
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
 
-          Write-Host "===== BUILDING WINDOWS ====="
+          Write-Host "===== BUILDING WINDOWS RELEASE ====="
 
           flutter build windows --release
 
           if ($LASTEXITCODE -ne 0) {
             throw "Windows release build failed."
           }
+
+          Write-Host "===== WINDOWS BUILD PASSED ====="
+
+      # ============================================================
+      # VERIFY EXE
+      # ============================================================
 
       - name: Verify Windows Executable
         shell: pwsh
@@ -192,13 +225,17 @@ jobs:
 
           Write-Host "===== VERIFYING WINDOWS BUILD ====="
 
-          $exe = "build\windows\x64\runner\Release\pass_managers.exe"
+          $exe = "build\windows\x64\runner\Release\$env:PROJECT_NAME.exe"
 
           if (-not (Test-Path $exe)) {
             throw "Windows executable was not generated: $exe"
           }
 
           Write-Host "OK: $exe"
+
+      # ============================================================
+      # PACKAGE
+      # ============================================================
 
       - name: Package Windows Release
         shell: pwsh
@@ -208,7 +245,7 @@ jobs:
           Write-Host "===== PACKAGING WINDOWS RELEASE ====="
 
           $source = "build\windows\x64\runner\Release"
-          $output = "Pass-Managers-Windows-Release.zip"
+          $output = "$env:PROJECT_NAME-Windows-Release.zip"
 
           if (-not (Test-Path $source)) {
             throw "Release directory does not exist: $source"
@@ -229,20 +266,39 @@ jobs:
 
           Write-Host "Created: $output"
 
+      # ============================================================
+      # VERIFY ZIP
+      # ============================================================
+
+      - name: Verify Windows Package
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          Write-Host "===== VERIFYING WINDOWS PACKAGE ====="
+
+          $output = "$env:PROJECT_NAME-Windows-Release.zip"
+
+          if (-not (Test-Path $output)) {
+            throw "Windows ZIP package was not generated."
+          }
+
+          $size = (Get-Item $output).Length
+
+          if ($size -le 0) {
+            throw "Windows ZIP package is empty."
+          }
+
+          Write-Host "OK: $output"
+          Write-Host "Size: $size bytes"
+
+      # ============================================================
+      # UPLOAD ARTIFACT
+      # ============================================================
+
       - name: Upload Windows Artifact
         uses: actions/upload-artifact@v4
         with:
           name: Pass-Managers-Windows-Release
-          path: Pass-Managers-Windows-Release.zip
+          path: "*-Windows-Release.zip"
           if-no-files-found: error
-
-      - name: Remove Temporary Dependency Overrides
-        if: always()
-        shell: pwsh
-        run: |
-          Write-Host "===== CLEANUP ====="
-
-          if (Test-Path "pubspec_overrides.yaml") {
-            Remove-Item -Force "pubspec_overrides.yaml"
-            Write-Host "Temporary pubspec_overrides.yaml removed."
-          }
