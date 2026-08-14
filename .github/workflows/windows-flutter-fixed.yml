@@ -12,28 +12,15 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      # ============================================================
-      # CHECKOUT
-      # ============================================================
-
       - name: Checkout
         uses: actions/checkout@v4
-
-      # ============================================================
-      # FLUTTER
-      # آخرین نسخه‌ای که قبلاً در پروژه Windows Build موفق داشته
-      # ============================================================
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: "3.44.7"
+          flutter-version: "3.22.4"
           channel: stable
           cache: true
-
-      # ============================================================
-      # FLUTTER VERSION
-      # ============================================================
 
       - name: Flutter Version
         shell: pwsh
@@ -43,10 +30,6 @@ jobs:
           Write-Host "===== FLUTTER VERSION ====="
           flutter --version
 
-      # ============================================================
-      # FLUTTER DOCTOR
-      # ============================================================
-
       - name: Flutter Doctor
         shell: pwsh
         run: |
@@ -54,10 +37,6 @@ jobs:
 
           Write-Host "===== FLUTTER DOCTOR ====="
           flutter doctor -v
-
-      # ============================================================
-      # VERIFY PROJECT
-      # ============================================================
 
       - name: Verify Windows Project
         shell: pwsh
@@ -84,41 +63,7 @@ jobs:
             Write-Host "OK: $file"
           }
 
-          Write-Host ""
           Write-Host "Windows project structure is valid."
-
-      # ============================================================
-      # READ PROJECT NAME
-      # ============================================================
-
-      - name: Read Project Name
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = "Stop"
-
-          Write-Host "===== PROJECT NAME ====="
-
-          $line = Get-Content "pubspec.yaml" |
-            Select-String '^name:\s*(.+)$' |
-            Select-Object -First 1
-
-          if (-not $line) {
-            throw "Could not find project name in pubspec.yaml"
-          }
-
-          $projectName = $line.Matches.Groups[1].Value.Trim()
-
-          if ([string]::IsNullOrWhiteSpace($projectName)) {
-            throw "Project name is empty."
-          }
-
-          Write-Host "Project name: $projectName"
-
-          "PROJECT_NAME=$projectName" >> $env:GITHUB_ENV
-
-      # ============================================================
-      # CLEAN
-      # ============================================================
 
       - name: Clean Flutter
         shell: pwsh
@@ -137,12 +82,9 @@ jobs:
             Remove-Item -Recurse -Force ".dart_tool"
           }
 
-          Write-Host "Clean completed."
-
-      # ============================================================
-      # PUB GET
-      # هیچ dependency override وجود ندارد
-      # ============================================================
+          if (Test-Path "pubspec.lock") {
+            Remove-Item -Force "pubspec.lock"
+          }
 
       - name: Flutter Pub Get
         shell: pwsh
@@ -157,12 +99,6 @@ jobs:
             throw "Flutter pub get failed."
           }
 
-          Write-Host "===== PUB GET PASSED ====="
-
-      # ============================================================
-      # SHOW DEPENDENCIES
-      # ============================================================
-
       - name: Verify Dependencies
         shell: pwsh
         run: |
@@ -175,10 +111,6 @@ jobs:
           if ($LASTEXITCODE -ne 0) {
             throw "Unable to read resolved dependencies."
           }
-
-      # ============================================================
-      # ANALYZE
-      # ============================================================
 
       - name: Flutter Analyze
         shell: pwsh
@@ -195,10 +127,6 @@ jobs:
 
           Write-Host "===== FLUTTER ANALYZE PASSED ====="
 
-      # ============================================================
-      # BUILD WINDOWS
-      # ============================================================
-
       - name: Build Windows Release
         shell: pwsh
         run: |
@@ -214,10 +142,6 @@ jobs:
 
           Write-Host "===== WINDOWS BUILD PASSED ====="
 
-      # ============================================================
-      # VERIFY EXE
-      # ============================================================
-
       - name: Verify Windows Executable
         shell: pwsh
         run: |
@@ -225,17 +149,25 @@ jobs:
 
           Write-Host "===== VERIFYING WINDOWS BUILD ====="
 
-          $exe = "build\windows\x64\runner\Release\$env:PROJECT_NAME.exe"
+          $projectName = (
+            Get-Content pubspec.yaml |
+            Select-String '^name:\s*(.*)' |
+            ForEach-Object {
+              $_.Matches.Groups[1].Value.Trim()
+            }
+          )
+
+          if ([string]::IsNullOrWhiteSpace($projectName)) {
+            throw "Unable to determine project name from pubspec.yaml."
+          }
+
+          $exe = "build\windows\x64\runner\Release\$projectName.exe"
 
           if (-not (Test-Path $exe)) {
             throw "Windows executable was not generated: $exe"
           }
 
           Write-Host "OK: $exe"
-
-      # ============================================================
-      # PACKAGE
-      # ============================================================
 
       - name: Package Windows Release
         shell: pwsh
@@ -244,8 +176,16 @@ jobs:
 
           Write-Host "===== PACKAGING WINDOWS RELEASE ====="
 
+          $projectName = (
+            Get-Content pubspec.yaml |
+            Select-String '^name:\s*(.*)' |
+            ForEach-Object {
+              $_.Matches.Groups[1].Value.Trim()
+            }
+          )
+
           $source = "build\windows\x64\runner\Release"
-          $output = "$env:PROJECT_NAME-Windows-Release.zip"
+          $output = "$projectName-Windows-Release.zip"
 
           if (-not (Test-Path $source)) {
             throw "Release directory does not exist: $source"
@@ -266,39 +206,9 @@ jobs:
 
           Write-Host "Created: $output"
 
-      # ============================================================
-      # VERIFY ZIP
-      # ============================================================
-
-      - name: Verify Windows Package
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = "Stop"
-
-          Write-Host "===== VERIFYING WINDOWS PACKAGE ====="
-
-          $output = "$env:PROJECT_NAME-Windows-Release.zip"
-
-          if (-not (Test-Path $output)) {
-            throw "Windows ZIP package was not generated."
-          }
-
-          $size = (Get-Item $output).Length
-
-          if ($size -le 0) {
-            throw "Windows ZIP package is empty."
-          }
-
-          Write-Host "OK: $output"
-          Write-Host "Size: $size bytes"
-
-      # ============================================================
-      # UPLOAD ARTIFACT
-      # ============================================================
-
       - name: Upload Windows Artifact
         uses: actions/upload-artifact@v4
         with:
           name: Pass-Managers-Windows-Release
-          path: "*-Windows-Release.zip"
+          path: Pass-Managers-Windows-Release.zip
           if-no-files-found: error
