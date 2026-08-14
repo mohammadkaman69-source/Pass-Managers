@@ -12,13 +12,14 @@ jobs:
     runs-on: windows-latest
 
     steps:
+
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: "3.22.4"
+          flutter-version: "3.44.7"
           channel: stable
           cache: true
 
@@ -28,15 +29,8 @@ jobs:
           $ErrorActionPreference = "Stop"
 
           Write-Host "===== FLUTTER VERSION ====="
+
           flutter --version
-
-      - name: Flutter Doctor
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = "Stop"
-
-          Write-Host "===== FLUTTER DOCTOR ====="
-          flutter doctor -v
 
       - name: Verify Windows Project
         shell: pwsh
@@ -48,7 +42,10 @@ jobs:
           $required = @(
             "pubspec.yaml",
             "lib\main.dart",
+            "lib\services\backup_service.dart",
+            "lib\services\pdf_export_service.dart",
             "windows\CMakeLists.txt",
+            "windows\flutter\CMakeLists.txt",
             "windows\runner\CMakeLists.txt",
             "windows\runner\main.cpp",
             "windows\runner\flutter_window.cpp",
@@ -63,9 +60,10 @@ jobs:
             Write-Host "OK: $file"
           }
 
+          Write-Host ""
           Write-Host "Windows project structure is valid."
 
-      - name: Clean Flutter
+      - name: Flutter Clean
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
@@ -82,9 +80,34 @@ jobs:
             Remove-Item -Recurse -Force ".dart_tool"
           }
 
-          if (Test-Path "pubspec.lock") {
-            Remove-Item -Force "pubspec.lock"
+          if (Test-Path "windows\flutter\ephemeral") {
+            Remove-Item `
+              -Recurse `
+              -Force `
+              "windows\flutter\ephemeral"
           }
+
+          Write-Host ""
+          Write-Host "Flutter generated files cleaned."
+
+      - name: Create Windows Dependency Overrides
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          Write-Host "===== WINDOWS DEPENDENCY OVERRIDES ====="
+
+          @"
+          dependency_overrides:
+            flutter_secure_storage: 10.3.1
+            flutter_secure_storage_windows: 4.2.2
+            file_picker: 12.0.0-beta.7
+          "@ | Set-Content `
+            -Path "pubspec_overrides.yaml" `
+            -Encoding UTF8
+
+          Write-Host ""
+          Get-Content "pubspec_overrides.yaml"
 
       - name: Flutter Pub Get
         shell: pwsh
@@ -99,18 +122,120 @@ jobs:
             throw "Flutter pub get failed."
           }
 
-      - name: Verify Dependencies
+          Write-Host ""
+          Write-Host "===== FLUTTER PUB GET PASSED ====="
+
+      - name: Verify Windows Dependency Resolution
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
 
-          Write-Host "===== RESOLVED DEPENDENCIES ====="
+          Write-Host "===== RESOLVED WINDOWS DEPENDENCIES ====="
 
-          flutter pub deps
+          $deps = flutter pub deps --style=compact
 
           if ($LASTEXITCODE -ne 0) {
-            throw "Unable to read resolved dependencies."
+            throw "Unable to resolve dependency tree."
           }
+
+          Write-Host $deps
+
+          $requiredVersions = @(
+            "flutter_secure_storage 10.3.1",
+            "flutter_secure_storage_windows 4.2.2",
+            "file_picker 12.0.0-beta.7"
+          )
+
+          foreach ($required in $requiredVersions) {
+            if ($deps -notmatch [regex]::Escape($required)) {
+              throw "Required dependency was not resolved: $required"
+            }
+
+            Write-Host "OK: $required"
+          }
+
+          Write-Host ""
+          Write-Host "Windows dependency resolution passed."
+
+      - name: Patch Windows File Picker API In Temporary Workspace
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          Write-Host "===== WINDOWS FILE PICKER API PATCH ====="
+
+          $files = @(
+            "lib\services\backup_service.dart",
+            "lib\services\pdf_export_service.dart"
+          )
+
+          foreach ($file in $files) {
+
+            if (-not (Test-Path $file)) {
+              throw "File does not exist: $file"
+            }
+
+            $content = Get-Content `
+              -Path $file `
+              -Raw `
+              -Encoding UTF8
+
+            $original = $content
+
+            $content = $content.Replace(
+              "FilePicker.platform.saveFile",
+              "FilePicker.saveFile"
+            )
+
+            $content = $content.Replace(
+              "FilePicker.platform.pickFiles",
+              "FilePicker.pickFiles"
+            )
+
+            if ($content -eq $original) {
+              Write-Host "No FilePicker API replacement was required in: $file"
+            }
+            else {
+              Set-Content `
+                -Path $file `
+                -Value $content `
+                -Encoding UTF8
+
+              Write-Host "Patched: $file"
+            }
+          }
+
+          Write-Host ""
+          Write-Host "Temporary Windows API compatibility patch completed."
+
+      - name: Verify File Picker API Patch
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          Write-Host "===== VERIFYING FILE PICKER API ====="
+
+          $files = @(
+            "lib\services\backup_service.dart",
+            "lib\services\pdf_export_service.dart"
+          )
+
+          foreach ($file in $files) {
+
+            $content = Get-Content `
+              -Path $file `
+              -Raw `
+              -Encoding UTF8
+
+            if ($content -match "FilePicker\.platform") {
+              throw "Old FilePicker.platform API still exists in: $file"
+            }
+
+            Write-Host "OK: $file"
+          }
+
+          Write-Host ""
+          Write-Host "No legacy FilePicker.platform API remains."
 
       - name: Flutter Analyze
         shell: pwsh
@@ -125,6 +250,7 @@ jobs:
             throw "Flutter analyze failed."
           }
 
+          Write-Host ""
           Write-Host "===== FLUTTER ANALYZE PASSED ====="
 
       - name: Build Windows Release
@@ -140,6 +266,7 @@ jobs:
             throw "Windows release build failed."
           }
 
+          Write-Host ""
           Write-Host "===== WINDOWS BUILD PASSED ====="
 
       - name: Verify Windows Executable
@@ -149,25 +276,17 @@ jobs:
 
           Write-Host "===== VERIFYING WINDOWS BUILD ====="
 
-          $projectName = (
-            Get-Content pubspec.yaml |
-            Select-String '^name:\s*(.*)' |
-            ForEach-Object {
-              $_.Matches.Groups[1].Value.Trim()
-            }
-          )
-
-          if ([string]::IsNullOrWhiteSpace($projectName)) {
-            throw "Unable to determine project name from pubspec.yaml."
-          }
-
-          $exe = "build\windows\x64\runner\Release\$projectName.exe"
+          $exe = "build\windows\x64\runner\Release\pass_managers.exe"
 
           if (-not (Test-Path $exe)) {
             throw "Windows executable was not generated: $exe"
           }
 
+          Write-Host ""
           Write-Host "OK: $exe"
+
+          Get-Item $exe |
+            Select-Object FullName, Length
 
       - name: Package Windows Release
         shell: pwsh
@@ -176,23 +295,17 @@ jobs:
 
           Write-Host "===== PACKAGING WINDOWS RELEASE ====="
 
-          $projectName = (
-            Get-Content pubspec.yaml |
-            Select-String '^name:\s*(.*)' |
-            ForEach-Object {
-              $_.Matches.Groups[1].Value.Trim()
-            }
-          )
-
           $source = "build\windows\x64\runner\Release"
-          $output = "$projectName-Windows-Release.zip"
+          $output = "Pass-Managers-Windows-Fixed-Release.zip"
 
           if (-not (Test-Path $source)) {
-            throw "Release directory does not exist: $source"
+            throw "Windows Release directory does not exist: $source"
           }
 
           if (Test-Path $output) {
-            Remove-Item -Force $output
+            Remove-Item `
+              -Force `
+              $output
           }
 
           Compress-Archive `
@@ -204,11 +317,34 @@ jobs:
             throw "Failed to create Windows release ZIP."
           }
 
+          Write-Host ""
           Write-Host "Created: $output"
 
-      - name: Upload Windows Artifact
+          Get-Item $output |
+            Select-Object FullName, Length
+
+      - name: Remove Temporary Windows Changes
+        if: always()
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "SilentlyContinue"
+
+          Write-Host "===== CLEANUP ====="
+
+          if (Test-Path "pubspec_overrides.yaml") {
+            Remove-Item `
+              -Force `
+              "pubspec_overrides.yaml"
+
+            Write-Host "Removed temporary pubspec_overrides.yaml."
+          }
+
+          Write-Host ""
+          Write-Host "Runner workspace cleanup completed."
+
+      - name: Upload Windows Release
         uses: actions/upload-artifact@v4
         with:
-          name: Pass-Managers-Windows-Release
-          path: Pass-Managers-Windows-Release.zip
+          name: Pass-Managers-Windows-Fixed-Release
+          path: Pass-Managers-Windows-Fixed-Release.zip
           if-no-files-found: error
