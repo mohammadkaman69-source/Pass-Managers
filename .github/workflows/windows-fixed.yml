@@ -2,6 +2,9 @@ name: Windows Fixed Build
 
 "on":
   workflow_dispatch:
+  push:
+    branches:
+      - main
 
 permissions:
   contents: read
@@ -14,17 +17,8 @@ jobs:
 
     steps:
 
-      # ============================================================
-      # CHECKOUT
-      # ============================================================
-
       - name: Checkout repository
         uses: actions/checkout@v4
-
-
-      # ============================================================
-      # FLUTTER
-      # ============================================================
 
       - name: Setup Flutter 3.44.7
         uses: subosito/flutter-action@v2
@@ -33,39 +27,21 @@ jobs:
           channel: stable
           cache: true
 
-
       - name: Verify Flutter
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-
           Write-Host "===== FLUTTER VERSION ====="
-
           flutter --version
-
           Write-Host ""
           Write-Host "===== FLUTTER DOCTOR ====="
-
           flutter doctor -v
-
-
-      # ============================================================
-      # WINDOWS PROJECT CHECK
-      #
-      # IMPORTANT:
-      #
-      # DO NOT regenerate Windows.
-      # DO NOT modify windows/CMakeLists.txt.
-      # DO NOT modify windows/runner.
-      # ============================================================
 
       - name: Verify Windows project
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-
           Write-Host "===== WINDOWS PROJECT CHECK ====="
-
           $requiredFiles = @(
             "pubspec.yaml",
             "lib/main.dart",
@@ -76,305 +52,92 @@ jobs:
             "windows/runner/flutter_window.cpp",
             "windows/runner/flutter_window.h"
           )
-
           foreach ($file in $requiredFiles) {
-
-            if (-not (Test-Path $file)) {
-              throw "Required Windows project file is missing: $file"
-            }
-
+            if (-not (Test-Path $file)) { throw "Required Windows project file is missing: $file" }
             Write-Host "OK: $file"
           }
-
-          Write-Host ""
           Write-Host "Windows project structure is valid."
-
-
-      # ============================================================
-      # CLEAN GENERATED WINDOWS FILES
-      #
-      # ONLY generated files are removed.
-      #
-      # The actual Windows project files remain untouched.
-      # ============================================================
 
       - name: Clean generated Windows files
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-
-          Write-Host "===== CLEANING GENERATED WINDOWS FILES ====="
-
-          if (Test-Path "windows/flutter/ephemeral") {
-
-            Write-Host "Removing windows/flutter/ephemeral..."
-
-            Remove-Item `
-              "windows/flutter/ephemeral" `
-              -Recurse `
-              -Force
-          }
-
-          if (Test-Path "build/windows") {
-
-            Write-Host "Removing build/windows..."
-
-            Remove-Item `
-              "build/windows" `
-              -Recurse `
-              -Force
-          }
-
-          Write-Host ""
-          Write-Host "Generated Windows files cleaned."
-
-
-      # ============================================================
-      # WINDOWS-ONLY DEPENDENCY OVERRIDE
-      #
-      # IMPORTANT:
-      #
-      # pubspec.yaml in repository is NOT modified.
-      #
-      # Android remains:
-      #
-      # flutter_secure_storage ^9.2.4
-      # file_picker ^8.3.7
-      #
-      # Windows runner temporarily uses:
-      #
-      # flutter_secure_storage 10.3.1
-      # flutter_secure_storage_windows 4.2.2
-      # file_picker 12.0.0-beta.7
-      #
-      # This solves:
-      #
-      # flutter_secure_storage 9.x
-      #     -> platform_interface 1.x
-      #
-      # versus
-      #
-      # flutter_secure_storage_windows 4.x
-      #     -> platform_interface 2.x
-      #
-      # ============================================================
+          if (Test-Path "windows/flutter/ephemeral") { Remove-Item "windows/flutter/ephemeral" -Recurse -Force }
+          if (Test-Path "build/windows") { Remove-Item "build/windows" -Recurse -Force }
 
       - name: Create Windows dependency overrides
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-
-          Write-Host "===== WINDOWS DEPENDENCY OVERRIDES ====="
-
           @"
           dependency_overrides:
             flutter_secure_storage: 10.3.1
             flutter_secure_storage_windows: 4.2.2
             file_picker: 12.0.0-beta.7
-          "@ | Set-Content `
-            -Path "pubspec_overrides.yaml" `
-            -Encoding UTF8
-
-          Write-Host ""
-          Write-Host "Temporary Windows dependency configuration:"
-          Write-Host ""
-
+          "@ | Set-Content -Path "pubspec_overrides.yaml" -Encoding UTF8
           Get-Content "pubspec_overrides.yaml"
-
-
-      # ============================================================
-      # FLUTTER PUB GET
-      # ============================================================
 
       - name: Get Flutter dependencies
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-
-          Write-Host "===== FLUTTER PUB GET ====="
-
           flutter pub get
-
-
-      # ============================================================
-      # VERIFY DEPENDENCY RESOLUTION
-      # ============================================================
 
       - name: Verify resolved dependency versions
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-
-          Write-Host "===== RESOLVED DEPENDENCIES ====="
-
-          flutter pub deps --style=compact
-
-          Write-Host ""
-          Write-Host "===== CHECKING REQUIRED VERSIONS ====="
-
           $deps = flutter pub deps --style=compact
-
-          if ($deps -notmatch "flutter_secure_storage 10\.3\.1") {
-            throw `
-              "flutter_secure_storage 10.3.1 was not resolved."
-          }
-
-          if ($deps -notmatch "flutter_secure_storage_windows 4\.2\.2") {
-            throw `
-              "flutter_secure_storage_windows 4.2.2 was not resolved."
-          }
-
-          if ($deps -notmatch "file_picker 12\.0\.0-beta\.7") {
-            throw `
-              "file_picker 12.0.0-beta.7 was not resolved."
-          }
-
-          Write-Host ""
-          Write-Host "Required Windows dependency versions resolved successfully."
-
-
-      # ============================================================
-      # FLUTTER ANALYZE
-      # ============================================================
+          $deps
+          if ($deps -notmatch "flutter_secure_storage 10\.3\.1") { throw "flutter_secure_storage 10.3.1 was not resolved." }
+          if ($deps -notmatch "flutter_secure_storage_windows 4\.2\.2") { throw "flutter_secure_storage_windows 4.2.2 was not resolved." }
+          if ($deps -notmatch "file_picker 12\.0\.0-beta\.7") { throw "file_picker 12.0.0-beta.7 was not resolved." }
 
       - name: Analyze Flutter project
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-
-          Write-Host "===== FLUTTER ANALYZE ====="
-
           flutter analyze
 
-
-      # ============================================================
-      # BUILD WINDOWS
-      # ============================================================
+      - name: Run Flutter tests
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          flutter test
 
       - name: Build Windows Release
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-
-          Write-Host "===== BUILDING WINDOWS ====="
-
           flutter build windows --release
-
-
-      # ============================================================
-      # VERIFY WINDOWS BUILD
-      # ============================================================
 
       - name: Verify Windows build
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-
-          Write-Host "===== VERIFYING WINDOWS BUILD ====="
-
-          $releasePath = `
-            "build/windows/x64/runner/Release"
-
-          if (-not (Test-Path $releasePath)) {
-            throw `
-              "Windows Release directory was not generated."
-          }
-
-          $exeFiles = Get-ChildItem `
-            -Path $releasePath `
-            -Filter "*.exe" `
-            -File
-
-          if ($null -eq $exeFiles -or $exeFiles.Count -eq 0) {
-            throw `
-              "Windows executable was not generated."
-          }
-
-          Write-Host ""
-          Write-Host "Windows Release generated successfully."
-
-          Write-Host ""
-          Write-Host "===== WINDOWS RELEASE CONTENT ====="
-
-          Get-ChildItem `
-            $releasePath `
-            -Recurse |
-            Select-Object FullName, Length
-
-
-      # ============================================================
-      # PACKAGE WINDOWS RELEASE
-      # ============================================================
+          $releasePath = "build/windows/x64/runner/Release"
+          if (-not (Test-Path $releasePath)) { throw "Windows Release directory was not generated." }
+          $exeFiles = Get-ChildItem -Path $releasePath -Filter "*.exe" -File
+          if ($null -eq $exeFiles -or $exeFiles.Count -eq 0) { throw "Windows executable was not generated." }
+          Get-ChildItem $releasePath -Recurse | Select-Object FullName, Length
 
       - name: Package Windows Release
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-
-          Write-Host "===== PACKAGING WINDOWS RELEASE ====="
-
-          $source = `
-            "build/windows/x64/runner/Release"
-
-          $destination = `
-            "build/Pass-Managers-Windows-Fixed-Release.zip"
-
-          if (-not (Test-Path $source)) {
-            throw `
-              "Windows Release directory does not exist."
-          }
-
-          if (Test-Path $destination) {
-            Remove-Item `
-              $destination `
-              -Force
-          }
-
-          Compress-Archive `
-            -Path "$source/*" `
-            -DestinationPath $destination `
-            -Force
-
-          if (-not (Test-Path $destination)) {
-            throw `
-              "Windows ZIP was not created."
-          }
-
-          Write-Host ""
-          Write-Host "Windows package created successfully."
-
-          Get-Item $destination |
-            Select-Object FullName, Length
-
-
-      # ============================================================
-      # CLEANUP
-      #
-      # The temporary override MUST NOT remain in the repository.
-      # ============================================================
+          $source = "build/windows/x64/runner/Release"
+          $destination = "build/Pass-Managers-Windows-Fixed-Release.zip"
+          if (Test-Path $destination) { Remove-Item $destination -Force }
+          Compress-Archive -Path "$source/*" -DestinationPath $destination -Force
+          if (-not (Test-Path $destination)) { throw "Windows ZIP was not created." }
+          Get-Item $destination | Select-Object FullName, Length
 
       - name: Remove temporary dependency overrides
         if: always()
         shell: pwsh
         run: |
           $ErrorActionPreference = "SilentlyContinue"
-
-          Write-Host "===== CLEANUP ====="
-
-          if (Test-Path "pubspec_overrides.yaml") {
-
-            Remove-Item `
-              "pubspec_overrides.yaml" `
-              -Force
-
-            Write-Host `
-              "Temporary dependency override removed."
-          }
-
-
-      # ============================================================
-      # UPLOAD ARTIFACT
-      # ============================================================
+          if (Test-Path "pubspec_overrides.yaml") { Remove-Item "pubspec_overrides.yaml" -Force }
 
       - name: Upload Windows Release
         uses: actions/upload-artifact@v4
