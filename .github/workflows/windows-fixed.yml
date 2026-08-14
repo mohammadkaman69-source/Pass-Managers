@@ -57,17 +57,6 @@ jobs:
           if (Test-Path "windows/flutter/ephemeral") { Remove-Item "windows/flutter/ephemeral" -Recurse -Force }
           if (Test-Path "build/windows") { Remove-Item "build/windows" -Recurse -Force }
 
-      - name: Create Windows dependency overrides
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = "Stop"
-          @"
-          dependency_overrides:
-            flutter_secure_storage: 10.3.1
-            flutter_secure_storage_windows: 4.2.2
-            file_picker: 12.0.0-beta.7
-          "@ | Set-Content -Path "pubspec_overrides.yaml" -Encoding UTF8
-
       - name: Get Flutter dependencies
         shell: pwsh
         run: |
@@ -80,10 +69,10 @@ jobs:
           $ErrorActionPreference = "Stop"
           $deps = (flutter pub deps --style=compact | Out-String)
           Write-Host $deps
-          if ($deps -notmatch "flutter_secure_storage 10\.3\.1") { throw "flutter_secure_storage 10.3.1 was not resolved." }
+          if ($deps -notmatch "flutter_secure_storage 9\.2\.4") { throw "flutter_secure_storage 9.2.4 was not resolved." }
           if ($deps -notmatch "flutter_secure_storage_windows 4\.2\.2") { throw "flutter_secure_storage_windows 4.2.2 was not resolved." }
-          if ($deps -notmatch "file_picker 12\.0\.0-beta\.7") { throw "file_picker 12.0.0-beta.7 was not resolved." }
-          Write-Host "Required Windows dependency versions are resolved correctly."
+          if ($deps -notmatch "file_picker 8\.3\.7") { throw "file_picker 8.3.7 was not resolved." }
+          Write-Host "Project dependency versions are resolved correctly."
 
       - name: Analyze Flutter project
         shell: pwsh
@@ -130,13 +119,6 @@ jobs:
           if (Test-Path $destination) { Remove-Item $destination -Force }
           Compress-Archive -Path "$source/*" -DestinationPath $destination -Force
           if (-not (Test-Path $destination)) { throw "Windows ZIP was not created." }
-
-      - name: Remove temporary dependency overrides
-        if: always()
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = "SilentlyContinue"
-          if (Test-Path "pubspec_overrides.yaml") { Remove-Item "pubspec_overrides.yaml" -Force }
 
       - name: Upload Windows Release
         uses: actions/upload-artifact@v4
