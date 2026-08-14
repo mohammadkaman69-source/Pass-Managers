@@ -66,7 +66,7 @@ class PdfExportService {
       bytes: savedBytes,
     );
     savedBytes.fillRange(0, savedBytes.length, 0);
-    return result;
+    return result?.toString();
   }
 
   void _buildTreeContent({required Map<String, dynamic> node, required List<pw.Widget> content, required pw.Font persianFont, required pw.Font latinFont, required int level}) {
