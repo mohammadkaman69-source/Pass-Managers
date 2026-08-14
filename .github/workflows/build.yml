@@ -2,6 +2,9 @@ name: Pass Managers Build
 
 "on":
   workflow_dispatch:
+  push:
+    branches:
+      - main
 
 permissions:
   contents: read
@@ -42,152 +45,62 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-
           echo "===== ANDROID SDK CHECK ====="
-
           echo "ANDROID_HOME=${ANDROID_HOME:-}"
           echo "ANDROID_SDK_ROOT=${ANDROID_SDK_ROOT:-}"
-
           SDK_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-}}"
-
-          if [ -z "$SDK_ROOT" ]; then
-            echo "ERROR: Android SDK root is not defined."
-            exit 1
-          fi
-
-          echo "SDK root:"
-          echo "$SDK_ROOT"
-
-          if [ ! -d "$SDK_ROOT/platform-tools" ]; then
-            echo "ERROR: platform-tools is missing."
-            exit 1
-          fi
-
-          if [ ! -d "$SDK_ROOT/platforms/android-36" ]; then
-            echo "ERROR: Android platform 36 is missing."
-            exit 1
-          fi
-
-          if [ ! -d "$SDK_ROOT/build-tools/35.0.0" ]; then
-            echo "ERROR: Android Build Tools 35.0.0 is missing."
-            exit 1
-          fi
-
+          if [ -z "$SDK_ROOT" ]; then echo "ERROR: Android SDK root is not defined."; exit 1; fi
+          echo "SDK root: $SDK_ROOT"
+          if [ ! -d "$SDK_ROOT/platform-tools" ]; then echo "ERROR: platform-tools is missing."; exit 1; fi
+          if [ ! -d "$SDK_ROOT/platforms/android-36" ]; then echo "ERROR: Android platform 36 is missing."; exit 1; fi
+          if [ ! -d "$SDK_ROOT/build-tools/35.0.0" ]; then echo "ERROR: Android Build Tools 35.0.0 is missing."; exit 1; fi
           echo "Android SDK verification successful."
 
       - name: Flutter doctor
         shell: bash
         run: |
           set -euo pipefail
-
-          echo "===== FLUTTER VERSION ====="
-
           flutter --version
-
-          echo "===== JAVA VERSION ====="
-
           java -version
-
-          echo "===== FLUTTER DOCTOR ====="
-
           flutter doctor -v
 
       - name: Get Flutter dependencies
         shell: bash
         run: |
           set -euo pipefail
-
-          echo "===== FLUTTER PUB GET ====="
-
           flutter pub get
 
       - name: Verify Android project
         shell: bash
         run: |
           set -euo pipefail
-
-          echo "===== ANDROID PROJECT CHECK ====="
-
-          REQUIRED_FILES=(
-            "pubspec.yaml"
-            "android/settings.gradle"
-            "android/build.gradle"
-            "android/app/build.gradle"
-            "android/gradle.properties"
-            "android/gradle/wrapper/gradle-wrapper.properties"
-            "android/app/src/main/AndroidManifest.xml"
-          )
-
+          REQUIRED_FILES=("pubspec.yaml" "android/settings.gradle" "android/build.gradle" "android/app/build.gradle" "android/gradle.properties" "android/gradle/wrapper/gradle-wrapper.properties" "android/app/src/main/AndroidManifest.xml")
           for FILE in "${REQUIRED_FILES[@]}"; do
-            if [ ! -f "$FILE" ]; then
-              echo "ERROR: Required file is missing:"
-              echo "$FILE"
-              exit 1
-            fi
-
-            echo "OK: $FILE"
+            if [ ! -f "$FILE" ]; then echo "ERROR: Required file is missing: $FILE"; exit 1; fi
           done
-
-          if ! grep -q 'compileSdk = 36' android/app/build.gradle; then
-            echo "ERROR: compileSdk 36 was not found."
-            grep -n "compileSdk" android/app/build.gradle || true
-            exit 1
-          fi
-
-          if ! grep -q 'applicationId = "com.example.pass_managers"' android/app/build.gradle; then
-            echo "ERROR: applicationId is incorrect."
-            grep -n "applicationId" android/app/build.gradle || true
-            exit 1
-          fi
-
-          if ! grep -q 'namespace = "com.example.pass_managers"' android/app/build.gradle; then
-            echo "ERROR: Android namespace is incorrect."
-            grep -n "namespace" android/app/build.gradle || true
-            exit 1
-          fi
-
-          echo
-          echo "compileSdk: 36"
-          echo "applicationId: com.example.pass_managers"
-          echo "namespace: com.example.pass_managers"
-
-          echo
+          grep -q 'compileSdk = 36' android/app/build.gradle || { echo "ERROR: compileSdk 36 was not found."; exit 1; }
+          grep -q 'applicationId = "com.example.pass_managers"' android/app/build.gradle || { echo "ERROR: applicationId is incorrect."; exit 1; }
+          grep -q 'namespace = "com.example.pass_managers"' android/app/build.gradle || { echo "ERROR: Android namespace is incorrect."; exit 1; }
           echo "Android project configuration is valid."
 
       - name: Analyze Flutter project
         shell: bash
         run: |
           set -euo pipefail
-
-          echo "===== FLUTTER ANALYZE ====="
-
           flutter analyze
 
       - name: Build Android APK
         shell: bash
         run: |
           set -euo pipefail
-
-          echo "===== BUILDING ANDROID APK ====="
-
           flutter build apk --release
 
       - name: Verify APK
         shell: bash
         run: |
           set -euo pipefail
-
-          echo "===== VERIFYING APK ====="
-
           APK="build/app/outputs/flutter-apk/app-release.apk"
-
-          if [ ! -f "$APK" ]; then
-            echo "ERROR: Release APK was not generated."
-            exit 1
-          fi
-
-          echo "APK generated successfully:"
-
+          if [ ! -f "$APK" ]; then echo "ERROR: Release APK was not generated."; exit 1; fi
           ls -lh "$APK"
 
       - name: Upload Android APK
@@ -196,7 +109,6 @@ jobs:
           name: Pass-Managers-Android-Release
           path: build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
-
 
   windows-build:
     name: Windows Release
@@ -218,124 +130,55 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-
-          Write-Host "===== FLUTTER VERSION ====="
-
           flutter --version
-
-          Write-Host "===== FLUTTER DOCTOR ====="
-
           flutter doctor -v
 
       - name: Verify Windows project
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-
-          Write-Host "===== WINDOWS PROJECT CHECK ====="
-
-          $requiredFiles = @(
-            "pubspec.yaml",
-            "lib/main.dart",
-            "windows/CMakeLists.txt",
-            "windows/flutter/CMakeLists.txt",
-            "windows/runner/CMakeLists.txt",
-            "windows/runner/main.cpp",
-            "windows/runner/flutter_window.cpp",
-            "windows/runner/flutter_window.h"
-          )
-
-          foreach ($file in $requiredFiles) {
-            if (-not (Test-Path $file)) {
-              throw "Required Windows project file is missing: $file"
-            }
-
-            Write-Host "OK: $file"
-          }
-
-          if (Test-Path "windows/flutter/ephemeral") {
-            Write-Host "Removing stale Flutter Windows ephemeral files..."
-            Remove-Item "windows/flutter/ephemeral" -Recurse -Force
-          }
-
+          $requiredFiles = @("pubspec.yaml","lib/main.dart","windows/CMakeLists.txt","windows/flutter/CMakeLists.txt","windows/runner/CMakeLists.txt","windows/runner/main.cpp","windows/runner/flutter_window.cpp","windows/runner/flutter_window.h")
+          foreach ($file in $requiredFiles) { if (-not (Test-Path $file)) { throw "Required Windows project file is missing: $file" } }
+          if (Test-Path "windows/flutter/ephemeral") { Remove-Item "windows/flutter/ephemeral" -Recurse -Force }
           Write-Host "Windows project structure is valid."
 
       - name: Get Flutter dependencies
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-
-          Write-Host "===== FLUTTER PUB GET ====="
-
           flutter pub get
 
       - name: Analyze Flutter project
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-
-          Write-Host "===== FLUTTER ANALYZE ====="
-
           flutter analyze
 
       - name: Build Windows Release
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-
-          Write-Host "===== BUILDING WINDOWS ====="
-
           flutter build windows --release
 
       - name: Verify Windows build
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-
-          Write-Host "===== VERIFYING WINDOWS BUILD ====="
-
           $releasePath = "build/windows/x64/runner/Release"
-
-          if (-not (Test-Path $releasePath)) {
-            throw "Windows Release directory was not generated."
-          }
-
-          Write-Host "Windows Release generated successfully."
-
-          Get-ChildItem `
-            $releasePath `
-            -Recurse |
-            Select-Object FullName, Length
+          if (-not (Test-Path $releasePath)) { throw "Windows Release directory was not generated." }
+          Get-ChildItem $releasePath -Recurse | Select-Object FullName, Length
 
       - name: Package Windows Release
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-
-          Write-Host "===== PACKAGING WINDOWS RELEASE ====="
-
           $source = "build/windows/x64/runner/Release"
           $destination = "build/Pass-Managers-Windows-Release.zip"
-
-          if (-not (Test-Path $source)) {
-            throw "Windows Release directory does not exist."
-          }
-
-          if (Test-Path $destination) {
-            Remove-Item $destination -Force
-          }
-
-          Compress-Archive `
-            -Path "$source/*" `
-            -DestinationPath $destination `
-            -Force
-
-          if (-not (Test-Path $destination)) {
-            throw "Windows ZIP was not created."
-          }
-
-          Get-Item $destination |
-            Select-Object FullName, Length
+          if (-not (Test-Path $source)) { throw "Windows Release directory does not exist." }
+          if (Test-Path $destination) { Remove-Item $destination -Force }
+          Compress-Archive -Path "$source/*" -DestinationPath $destination -Force
+          if (-not (Test-Path $destination)) { throw "Windows ZIP was not created." }
+          Get-Item $destination | Select-Object FullName, Length
 
       - name: Upload Windows Release
         uses: actions/upload-artifact@v4
