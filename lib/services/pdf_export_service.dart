@@ -351,6 +351,21 @@ class PdfExportService {
           cellBuilder: (index, data, rowNum) {
             final value = data?.toString() ?? '';
             final isHeader = rowNum == 0;
+
+            if (isHeader && !_containsRtl(value)) {
+              return pw.Text(
+                value,
+                textDirection: pw.TextDirection.ltr,
+                textAlign: pw.TextAlign.left,
+                style: pw.TextStyle(
+                  font: latinBoldFallback,
+                  fontFallback: <pw.Font>[persianFont],
+                  fontSize: 9,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              );
+            }
+
             final direction = _directionFor(value);
             return _richText(
               value,
@@ -419,20 +434,6 @@ class PdfExportService {
         text: pw.TextSpan(
           text: '',
           style: pw.TextStyle(font: persianFont, fontSize: fontSize),
-        ),
-      );
-    }
-
-    if (!_containsRtl(value)) {
-      return pw.Text(
-        value,
-        textDirection: pw.TextDirection.ltr,
-        textAlign: pw.TextAlign.left,
-        style: pw.TextStyle(
-          font: bold ? latinBoldFallback : latinFallback,
-          fontFallback: <pw.Font>[persianFont],
-          fontSize: fontSize,
-          fontWeight: bold ? pw.FontWeight.bold : pw.FontWeight.normal,
         ),
       );
     }
