@@ -171,16 +171,29 @@ class PdfExportService {
     overlay.insert(entry);
 
     try {
-      RenderRepaintBoundary? renderObject;
+      Object? lastCaptureError;
+      StackTrace? lastCaptureStackTrace;
 
-      for (var attempt = 0; attempt < 10; attempt++) {
+      // A RenderRepaintBoundary can have a valid size before it has completed
+      // painting and before Flutter has attached the OffsetLayer required by
+      // RenderRepaintBoundary.toImage(). Keep the OverlayEntry mounted while
+      // waiting for a stable painted layer and retry the capture if the render
+      // tree changes between the readiness check and toImage().
+      for (var attempt = 0; attempt < 20; attempt++) {
         await WidgetsBinding.instance.endOfFrame;
 
         final render = key.currentContext?.findRenderObject();
 
-        if (render is RenderRepaintBoundary && render.hasSize) {
-          renderObject = render;
-          break;
+        if (render is RenderRepaintBoundary &&
+            render.hasSize &&
+            !render.debugNeedsPaint &&
+            render.layer is OffsetLayer) {
+          try {
+            return await render.toImage(pixelRatio: 1.0);
+          } catch (error, stackTrace) {
+            lastCaptureError = error;
+            lastCaptureStackTrace = stackTrace;
+          }
         }
 
         await Future<void>.delayed(
@@ -188,16 +201,19 @@ class PdfExportService {
         );
       }
 
-      if (renderObject == null || !renderObject.hasSize) {
-        throw StateError('PDF page could not be laid out.');
+      if (lastCaptureError != null) {
+        Error.throwWithStackTrace(
+          StateError(
+            'PDF page image capture did not reach a stable painted layer. '
+            'Last capture error: $lastCaptureError',
+          ),
+          lastCaptureStackTrace!,
+        );
       }
 
-      // The image must be completely captured before the OverlayEntry is
-      // removed. Removing the entry before awaiting toImage() can invalidate
-      // the render tree and cause runtime null-check failures inside Flutter.
-      final image = await renderObject.toImage(pixelRatio: 1.0);
-
-      return image;
+      throw StateError(
+        'PDF page renderer did not reach a stable painted layer.',
+      );
     } finally {
       if (entry.mounted) {
         entry.remove();
