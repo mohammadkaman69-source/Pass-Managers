@@ -174,11 +174,11 @@ class PdfExportService {
       Object? lastCaptureError;
       StackTrace? lastCaptureStackTrace;
 
-      // A RenderRepaintBoundary can have a valid size before it has completed
-      // painting and before Flutter has attached the OffsetLayer required by
-      // RenderRepaintBoundary.toImage(). Keep the OverlayEntry mounted while
-      // waiting for a stable painted layer and retry the capture if the render
-      // tree changes between the readiness check and toImage().
+      // Size alone is not enough for RenderRepaintBoundary.toImage().
+      // Wait for a completed frame and a painted render object, then perform
+      // the capture while the OverlayEntry is still mounted. If Flutter's
+      // render tree changes between the readiness check and toImage(), retry
+      // the capture instead of allowing an internal null-check to escape.
       for (var attempt = 0; attempt < 20; attempt++) {
         await WidgetsBinding.instance.endOfFrame;
 
@@ -186,8 +186,7 @@ class PdfExportService {
 
         if (render is RenderRepaintBoundary &&
             render.hasSize &&
-            !render.debugNeedsPaint &&
-            render.layer is OffsetLayer) {
+            !render.debugNeedsPaint) {
           try {
             return await render.toImage(pixelRatio: 1.0);
           } catch (error, stackTrace) {
@@ -204,15 +203,15 @@ class PdfExportService {
       if (lastCaptureError != null) {
         Error.throwWithStackTrace(
           StateError(
-            'PDF page image capture did not reach a stable painted layer. '
-            'Last capture error: $lastCaptureError',
+            'PDF page image capture failed after waiting for a stable painted '
+            'render object. Last capture error: $lastCaptureError',
           ),
           lastCaptureStackTrace!,
         );
       }
 
       throw StateError(
-        'PDF page renderer did not reach a stable painted layer.',
+        'PDF page renderer did not reach a stable painted state.',
       );
     } finally {
       if (entry.mounted) {
