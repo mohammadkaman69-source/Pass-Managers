@@ -545,18 +545,7 @@ class PdfExportService {
     return null;
   }
 
-  pw.TextDirection _directionFor(String value) {
-    for (final rune in value.runes) {
-      final direction = _strongDirection(String.fromCharCode(rune));
-      if (direction != null) return direction;
-    }
-    return pw.TextDirection.ltr;
-  }
-
   pw.TextDirection _paragraphDirectionFor(String value) {
-    // A mixed value needs an RTL paragraph when Persian is present; otherwise
-    // the Latin run can be placed correctly but the following Persian run may
-    // be reordered/garbled by the PDF bidi engine. Pure Latin stays LTR.
     return _containsRtl(value)
         ? pw.TextDirection.rtl
         : pw.TextDirection.ltr;
