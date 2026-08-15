@@ -3,7 +3,6 @@ import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 
 import '../database/app_database.dart';
@@ -26,11 +25,6 @@ class BackupService {
 
   Future<bool> createBackup({required String masterPassword}) async {
     final db = await AppDatabase.instance.database;
-
-    // Take an exact relational snapshot. The previous implementation rebuilt
-    // the database through a tree representation, which could silently lose
-    // tables/relationships. Encrypted table_values are copied as ciphertext;
-    // the outer backup file is encrypted separately with the supplied password.
     final snapshot = await _readDatabaseSnapshot(db);
     _validateSnapshot(snapshot);
 
@@ -144,10 +138,17 @@ class BackupService {
       );
 
       try {
-        final payload = await _securityManager.cryptoService.decrypt(
-          encryptedText: ciphertext,
-          key: key,
-        );
+        String payload;
+        try {
+          payload = await _securityManager.cryptoService.decrypt(
+            encryptedText: ciphertext,
+            key: key,
+          );
+        } catch (_) {
+          throw const BackupFormatException(
+            'رمز نسخه پشتیبان اشتباه است یا فایل قابل بازگشایی نیست.',
+          );
+        }
 
         final decoded = jsonDecode(payload);
         if (decoded is! Map ||
@@ -170,7 +171,6 @@ class BackupService {
           _validateSnapshot(snapshot);
           await _restoreDatabaseSnapshot(snapshot);
         } else {
-          // Keep compatibility with existing v1 backups.
           if (data is! List) {
             throw const BackupFormatException(
               'ساختار داده نسخه پشتیبان خراب است.',
@@ -186,19 +186,17 @@ class BackupService {
 
           await _repository.replaceFromBackup(roots);
         }
-      } on SecretBoxAuthenticationError {
-        throw const BackupFormatException(
-          'رمز نسخه پشتیبان اشتباه است یا فایل قابل بازگشایی نیست.',
-        );
-      } on FormatException {
-        throw const BackupFormatException(
-          'فایل نسخه پشتیبان خراب یا نامعتبر است.',
-        );
       } finally {
         final keyBytes = List<int>.from(await key.extractBytes());
         keyBytes.fillRange(0, keyBytes.length, 0);
         salt.fillRange(0, salt.length, 0);
       }
+    } on BackupFormatException {
+      rethrow;
+    } on FormatException {
+      throw const BackupFormatException(
+        'فایل نسخه پشتیبان خراب یا نامعتبر است.',
+      );
     } finally {
       bytes.fillRange(0, bytes.length, 0);
     }
