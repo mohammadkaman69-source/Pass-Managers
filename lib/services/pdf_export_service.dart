@@ -16,7 +16,7 @@ class PdfExportService {
       MethodChannel('pass_managers/file_saver');
 
   Future<String?> exportTree({
-    required BuildContext context,
+    BuildContext? context,
     required Map<String, dynamic> root,
   }) async {
     final model = _PdfDocumentModel.fromRoot(root);
@@ -97,13 +97,11 @@ class PdfExportService {
   }
 
   Future<ui.Image> _renderPage(
-    BuildContext context,
+    BuildContext? suppliedContext,
     String title,
     _PdfPageData page,
   ) async {
-    final overlay =
-        Overlay.maybeOf(context, rootOverlay: true) ??
-        Navigator.maybeOf(context, rootNavigator: true)?.overlay;
+    final overlay = _findOverlay(suppliedContext);
     if (overlay == null) {
       throw StateError(
         'A Navigator/Overlay is not available for PDF rendering.',
@@ -163,6 +161,32 @@ class PdfExportService {
       entry.remove();
       entry.dispose();
     }
+  }
+
+  OverlayState? _findOverlay(BuildContext? suppliedContext) {
+    if (suppliedContext != null) {
+      final direct =
+          Overlay.maybeOf(suppliedContext, rootOverlay: true) ??
+          Navigator.maybeOf(suppliedContext, rootNavigator: true)?.overlay;
+      if (direct != null) return direct;
+    }
+
+    final root = WidgetsBinding.instance.rootElement;
+    if (root == null) return null;
+
+    OverlayState? found;
+
+    void visit(Element element) {
+      if (found != null) return;
+      if (element.widget is Overlay && element is StatefulElement) {
+        found = element.state as OverlayState;
+        return;
+      }
+      element.visitChildElements(visit);
+    }
+
+    visit(root);
+    return found;
   }
 
   List<_PdfPageData> _paginate(_PdfDocumentModel model) {
