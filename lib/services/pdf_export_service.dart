@@ -381,7 +381,7 @@ class PdfExportService {
 
     void flush() {
       if (buffer.isEmpty || currentDirection == null) return;
-      runs.add(_DirectionalRun(buffer.toString(), currentDirection!));
+      runs.add(_DirectionalRun(buffer.toString(), currentDirection));
       buffer.clear();
     }
 
