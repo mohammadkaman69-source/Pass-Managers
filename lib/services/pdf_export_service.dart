@@ -308,15 +308,9 @@ class PdfExportService {
         },
       ),
     );
-    widgets.add(const pw.SizedBox(height: 7));
+    widgets.add(pw.SizedBox(height: 7));
   }
 
-  /// Keeps the document's overall direction RTL where appropriate, but splits
-  /// mixed strings into directional runs. Latin runs are wrapped with LRM so
-  /// BiDi layout cannot reverse their internal character order.
-  ///
-  /// Examples that must remain byte-for-byte ordered visually:
-  /// BOOK, Password123, admin123, P@ssW0rd, test@example.com and IPs.
   pw.Widget _richText(
     String value,
     pw.Font persianFont,
