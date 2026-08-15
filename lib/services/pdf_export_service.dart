@@ -302,14 +302,35 @@ class PdfExportService {
       return;
     }
 
-    // Export only real fields. The previous '#' column was a synthetic
-    // row-number column, not a table field; with BNazanin it could appear as '!'.
+    // Headers are supplied as widgets instead of data rows because
+    // TableHelper.fromTextArray does not call cellBuilder for header rows.
+    // This makes headers use exactly the same bidi renderer as field values.
+    final headers = columns
+        .map(
+          (column) => _richText(
+            column.name,
+            persianFont,
+            latinFallback,
+            latinBoldFallback,
+            fontSize: 9,
+            bold: true,
+            paragraphDirection: _paragraphDirectionFor(column.name),
+            textAlign: _paragraphDirectionFor(column.name) ==
+                    pw.TextDirection.rtl
+                ? pw.TextAlign.right
+                : pw.TextAlign.left,
+          ),
+        )
+        .toList();
+
     final data = <List<String>>[
-      columns.map((column) => column.name).toList(),
       for (var rowIndex = 0; rowIndex < table.rows.length; rowIndex++)
-        columns.map(
-          (column) => table.rows[rowIndex].values[column.name] ?? '—',
-        ).toList(),
+        columns
+            .map(
+              (column) =>
+                  table.rows[rowIndex].values[column.name] ?? '—',
+            )
+            .toList(),
     ];
 
     final columnWidths = <int, pw.TableColumnWidth>{
@@ -322,13 +343,13 @@ class PdfExportService {
         padding: pw.EdgeInsets.only(right: indent),
         child: pw.TableHelper.fromTextArray(
           data: data,
+          headers: headers,
           headerCount: 1,
           columnWidths: columnWidths,
           tableWidth: pw.TableWidth.max,
           cellPadding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 5),
           cellAlignment: pw.Alignment.centerRight,
           headerAlignment: pw.Alignment.centerRight,
-          headerDirection: pw.TextDirection.rtl,
           tableDirection: pw.TextDirection.rtl,
           headerDecoration: pw.BoxDecoration(color: PdfColor.fromInt(0xFFE0E0E0)),
           border: pw.TableBorder.all(
@@ -348,17 +369,13 @@ class PdfExportService {
           ),
           cellBuilder: (index, data, rowNum) {
             final value = data?.toString() ?? '';
-            final isHeader = rowNum == 0;
             final direction = _paragraphDirectionFor(value);
-
-            // Use the exact same bidi/LRM path for headers as for values.
             return _richText(
               value,
               persianFont,
               latinFallback,
               latinBoldFallback,
-              fontSize: isHeader ? 9 : 8.5,
-              bold: isHeader,
+              fontSize: 8.5,
               paragraphDirection: direction,
               textAlign: direction == pw.TextDirection.rtl
                   ? pw.TextAlign.right
