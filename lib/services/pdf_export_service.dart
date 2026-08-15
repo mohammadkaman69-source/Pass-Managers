@@ -214,8 +214,7 @@ class PdfExportService {
       ),
     );
 
-    final columns = [...table.columns]
-      ..sort((a, b) => a.position.compareTo(b.position));
+    final columns = _columnsForTable(table);
     if (columns.isEmpty) {
       widgets.add(
         _richText(
@@ -309,6 +308,37 @@ class PdfExportService {
       ),
     );
     widgets.add(pw.SizedBox(height: 7));
+  }
+
+  List<TreeExportColumn> _columnsForTable(TreeExportNode table) {
+    final byName = <String, TreeExportColumn>{};
+
+    for (final column in table.columns) {
+      if (column.name.trim().isEmpty) continue;
+      final existing = byName[column.name];
+      if (existing == null || column.position < existing.position) {
+        byName[column.name] = column;
+      }
+    }
+
+    for (final row in table.rows) {
+      for (final field in row.fields) {
+        if (field.name.trim().isEmpty) continue;
+        final existing = byName[field.name];
+        if (existing == null || field.position < existing.position) {
+          byName[field.name] = field;
+        }
+      }
+    }
+
+    final columns = byName.values.toList()
+      ..sort((a, b) {
+        final position = a.position.compareTo(b.position);
+        if (position != 0) return position;
+        return a.name.compareTo(b.name);
+      });
+
+    return columns;
   }
 
   pw.Widget _richText(
