@@ -174,19 +174,21 @@ class PdfExportService {
       Object? lastCaptureError;
       StackTrace? lastCaptureStackTrace;
 
-      // Size alone is not enough for RenderRepaintBoundary.toImage().
-      // Wait for a completed frame and a painted render object, then perform
-      // the capture while the OverlayEntry is still mounted. If Flutter's
-      // render tree changes between the readiness check and toImage(), retry
-      // the capture instead of allowing an internal null-check to escape.
+      // Do not inspect RenderObject.layer or debugNeedsPaint here: layer is a
+      // protected API and debugNeedsPaint is debug-only. Instead, wait for
+      // completed frames, verify the boundary is attached and laid out, then
+      // let toImage() perform the actual capture. If the render pipeline is
+      // still between paint/compositing phases, retry while the OverlayEntry
+      // remains mounted. This handles the race without depending on private
+      // or debug-only render state.
       for (var attempt = 0; attempt < 20; attempt++) {
         await WidgetsBinding.instance.endOfFrame;
 
         final render = key.currentContext?.findRenderObject();
 
         if (render is RenderRepaintBoundary &&
-            render.hasSize &&
-            !render.debugNeedsPaint) {
+            render.attached &&
+            render.hasSize) {
           try {
             return await render.toImage(pixelRatio: 1.0);
           } catch (error, stackTrace) {
@@ -203,15 +205,15 @@ class PdfExportService {
       if (lastCaptureError != null) {
         Error.throwWithStackTrace(
           StateError(
-            'PDF page image capture failed after waiting for a stable painted '
-            'render object. Last capture error: $lastCaptureError',
+            'PDF page image capture failed after waiting for the render '
+            'pipeline. Last capture error: $lastCaptureError',
           ),
           lastCaptureStackTrace!,
         );
       }
 
       throw StateError(
-        'PDF page renderer did not reach a stable painted state.',
+        'PDF page renderer did not become ready for image capture.',
       );
     } finally {
       if (entry.mounted) {
