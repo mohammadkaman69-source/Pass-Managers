@@ -302,20 +302,18 @@ class PdfExportService {
       return;
     }
 
+    // Export only real fields. The previous '#' column was a synthetic
+    // row-number column, not a table field; with BNazanin it could appear as '!'.
     final data = <List<String>>[
-      <String>['#', ...columns.map((column) => column.name)],
+      columns.map((column) => column.name).toList(),
       for (var rowIndex = 0; rowIndex < table.rows.length; rowIndex++)
-        <String>[
-          '${rowIndex + 1}',
-          ...columns.map(
-            (column) => table.rows[rowIndex].values[column.name] ?? '—',
-          ),
-        ],
+        columns.map(
+          (column) => table.rows[rowIndex].values[column.name] ?? '—',
+        ).toList(),
     ];
 
     final columnWidths = <int, pw.TableColumnWidth>{
-      0: const pw.FixedColumnWidth(30),
-      for (var index = 1; index <= columns.length; index++)
+      for (var index = 0; index < columns.length; index++)
         index: const pw.FlexColumnWidth(1),
     };
 
@@ -351,23 +349,9 @@ class PdfExportService {
           cellBuilder: (index, data, rowNum) {
             final value = data?.toString() ?? '';
             final isHeader = rowNum == 0;
-
-            if (isHeader && !_containsRtl(value)) {
-              return pw.Text(
-                value,
-                textDirection: pw.TextDirection.ltr,
-                textAlign: pw.TextAlign.left,
-                softWrap: true,
-                style: pw.TextStyle(
-                  font: latinBoldFallback,
-                  fontFallback: <pw.Font>[persianFont],
-                  fontSize: 9,
-                  fontWeight: pw.FontWeight.bold,
-                ),
-              );
-            }
-
             final direction = _paragraphDirectionFor(value);
+
+            // Use the exact same bidi/LRM path for headers as for values.
             return _richText(
               value,
               persianFont,
@@ -543,6 +527,14 @@ class PdfExportService {
       return pw.TextDirection.ltr;
     }
     return null;
+  }
+
+  pw.TextDirection _directionFor(String value) {
+    for (final rune in value.runes) {
+      final direction = _strongDirection(String.fromCharCode(rune));
+      if (direction != null) return direction;
+    }
+    return pw.TextDirection.ltr;
   }
 
   pw.TextDirection _paragraphDirectionFor(String value) {
