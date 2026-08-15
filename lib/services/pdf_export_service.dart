@@ -423,6 +423,20 @@ class PdfExportService {
       );
     }
 
+    if (!_containsRtl(value)) {
+      return pw.Text(
+        value,
+        textDirection: pw.TextDirection.ltr,
+        textAlign: pw.TextAlign.left,
+        style: pw.TextStyle(
+          font: bold ? latinBoldFallback : latinFallback,
+          fontFallback: <pw.Font>[persianFont],
+          fontSize: fontSize,
+          fontWeight: bold ? pw.FontWeight.bold : pw.FontWeight.normal,
+        ),
+      );
+    }
+
     final runs = _splitDirectionalRuns(value);
     final spans = <pw.InlineSpan>[];
 
@@ -456,6 +470,12 @@ class PdfExportService {
       softWrap: true,
       text: pw.TextSpan(children: spans),
     );
+  }
+
+  bool _containsRtl(String value) {
+    return RegExp(
+      r'[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]',
+    ).hasMatch(value);
   }
 
   List<_DirectionalRun> _splitDirectionalRuns(String value) {
