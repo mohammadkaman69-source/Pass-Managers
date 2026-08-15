@@ -133,7 +133,14 @@ class PdfExportService {
   ) {
     final widgets = <pw.Widget>[];
     for (final node in document.roots) {
-      _appendNode(widgets, node, persianFont, latinFallback, latinBoldFallback);
+      _appendNode(
+        widgets,
+        node,
+        persianFont,
+        latinFallback,
+        latinBoldFallback,
+        level: 0,
+      );
     }
     if (widgets.isEmpty) {
       widgets.add(
@@ -160,21 +167,45 @@ class PdfExportService {
     TreeExportNode node,
     pw.Font persianFont,
     pw.Font latinFallback,
-    pw.Font latinBoldFallback,
-  ) {
+    pw.Font latinBoldFallback, {
+    required int level,
+  }) {
+    final indent = level * 22.0;
+    final branchPrefix = level == 0 ? '' : '└─ ';
+
     if (node.isFolder) {
       widgets.add(
         pw.Container(
           width: double.infinity,
-          margin: const pw.EdgeInsets.only(top: 8, bottom: 6),
-          padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-          decoration: pw.BoxDecoration(color: PdfColor.fromInt(0xFFECECEC)),
+          margin: pw.EdgeInsets.only(
+            top: level == 0 ? 8 : 4,
+            bottom: 5,
+          ),
+          padding: pw.EdgeInsets.only(
+            right: 8 + indent,
+            left: 8,
+            top: 6,
+            bottom: 6,
+          ),
+          decoration: pw.BoxDecoration(
+            color: level == 0
+                ? PdfColor.fromInt(0xFFE6E6E6)
+                : PdfColor.fromInt(0xFFF0F0F0),
+            border: level > 0
+                ? pw.Border(
+                    right: pw.BorderSide(
+                      color: PdfColor.fromInt(0xFFAAAAAA),
+                      width: 1,
+                    ),
+                  )
+                : null,
+          ),
           child: _richText(
-            'پوشه: ${node.name}',
+            '$branchPrefixپوشه: ${node.name}',
             persianFont,
             latinFallback,
             latinBoldFallback,
-            fontSize: 14,
+            fontSize: level == 0 ? 14 : 12.5,
             bold: true,
             paragraphDirection: pw.TextDirection.rtl,
             textAlign: pw.TextAlign.right,
@@ -182,12 +213,29 @@ class PdfExportService {
         ),
       );
       for (final child in node.children) {
-        _appendNode(widgets, child, persianFont, latinFallback, latinBoldFallback);
+        _appendNode(
+          widgets,
+          child,
+          persianFont,
+          latinFallback,
+          latinBoldFallback,
+          level: level + 1,
+        );
       }
       return;
     }
+
     if (node.isTable) {
-      _appendTable(widgets, node, persianFont, latinFallback, latinBoldFallback);
+      _appendTable(
+        widgets,
+        node,
+        persianFont,
+        latinFallback,
+        latinBoldFallback,
+        level: level,
+        indent: indent,
+        branchPrefix: branchPrefix,
+      );
     }
   }
 
@@ -196,17 +244,24 @@ class PdfExportService {
     TreeExportNode table,
     pw.Font persianFont,
     pw.Font latinFallback,
-    pw.Font latinBoldFallback,
-  ) {
+    pw.Font latinBoldFallback, {
+    required int level,
+    required double indent,
+    required String branchPrefix,
+  }) {
     widgets.add(
       pw.Padding(
-        padding: const pw.EdgeInsets.only(top: 8, bottom: 5),
+        padding: pw.EdgeInsets.only(
+          right: indent,
+          top: 7,
+          bottom: 5,
+        ),
         child: _richText(
-          'جدول: ${table.name}',
+          '$branchPrefixجدول: ${table.name}',
           persianFont,
           latinFallback,
           latinBoldFallback,
-          fontSize: 13,
+          fontSize: level == 0 ? 13 : 12,
           bold: true,
           paragraphDirection: pw.TextDirection.rtl,
           textAlign: pw.TextAlign.right,
@@ -217,28 +272,34 @@ class PdfExportService {
     final columns = _columnsForTable(table);
     if (columns.isEmpty) {
       widgets.add(
-        _richText(
-          'این جدول فیلدی ندارد.',
-          persianFont,
-          latinFallback,
-          latinBoldFallback,
-          fontSize: 10,
-          paragraphDirection: pw.TextDirection.rtl,
-          textAlign: pw.TextAlign.right,
+        pw.Padding(
+          padding: pw.EdgeInsets.only(right: indent + 22),
+          child: _richText(
+            'این جدول فیلدی ندارد.',
+            persianFont,
+            latinFallback,
+            latinBoldFallback,
+            fontSize: 10,
+            paragraphDirection: pw.TextDirection.rtl,
+            textAlign: pw.TextAlign.right,
+          ),
         ),
       );
       return;
     }
     if (table.rows.isEmpty) {
       widgets.add(
-        _richText(
-          'این جدول رکوردی ندارد.',
-          persianFont,
-          latinFallback,
-          latinBoldFallback,
-          fontSize: 10,
-          paragraphDirection: pw.TextDirection.rtl,
-          textAlign: pw.TextAlign.right,
+        pw.Padding(
+          padding: pw.EdgeInsets.only(right: indent + 22),
+          child: _richText(
+            'این جدول رکوردی ندارد.',
+            persianFont,
+            latinFallback,
+            latinBoldFallback,
+            fontSize: 10,
+            paragraphDirection: pw.TextDirection.rtl,
+            textAlign: pw.TextAlign.right,
+          ),
         ),
       );
       return;
@@ -262,49 +323,52 @@ class PdfExportService {
     };
 
     widgets.add(
-      pw.TableHelper.fromTextArray(
-        data: data,
-        headerCount: 1,
-        columnWidths: columnWidths,
-        tableWidth: pw.TableWidth.max,
-        cellPadding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 5),
-        cellAlignment: pw.Alignment.centerRight,
-        headerAlignment: pw.Alignment.centerRight,
-        headerDirection: pw.TextDirection.rtl,
-        tableDirection: pw.TextDirection.rtl,
-        headerDecoration: pw.BoxDecoration(color: PdfColor.fromInt(0xFFE0E0E0)),
-        border: pw.TableBorder.all(
-          color: PdfColor.fromInt(0xFF777777),
-          width: 0.5,
+      pw.Padding(
+        padding: pw.EdgeInsets.only(right: indent),
+        child: pw.TableHelper.fromTextArray(
+          data: data,
+          headerCount: 1,
+          columnWidths: columnWidths,
+          tableWidth: pw.TableWidth.max,
+          cellPadding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 5),
+          cellAlignment: pw.Alignment.centerRight,
+          headerAlignment: pw.Alignment.centerRight,
+          headerDirection: pw.TextDirection.rtl,
+          tableDirection: pw.TextDirection.rtl,
+          headerDecoration: pw.BoxDecoration(color: PdfColor.fromInt(0xFFE0E0E0)),
+          border: pw.TableBorder.all(
+            color: PdfColor.fromInt(0xFF777777),
+            width: 0.5,
+          ),
+          headerStyle: pw.TextStyle(
+            font: persianFont,
+            fontFallback: <pw.Font>[latinFallback, latinBoldFallback],
+            fontSize: 9,
+            fontWeight: pw.FontWeight.bold,
+          ),
+          cellStyle: pw.TextStyle(
+            font: persianFont,
+            fontFallback: <pw.Font>[latinFallback],
+            fontSize: 8.5,
+          ),
+          cellBuilder: (index, data, rowNum) {
+            final value = data?.toString() ?? '';
+            final isHeader = rowNum == 0;
+            final direction = _directionFor(value);
+            return _richText(
+              value,
+              persianFont,
+              latinFallback,
+              latinBoldFallback,
+              fontSize: isHeader ? 9 : 8.5,
+              bold: isHeader,
+              paragraphDirection: direction,
+              textAlign: direction == pw.TextDirection.rtl
+                  ? pw.TextAlign.right
+                  : pw.TextAlign.left,
+            );
+          },
         ),
-        headerStyle: pw.TextStyle(
-          font: persianFont,
-          fontFallback: <pw.Font>[latinFallback, latinBoldFallback],
-          fontSize: 9,
-          fontWeight: pw.FontWeight.bold,
-        ),
-        cellStyle: pw.TextStyle(
-          font: persianFont,
-          fontFallback: <pw.Font>[latinFallback],
-          fontSize: 8.5,
-        ),
-        cellBuilder: (index, data, rowNum) {
-          final value = data?.toString() ?? '';
-          final isHeader = rowNum == 0;
-          final direction = _directionFor(value);
-          return _richText(
-            value,
-            persianFont,
-            latinFallback,
-            latinBoldFallback,
-            fontSize: isHeader ? 9 : 8.5,
-            bold: isHeader,
-            paragraphDirection: direction,
-            textAlign: direction == pw.TextDirection.rtl
-                ? pw.TextAlign.right
-                : pw.TextAlign.left,
-          );
-        },
       ),
     );
     widgets.add(pw.SizedBox(height: 7));
