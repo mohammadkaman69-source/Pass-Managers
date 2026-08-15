@@ -85,8 +85,6 @@ class PdfExportService {
           allowedExtensions: const <String>['pdf'],
           bytes: pdfBytes,
         );
-        // file_picker 12.x returns Uri? while older versions returned String?.
-        // Keep the service API stable for existing callers.
         return uri?.toString();
       } finally {
         pdfBytes.fillRange(0, pdfBytes.length, 0);
@@ -111,23 +109,41 @@ class PdfExportService {
       );
     }
 
+    final overlay =
+        Overlay.maybeOf(hostContext, rootOverlay: true) ??
+        Navigator.maybeOf(hostContext, rootNavigator: true)?.overlay;
+    if (overlay == null) {
+      throw StateError(
+        'A Navigator/Overlay is not available for PDF rendering.',
+      );
+    }
+
     final key = GlobalKey();
     final entry = OverlayEntry(
+      maintainState: true,
       builder: (_) => Positioned(
-        left: -10000,
+        left: 0,
         top: 0,
-        child: RepaintBoundary(
-          key: key,
-          child: SizedBox(
-            width: 794,
-            height: 1123,
-            child: Material(
-              color: Colors.white,
-              child: Directionality(
-                textDirection: TextDirection.rtl,
-                child: _PdfPageView(
-                  title: title,
-                  page: page,
+        child: IgnorePointer(
+          child: Opacity(
+            // Keep the subtree painted so RenderRepaintBoundary receives an
+            // OffsetLayer, while making the temporary page effectively
+            // invisible to the user for the single capture frame.
+            opacity: 0.001,
+            child: RepaintBoundary(
+              key: key,
+              child: SizedBox(
+                width: 794,
+                height: 1123,
+                child: Material(
+                  color: Colors.white,
+                  child: Directionality(
+                    textDirection: TextDirection.rtl,
+                    child: _PdfPageView(
+                      title: title,
+                      page: page,
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -136,14 +152,28 @@ class PdfExportService {
       ),
     );
 
-    final overlay = Overlay.of(hostContext, rootOverlay: true);
     overlay.insert(entry);
     try {
-      await WidgetsBinding.instance.endOfFrame;
-      final renderObject = key.currentContext?.findRenderObject();
-      if (renderObject is! RenderRepaintBoundary) {
-        throw StateError('PDF page could not be rendered.');
+      RenderRepaintBoundary? renderObject;
+      for (var attempt = 0; attempt < 3; attempt++) {
+        await WidgetsBinding.instance.endOfFrame;
+        renderObject = key.currentContext?.findRenderObject()
+            as RenderRepaintBoundary?;
+        if (renderObject != null &&
+            renderObject.hasSize &&
+            !renderObject.debugNeedsPaint) {
+          break;
+        }
+        await Future<void>.delayed(Duration.zero);
       }
+
+      if (renderObject == null || !renderObject.hasSize) {
+        throw StateError('PDF page could not be laid out.');
+      }
+      if (renderObject.debugNeedsPaint) {
+        throw StateError('PDF page could not be painted before capture.');
+      }
+
       return renderObject.toImage(pixelRatio: 1.0);
     } finally {
       entry.remove();
@@ -157,9 +187,7 @@ class PdfExportService {
     var used = 0;
 
     void flush() {
-      if (current.isEmpty) {
-        return;
-      }
+      if (current.isEmpty) return;
       pages.add(_PdfPageData(List<_PdfSection>.from(current)));
       current = <_PdfSection>[];
       used = 0;
@@ -167,9 +195,7 @@ class PdfExportService {
 
     void addSection(_PdfSection section) {
       final cost = section.estimatedUnits;
-      if (current.isNotEmpty && used + cost > 17) {
-        flush();
-      }
+      if (current.isNotEmpty && used + cost > 17) flush();
       current.add(section);
       used += cost;
     }
@@ -192,9 +218,7 @@ class PdfExportService {
     }
 
     if (current.isEmpty) {
-      addSection(
-        _PdfSection.message('محتوایی برای Export وجود ندارد.'),
-      );
+      addSection(_PdfSection.message('محتوایی برای Export وجود ندارد.'));
     }
     flush();
     return pages;
@@ -221,9 +245,7 @@ class PdfExportService {
       final end = (start + rowsPerPage).clamp(0, table.rows.length);
       if (start > 0) {
         flush();
-        addSection(
-          _PdfSection.tableTitle('${table.name} (ادامه)'),
-        );
+        addSection(_PdfSection.tableTitle('${table.name} (ادامه)'));
       }
       addSection(
         _PdfSection.table(
@@ -232,16 +254,12 @@ class PdfExportService {
           start,
         ),
       );
-      if (end < table.rows.length) {
-        flush();
-      }
+      if (end < table.rows.length) flush();
     }
   }
 
   String _sanitizeFileName(String name) {
-    final clean = name
-        .replaceAll(RegExp(r'[<>:"/\\|?*]'), '_')
-        .trim();
+    final clean = name.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_').trim();
     return clean.isEmpty ? 'Pass-Managers' : clean;
   }
 }
@@ -315,10 +333,7 @@ class _PdfSectionView extends StatelessWidget {
             'پوشه: ${section.title}',
             textAlign: TextAlign.right,
             textDirection: TextDirection.rtl,
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-            ),
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
           ),
         );
       case _PdfSectionKind.tableTitle:
@@ -328,10 +343,7 @@ class _PdfSectionView extends StatelessWidget {
             'جدول: ${section.title}',
             textAlign: TextAlign.right,
             textDirection: TextDirection.rtl,
-            style: const TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.bold,
-            ),
+            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
           ),
         );
       case _PdfSectionKind.message:
@@ -377,10 +389,7 @@ class _PdfTableView extends StatelessWidget {
         for (final entry in section.rows.asMap().entries)
           TableRow(
             children: [
-              _cell(
-                '${section.startIndex + entry.key + 1}',
-                ltr: true,
-              ),
+              _cell('${section.startIndex + entry.key + 1}', ltr: true),
               for (final column in columns)
                 _cell(entry.value.values[column] ?? '—'),
             ],
@@ -389,16 +398,10 @@ class _PdfTableView extends StatelessWidget {
     );
   }
 
-  Widget _cell(
-    String value, {
-    bool bold = false,
-    bool ltr = false,
-  }) {
+  Widget _cell(String value, {bool bold = false, bool ltr = false}) {
     final direction = ltr
         ? TextDirection.ltr
-        : (_containsRtl(value)
-            ? TextDirection.rtl
-            : TextDirection.ltr);
+        : (_containsRtl(value) ? TextDirection.rtl : TextDirection.ltr);
     return Padding(
       padding: const EdgeInsets.all(5),
       child: Text(
@@ -419,9 +422,7 @@ class _PdfTableView extends StatelessWidget {
   }
 
   bool _containsRtl(String value) {
-    return RegExp(
-      r'[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]',
-    ).hasMatch(value);
+    return RegExp(r'[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]').hasMatch(value);
   }
 }
 
@@ -436,39 +437,31 @@ class _PdfSection {
     this.startIndex = 0,
   });
 
-  factory _PdfSection.folder(String name) {
-    return _PdfSection._(
-      kind: _PdfSectionKind.folder,
-      title: name,
-    );
-  }
+  factory _PdfSection.folder(String name) => _PdfSection._(
+        kind: _PdfSectionKind.folder,
+        title: name,
+      );
 
-  factory _PdfSection.tableTitle(String name) {
-    return _PdfSection._(
-      kind: _PdfSectionKind.tableTitle,
-      title: name,
-    );
-  }
+  factory _PdfSection.tableTitle(String name) => _PdfSection._(
+        kind: _PdfSectionKind.tableTitle,
+        title: name,
+      );
 
-  factory _PdfSection.message(String text) {
-    return _PdfSection._(
-      kind: _PdfSectionKind.message,
-      title: text,
-    );
-  }
+  factory _PdfSection.message(String text) => _PdfSection._(
+        kind: _PdfSectionKind.message,
+        title: text,
+      );
 
   factory _PdfSection.table(
     List<String> columns,
     List<_PdfRow> rows,
     int startIndex,
-  ) {
-    return _PdfSection._(
-      kind: _PdfSectionKind.table,
-      columns: columns,
-      rows: rows,
-      startIndex: startIndex,
-    );
-  }
+  ) => _PdfSection._(
+        kind: _PdfSectionKind.table,
+        columns: columns,
+        rows: rows,
+        startIndex: startIndex,
+      );
 
   final _PdfSectionKind kind;
   final String title;
@@ -515,9 +508,7 @@ class _PdfDocumentModel {
 
     if (children is List) {
       for (final child in children) {
-        if (child is! Map) {
-          continue;
-        }
+        if (child is! Map) continue;
         final map = Map<String, dynamic>.from(child);
         final type = map['type']?.toString();
         if (type == 'folder') {
@@ -554,9 +545,7 @@ class _PdfFolder {
 
     if (raw is List) {
       for (final child in raw) {
-        if (child is! Map) {
-          continue;
-        }
+        if (child is! Map) continue;
         final childMap = Map<String, dynamic>.from(child);
         final type = childMap['type']?.toString();
         if (type == 'table') {
@@ -593,25 +582,17 @@ class _PdfTable {
 
     if (rawRows is List) {
       for (final rawRow in rawRows) {
-        if (rawRow is! Map) {
-          continue;
-        }
+        if (rawRow is! Map) continue;
         final fields = rawRow['fields'];
         if (fields is List) {
           for (final rawField in fields) {
-            if (rawField is! Map) {
-              continue;
-            }
+            if (rawField is! Map) continue;
             final name = rawField['name']?.toString() ?? '';
-            if (name.isEmpty) {
-              continue;
-            }
+            if (name.isEmpty) continue;
             final rawPosition = rawField['position'];
             final position = rawPosition is int ? rawPosition : 999999;
             final old = positions[name];
-            if (old == null || position < old) {
-              positions[name] = position;
-            }
+            if (old == null || position < old) positions[name] = position;
           }
         }
 
