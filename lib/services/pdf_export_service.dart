@@ -63,8 +63,7 @@ class PdfExportService {
       }
 
       final pdfBytes = await document.save();
-      final fileName =
-          '${_sanitizeFileName(model.title)}.pdf';
+      final fileName = '${_sanitizeFileName(model.title)}.pdf';
 
       if (Platform.isAndroid) {
         try {
@@ -92,13 +91,18 @@ class PdfExportService {
       }
 
       try {
-        return await FilePicker.saveFile(
+        // file_picker 12.x may return Uri? from saveFile().
+        // The public PdfExportService API remains String? so that
+        // Android and Windows share the same return contract.
+        final savedPath = await FilePicker.saveFile(
           dialogTitle: 'ذخیره PDF Pass Managers',
           fileName: fileName,
           type: FileType.custom,
           allowedExtensions: const ['pdf'],
           bytes: pdfBytes,
         );
+
+        return savedPath?.toString();
       } finally {
         pdfBytes.fillRange(0, pdfBytes.length, 0);
       }
@@ -125,8 +129,7 @@ class PdfExportService {
               rootNavigator: true,
             )?.overlay;
 
-    final overlay =
-        contextOverlay ?? appNavigatorKey.currentState?.overlay;
+    final overlay = contextOverlay ?? appNavigatorKey.currentState?.overlay;
 
     if (overlay == null || !overlay.mounted) {
       throw StateError(
@@ -173,11 +176,9 @@ class PdfExportService {
       for (var attempt = 0; attempt < 10; attempt++) {
         await WidgetsBinding.instance.endOfFrame;
 
-        final render =
-            key.currentContext?.findRenderObject();
+        final render = key.currentContext?.findRenderObject();
 
-        if (render is RenderRepaintBoundary &&
-            render.hasSize) {
+        if (render is RenderRepaintBoundary && render.hasSize) {
           renderObject = render;
           break;
         }
@@ -188,18 +189,13 @@ class PdfExportService {
       }
 
       if (renderObject == null || !renderObject.hasSize) {
-        throw StateError(
-          'PDF page could not be laid out.',
-        );
+        throw StateError('PDF page could not be laid out.');
       }
 
-      // The image must be completely captured before the
-      // OverlayEntry is removed. Removing the entry before
-      // awaiting toImage() can invalidate the render tree and
-      // cause runtime null-check failures inside Flutter.
-      final image = await renderObject.toImage(
-        pixelRatio: 1.0,
-      );
+      // The image must be completely captured before the OverlayEntry is
+      // removed. Removing the entry before awaiting toImage() can invalidate
+      // the render tree and cause runtime null-check failures inside Flutter.
+      final image = await renderObject.toImage(pixelRatio: 1.0);
 
       return image;
     } finally {
@@ -210,9 +206,7 @@ class PdfExportService {
     }
   }
 
-  List<_PdfPageData> _paginate(
-    _PdfDocumentModel model,
-  ) {
+  List<_PdfPageData> _paginate(_PdfDocumentModel model) {
     final pages = <_PdfPageData>[];
     var current = <_PdfSection>[];
     var used = 0;
@@ -253,9 +247,7 @@ class PdfExportService {
 
     if (current.isEmpty) {
       addSection(
-        _PdfSection.message(
-          'محتوایی برای Export وجود ندارد.',
-        ),
+        _PdfSection.message('محتوایی برای Export وجود ندارد.'),
       );
     }
 
@@ -271,33 +263,24 @@ class PdfExportService {
     addSection(_PdfSection.tableTitle(table.name));
 
     if (table.columns.isEmpty) {
-      addSection(
-        _PdfSection.message('این جدول فیلدی ندارد.'),
-      );
+      addSection(_PdfSection.message('این جدول فیلدی ندارد.'));
       return;
     }
 
     if (table.rows.isEmpty) {
-      addSection(
-        _PdfSection.message('این جدول رکوردی ندارد.'),
-      );
+      addSection(_PdfSection.message('این جدول رکوردی ندارد.'));
       return;
     }
 
     const rowsPerPage = 10;
 
-    for (var start = 0;
-        start < table.rows.length;
-        start += rowsPerPage) {
-      final end =
-          (start + rowsPerPage).clamp(0, table.rows.length);
+    for (var start = 0; start < table.rows.length; start += rowsPerPage) {
+      final end = (start + rowsPerPage).clamp(0, table.rows.length);
 
       if (start > 0) {
         flush();
         addSection(
-          _PdfSection.tableTitle(
-            '${table.name} (ادامه)',
-          ),
+          _PdfSection.tableTitle('${table.name} (ادامه)'),
         );
       }
 
@@ -317,10 +300,7 @@ class PdfExportService {
 
   String _sanitizeFileName(String name) {
     final clean = name
-        .replaceAll(
-          RegExp(r'[<>:"/\\|?*]'),
-          '_',
-        )
+        .replaceAll(RegExp(r'[<>:"/\\|?*]'), '_')
         .trim();
 
     return clean.isEmpty ? 'Pass-Managers' : clean;
@@ -337,8 +317,7 @@ class _PdfPageView extends StatelessWidget {
   final _PdfPageData page;
 
   @override
-  Widget build(BuildContext context) =>
-      SizedBox(
+  Widget build(BuildContext context) => SizedBox(
         width: 794,
         height: 1123,
         child: Padding(
@@ -360,8 +339,7 @@ class _PdfPageView extends StatelessWidget {
               const SizedBox(height: 10),
               Expanded(
                 child: ListView(
-                  physics:
-                      const NeverScrollableScrollPhysics(),
+                  physics: const NeverScrollableScrollPhysics(),
                   children: [
                     for (final section in page.sections)
                       _PdfSectionView(section: section),
@@ -393,10 +371,7 @@ class _PdfSectionView extends StatelessWidget {
       case _PdfSectionKind.folder:
         return Container(
           margin: const EdgeInsets.only(top: 8, bottom: 6),
-          padding: const EdgeInsets.symmetric(
-            horizontal: 8,
-            vertical: 6,
-          ),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
           color: const Color(0xFFECECEC),
           child: Text(
             'پوشه: ${section.title}',
@@ -451,8 +426,7 @@ class _PdfTableView extends StatelessWidget {
         color: Colors.black54,
         width: 0.5,
       ),
-      defaultVerticalAlignment:
-          TableCellVerticalAlignment.middle,
+      defaultVerticalAlignment: TableCellVerticalAlignment.middle,
       columnWidths: {
         0: const FlexColumnWidth(0.45),
         for (var i = 1; i <= columns.length; i++)
@@ -465,8 +439,7 @@ class _PdfTableView extends StatelessWidget {
           ),
           children: [
             _cell('#', ltr: true, bold: true),
-            for (final column in columns)
-              _cell(column, bold: true),
+            for (final column in columns) _cell(column, bold: true),
           ],
         ),
         for (final entry in section.rows.asMap().entries)
@@ -477,9 +450,7 @@ class _PdfTableView extends StatelessWidget {
                 ltr: true,
               ),
               for (final column in columns)
-                _cell(
-                  entry.value.values[column] ?? '—',
-                ),
+                _cell(entry.value.values[column] ?? '—'),
             ],
           ),
       ],
@@ -509,8 +480,7 @@ class _PdfTableView extends StatelessWidget {
         overflow: TextOverflow.clip,
         style: TextStyle(
           fontSize: bold ? 10 : 9,
-          fontWeight:
-              bold ? FontWeight.bold : FontWeight.normal,
+          fontWeight: bold ? FontWeight.bold : FontWeight.normal,
           color: Colors.black,
         ),
       ),
@@ -538,20 +508,17 @@ class _PdfSection {
     this.startIndex = 0,
   });
 
-  factory _PdfSection.folder(String name) =>
-      _PdfSection._(
+  factory _PdfSection.folder(String name) => _PdfSection._(
         kind: _PdfSectionKind.folder,
         title: name,
       );
 
-  factory _PdfSection.tableTitle(String name) =>
-      _PdfSection._(
+  factory _PdfSection.tableTitle(String name) => _PdfSection._(
         kind: _PdfSectionKind.tableTitle,
         title: name,
       );
 
-  factory _PdfSection.message(String text) =>
-      _PdfSection._(
+  factory _PdfSection.message(String text) => _PdfSection._(
         kind: _PdfSectionKind.message,
         title: text,
       );
@@ -560,8 +527,7 @@ class _PdfSection {
     List<String> columns,
     List<_PdfRow> rows,
     int startIndex,
-  ) =>
-      _PdfSection._(
+  ) => _PdfSection._(
         kind: _PdfSectionKind.table,
         columns: columns,
         rows: rows,
@@ -606,9 +572,7 @@ class _PdfDocumentModel {
   final List<_PdfFolder> folders;
   final List<_PdfTable> rootTables;
 
-  factory _PdfDocumentModel.fromRoot(
-    Map<String, dynamic> root,
-  ) {
+  factory _PdfDocumentModel.fromRoot(Map<String, dynamic> root) {
     final folders = <_PdfFolder>[];
     final rootTables = <_PdfTable>[];
     final children = root['children'];
@@ -699,8 +663,7 @@ class _PdfTable {
           for (final rawField in fields) {
             if (rawField is! Map) continue;
 
-            final name =
-                rawField['name']?.toString() ?? '';
+            final name = rawField['name']?.toString() ?? '';
 
             if (name.isEmpty) continue;
 
@@ -721,8 +684,7 @@ class _PdfTable {
 
         if (rawValues is Map) {
           rawValues.forEach((key, value) {
-            values[key.toString()] =
-                value?.toString() ?? '';
+            values[key.toString()] = value?.toString() ?? '';
           });
         }
 
@@ -732,8 +694,7 @@ class _PdfTable {
 
     final columns = positions.keys.toList()
       ..sort(
-        (a, b) =>
-            (positions[a] ?? 999999).compareTo(
+        (a, b) => (positions[a] ?? 999999).compareTo(
           positions[b] ?? 999999,
         ),
       );
