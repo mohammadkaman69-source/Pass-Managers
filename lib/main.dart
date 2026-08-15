@@ -3,9 +3,7 @@ import 'package:flutter/material.dart';
 import 'screens/home_page.dart';
 import 'screens/login_page.dart';
 import 'security/app_lifecycle_manager.dart';
-
-final GlobalKey<NavigatorState> appNavigatorKey =
-    GlobalKey<NavigatorState>();
+import 'services/app_navigator.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
