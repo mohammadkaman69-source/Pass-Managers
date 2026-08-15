@@ -1,10 +1,12 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:cryptography/cryptography.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart';
+import 'package:sqflite/sqflite.dart';
 
+import '../database/app_database.dart';
 import '../repositories/tree_repository.dart';
 import '../security/security_manager.dart';
 
@@ -15,7 +17,7 @@ class BackupService {
   })  : _repository = repository ?? TreeRepository(),
         _securityManager = securityManager ?? SecurityManager();
 
-  static const int _formatVersion = 1;
+  static const int _formatVersion = 2;
   static const MethodChannel _channel =
       MethodChannel('pass_managers/file_saver');
 
@@ -23,12 +25,20 @@ class BackupService {
   final SecurityManager _securityManager;
 
   Future<bool> createBackup({required String masterPassword}) async {
-    final tree = await _repository.getCompleteTree();
+    final db = await AppDatabase.instance.database;
+
+    // Take an exact relational snapshot. The previous implementation rebuilt
+    // the database through a tree representation, which could silently lose
+    // tables/relationships. Encrypted table_values are copied as ciphertext;
+    // the outer backup file is encrypted separately with the supplied password.
+    final snapshot = await _readDatabaseSnapshot(db);
+    _validateSnapshot(snapshot);
+
     final payload = jsonEncode({
       'format': 'pass_managers_backup',
       'version': _formatVersion,
       'created_at': DateTime.now().toIso8601String(),
-      'data': tree,
+      'data': snapshot,
     });
 
     final salt = _securityManager.cryptoService.generateSalt();
@@ -110,9 +120,10 @@ class BackupService {
         throw const BackupFormatException('فرمت نسخه پشتیبان معتبر نیست.');
       }
 
-      if (outer['version'] != _formatVersion) {
+      final version = outer['version'];
+      if (version is! int || (version != 1 && version != 2)) {
         throw BackupFormatException(
-          'نسخه پشتیبان پشتیبانی نمی‌شود: ${outer['version']}',
+          'نسخه پشتیبان پشتیبانی نمی‌شود: $version',
         );
       }
 
@@ -147,33 +158,37 @@ class BackupService {
         }
 
         final data = decoded['data'];
-        if (data is! List) {
-          throw const BackupFormatException(
-            'ساختار داده نسخه پشتیبان خراب است.',
-          );
-        }
 
-        final roots = <Map<String, dynamic>>[];
-        for (final item in data) {
-          if (item is Map) {
-            roots.add(Map<String, dynamic>.from(item));
+        if (version == 2) {
+          if (data is! Map) {
+            throw const BackupFormatException(
+              'ساختار نسخه پشتیبان خراب است.',
+            );
           }
-        }
 
-        await _repository.replaceFromBackup(roots);
+          final snapshot = _normalizeSnapshot(data);
+          _validateSnapshot(snapshot);
+          await _restoreDatabaseSnapshot(snapshot);
+        } else {
+          // Keep compatibility with existing v1 backups.
+          if (data is! List) {
+            throw const BackupFormatException(
+              'ساختار داده نسخه پشتیبان خراب است.',
+            );
+          }
 
-        // Verify the database contains the same tree structure that was in
-        // the decrypted backup. A successful SQL transaction alone is not
-        // enough; this catches silently skipped folders/tables during restore.
-        final restoredTree = await _repository.getCompleteTree();
-        if (_treeSignature(restoredTree) != _treeSignature(roots)) {
-          throw const BackupFormatException(
-            'بازیابی کامل انجام نشد؛ ساختار نسخه پشتیبان با داده بازیابی‌شده مطابقت ندارد.',
-          );
+          final roots = <Map<String, dynamic>>[];
+          for (final item in data) {
+            if (item is Map) {
+              roots.add(Map<String, dynamic>.from(item));
+            }
+          }
+
+          await _repository.replaceFromBackup(roots);
         }
       } on SecretBoxAuthenticationError {
         throw const BackupFormatException(
-          'نسخه پشتیبان با کلید امنیتی فعلی قابل بازگشایی نیست.',
+          'رمز نسخه پشتیبان اشتباه است یا فایل قابل بازگشایی نیست.',
         );
       } on FormatException {
         throw const BackupFormatException(
@@ -189,33 +204,180 @@ class BackupService {
     }
   }
 
-  String _treeSignature(List<Map<String, dynamic>> nodes) {
-    final normalized = nodes.map(_normalizeNode).toList();
-    return jsonEncode(normalized);
+  Future<Map<String, dynamic>> _readDatabaseSnapshot(Database db) async {
+    return {
+      'tree_items': await db.query('tree_items', orderBy: 'id ASC'),
+      'table_rows': await db.query('table_rows', orderBy: 'id ASC'),
+      'table_fields': await db.query('table_fields', orderBy: 'id ASC'),
+      'table_values': await db.query('table_values', orderBy: 'id ASC'),
+    };
   }
 
-  Map<String, dynamic> _normalizeNode(Map<String, dynamic> node) {
-    final normalized = <String, dynamic>{
-      'name': node['name']?.toString() ?? '',
-      'type': node['type']?.toString() ?? '',
-    };
+  Map<String, dynamic> _normalizeSnapshot(Map data) {
+    List<Map<String, dynamic>> listFor(String key) {
+      final value = data[key];
+      if (value is! List) {
+        throw BackupFormatException(
+          'بخش $key در نسخه پشتیبان وجود ندارد.',
+        );
+      }
 
-    if (normalized['type'] == 'folder') {
-      final children = node['children'];
-      normalized['children'] = children is List
-          ? children
-              .whereType<Map>()
-              .map((child) => _normalizeNode(
-                    Map<String, dynamic>.from(child),
-                  ))
-              .toList()
-          : <Map<String, dynamic>>[];
-    } else if (normalized['type'] == 'table') {
-      final rows = node['rows'];
-      normalized['row_count'] = rows is List ? rows.length : 0;
+      return value.whereType<Map>().map((item) {
+        return Map<String, dynamic>.from(item);
+      }).toList();
     }
 
-    return normalized;
+    return {
+      'tree_items': listFor('tree_items'),
+      'table_rows': listFor('table_rows'),
+      'table_fields': listFor('table_fields'),
+      'table_values': listFor('table_values'),
+    };
+  }
+
+  void _validateSnapshot(Map<String, dynamic> snapshot) {
+    final treeItems = snapshot['tree_items'];
+    final rows = snapshot['table_rows'];
+    final fields = snapshot['table_fields'];
+    final values = snapshot['table_values'];
+
+    if (treeItems is! List ||
+        rows is! List ||
+        fields is! List ||
+        values is! List) {
+      throw const BackupFormatException(
+        'ساختار داخلی نسخه پشتیبان کامل نیست.',
+      );
+    }
+
+    final ids = <int>{};
+    for (final raw in treeItems) {
+      if (raw is! Map ||
+          raw['id'] is! int ||
+          raw['name'] == null ||
+          raw['type'] == null) {
+        throw const BackupFormatException(
+          'داده‌های Tree در Backup معتبر نیستند.',
+        );
+      }
+      final id = raw['id'] as int;
+      if (!ids.add(id)) {
+        throw const BackupFormatException(
+          'شناسه تکراری در Tree پیدا شد.',
+        );
+      }
+      final type = raw['type'].toString();
+      if (type != 'folder' && type != 'table') {
+        throw const BackupFormatException(
+          'نوع آیتم Tree معتبر نیست.',
+        );
+      }
+    }
+
+    final tableIds = treeItems
+        .whereType<Map>()
+        .where((item) => item['type'] == 'table')
+        .map((item) => item['id'])
+        .whereType<int>()
+        .toSet();
+
+    for (final raw in rows) {
+      if (raw is! Map ||
+          raw['id'] is! int ||
+          raw['table_item_id'] is! int ||
+          !tableIds.contains(raw['table_item_id'])) {
+        throw const BackupFormatException(
+          'رابطه Table و Record در Backup معتبر نیست.',
+        );
+      }
+    }
+
+    final rowIds = rows
+        .whereType<Map>()
+        .map((row) => row['id'])
+        .whereType<int>()
+        .toSet();
+
+    final fieldIds = <int>{};
+    for (final raw in fields) {
+      if (raw is! Map ||
+          raw['id'] is! int ||
+          raw['row_id'] is! int ||
+          !rowIds.contains(raw['row_id'])) {
+        throw const BackupFormatException(
+          'رابطه Field و Record در Backup معتبر نیست.',
+        );
+      }
+      if (!fieldIds.add(raw['id'] as int)) {
+        throw const BackupFormatException(
+          'شناسه تکراری برای Field پیدا شد.',
+        );
+      }
+    }
+
+    for (final raw in values) {
+      if (raw is! Map ||
+          raw['id'] is! int ||
+          raw['field_id'] is! int ||
+          !fieldIds.contains(raw['field_id']) ||
+          raw['value'] is! String) {
+        throw const BackupFormatException(
+          'رابطه Value و Field در Backup معتبر نیست.',
+        );
+      }
+    }
+  }
+
+  Future<void> _restoreDatabaseSnapshot(
+    Map<String, dynamic> snapshot,
+  ) async {
+    final db = await AppDatabase.instance.database;
+
+    await db.transaction((txn) async {
+      await txn.delete('table_values');
+      await txn.delete('table_fields');
+      await txn.delete('table_rows');
+      await txn.delete('tree_items');
+
+      for (final raw in snapshot['tree_items'] as List) {
+        await txn.insert(
+          'tree_items',
+          Map<String, Object?>.from(raw as Map),
+          conflictAlgorithm: ConflictAlgorithm.abort,
+        );
+      }
+
+      for (final raw in snapshot['table_rows'] as List) {
+        await txn.insert(
+          'table_rows',
+          Map<String, Object?>.from(raw as Map),
+          conflictAlgorithm: ConflictAlgorithm.abort,
+        );
+      }
+
+      for (final raw in snapshot['table_fields'] as List) {
+        await txn.insert(
+          'table_fields',
+          Map<String, Object?>.from(raw as Map),
+          conflictAlgorithm: ConflictAlgorithm.abort,
+        );
+      }
+
+      for (final raw in snapshot['table_values'] as List) {
+        await txn.insert(
+          'table_values',
+          Map<String, Object?>.from(raw as Map),
+          conflictAlgorithm: ConflictAlgorithm.abort,
+        );
+      }
+    });
+
+    final restored = await _readDatabaseSnapshot(db);
+    if (jsonEncode(restored) != jsonEncode(snapshot)) {
+      throw const BackupFormatException(
+        'بازیابی کامل انجام نشد؛ Snapshot دیتابیس با Backup مطابقت ندارد.',
+      );
+    }
   }
 
   String _timestamp() {
