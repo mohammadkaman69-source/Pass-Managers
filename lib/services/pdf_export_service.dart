@@ -167,7 +167,7 @@ class PdfExportService {
           width: double.infinity,
           margin: const pw.EdgeInsets.only(top: 8, bottom: 6),
           padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-          decoration: const pw.BoxDecoration(color: PdfColor.fromInt(0xFFECECEC)),
+          decoration: pw.BoxDecoration(color: PdfColor.fromInt(0xFFECECEC)),
           child: _richText(
             'پوشه: ${node.name}', persianFont, latinFallback, latinBoldFallback,
             fontSize: 14, bold: true,
@@ -244,7 +244,7 @@ class PdfExportService {
         headerAlignment: pw.Alignment.centerRight,
         headerDirection: pw.TextDirection.rtl,
         tableDirection: pw.TextDirection.rtl,
-        headerDecoration: const pw.BoxDecoration(color: PdfColor.fromInt(0xFFE0E0E0)),
+        headerDecoration: pw.BoxDecoration(color: PdfColor.fromInt(0xFFE0E0E0)),
         border: pw.TableBorder.all(
           color: PdfColor.fromInt(0xFF777777),
           width: 0.5,
@@ -346,7 +346,7 @@ class PdfExportService {
       if (currentDirection == null) {
         currentDirection = direction;
         if (pendingNeutral != null) {
-          buffer.write(pendingNeutral);
+          buffer.write(pendingNeutral!);
           pendingNeutral = null;
         }
         buffer.write(char);
@@ -359,10 +359,8 @@ class PdfExportService {
       buffer.write(char);
     }
     if (pendingNeutral != null) {
-      if (currentDirection == null) {
-        currentDirection = pw.TextDirection.ltr;
-      }
-      buffer.write(pendingNeutral);
+      currentDirection ??= pw.TextDirection.ltr;
+      buffer.write(pendingNeutral!);
     }
     flush();
     return runs;
