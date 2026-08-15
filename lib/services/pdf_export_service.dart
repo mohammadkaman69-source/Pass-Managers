@@ -15,8 +15,8 @@ class PdfExportService {
   static const String _fontAsset = 'assets/fonts/BNazanin.ttf';
 
   Future<String?> exportTree({
-    // Kept for API compatibility with existing callers. PDF generation no
-    // longer depends on BuildContext, Navigator, Overlay, or Flutter rendering.
+    // Kept for API compatibility with existing callers. PDF generation does
+    // not depend on BuildContext, Navigator, Overlay, or Flutter rendering.
     BuildContext? context,
     required Map<String, dynamic> root,
   }) async {
@@ -92,24 +92,28 @@ class PdfExportService {
         header: (_) => pw.Container(
           alignment: pw.Alignment.centerRight,
           padding: const pw.EdgeInsets.only(bottom: 8),
-          child: _text(
+          child: _richText(
             title.isEmpty ? 'Pass Managers' : title,
             persianFont,
             latinFallback,
+            latinBoldFallback,
             fontSize: 20,
             bold: true,
-            direction: pw.TextDirection.rtl,
+            paragraphDirection: pw.TextDirection.rtl,
+            textAlign: pw.TextAlign.right,
           ),
         ),
         footer: (context) => pw.Container(
           alignment: pw.Alignment.center,
           padding: const pw.EdgeInsets.only(top: 7),
-          child: _text(
+          child: _richText(
             'صفحه ${context.pageNumber} از ${context.pagesCount}',
             persianFont,
             latinFallback,
+            latinBoldFallback,
             fontSize: 9,
-            direction: pw.TextDirection.rtl,
+            paragraphDirection: pw.TextDirection.rtl,
+            textAlign: pw.TextAlign.center,
           ),
         ),
         build: (_) => content,
@@ -155,12 +159,14 @@ class PdfExportService {
         pw.Container(
           alignment: pw.Alignment.centerRight,
           padding: const pw.EdgeInsets.only(top: 12),
-          child: _text(
+          child: _richText(
             'محتوایی برای Export وجود ندارد.',
             persianFont,
             latinFallback,
+            latinBoldFallback,
             fontSize: 12,
-            direction: pw.TextDirection.rtl,
+            paragraphDirection: pw.TextDirection.rtl,
+            textAlign: pw.TextAlign.right,
           ),
         ),
       );
@@ -185,13 +191,15 @@ class PdfExportService {
           decoration: const pw.BoxDecoration(
             color: PdfColor.fromInt(0xFFECECEC),
           ),
-          child: _text(
+          child: _richText(
             'پوشه: ${node.name}',
             persianFont,
             latinFallback,
+            latinBoldFallback,
             fontSize: 14,
             bold: true,
-            direction: pw.TextDirection.rtl,
+            paragraphDirection: pw.TextDirection.rtl,
+            textAlign: pw.TextAlign.right,
           ),
         ),
       );
@@ -229,13 +237,15 @@ class PdfExportService {
     widgets.add(
       pw.Padding(
         padding: const pw.EdgeInsets.only(top: 8, bottom: 5),
-        child: _text(
+        child: _richText(
           'جدول: ${table.name}',
           persianFont,
           latinFallback,
+          latinBoldFallback,
           fontSize: 13,
           bold: true,
-          direction: pw.TextDirection.rtl,
+          paragraphDirection: pw.TextDirection.rtl,
+          textAlign: pw.TextAlign.right,
         ),
       ),
     );
@@ -245,12 +255,14 @@ class PdfExportService {
 
     if (columns.isEmpty) {
       widgets.add(
-        _text(
+        _richText(
           'این جدول فیلدی ندارد.',
           persianFont,
           latinFallback,
+          latinBoldFallback,
           fontSize: 10,
-          direction: pw.TextDirection.rtl,
+          paragraphDirection: pw.TextDirection.rtl,
+          textAlign: pw.TextAlign.right,
         ),
       );
       return;
@@ -258,12 +270,14 @@ class PdfExportService {
 
     if (table.rows.isEmpty) {
       widgets.add(
-        _text(
+        _richText(
           'این جدول رکوردی ندارد.',
           persianFont,
           latinFallback,
+          latinBoldFallback,
           fontSize: 10,
-          direction: pw.TextDirection.rtl,
+          paragraphDirection: pw.TextDirection.rtl,
+          textAlign: pw.TextAlign.right,
         ),
       );
       return;
@@ -320,29 +334,19 @@ class PdfExportService {
         ),
         cellBuilder: (index, data, rowNum) {
           final value = data?.toString() ?? '';
-          final direction = _directionFor(value);
           final isHeader = rowNum == 0;
 
-          return pw.Directionality(
-            textDirection: direction,
-            child: pw.Text(
-              value,
-              textAlign: direction == pw.TextDirection.rtl
-                  ? pw.TextAlign.right
-                  : pw.TextAlign.left,
-              softWrap: true,
-              style: pw.TextStyle(
-                font: persianFont,
-                fontFallback: <pw.Font>[
-                  latinFallback,
-                  if (isHeader) latinBoldFallback,
-                ],
-                fontSize: isHeader ? 9 : 8.5,
-                fontWeight: isHeader
-                    ? pw.FontWeight.bold
-                    : pw.FontWeight.normal,
-              ),
-            ),
+          return _richText(
+            value,
+            persianFont,
+            latinFallback,
+            latinBoldFallback,
+            fontSize: isHeader ? 9 : 8.5,
+            bold: isHeader,
+            paragraphDirection: _directionFor(value),
+            textAlign: _directionFor(value) == pw.TextDirection.rtl
+                ? pw.TextAlign.right
+                : pw.TextAlign.left,
           );
         },
       ),
@@ -351,37 +355,144 @@ class PdfExportService {
     widgets.add(const pw.SizedBox(height: 7));
   }
 
-  pw.Widget _text(
+  pw.Widget _richText(
     String value,
     pw.Font persianFont,
-    pw.Font latinFallback, {
+    pw.Font latinFallback,
+    pw.Font latinBoldFallback, {
     required double fontSize,
     bool bold = false,
-    required pw.TextDirection direction,
+    required pw.TextDirection paragraphDirection,
+    required pw.TextAlign textAlign,
   }) {
-    return pw.Directionality(
-      textDirection: direction,
-      child: pw.Text(
-        value,
-        textAlign: direction == pw.TextDirection.rtl
-            ? pw.TextAlign.right
-            : pw.TextAlign.left,
-        softWrap: true,
-        style: pw.TextStyle(
-          font: persianFont,
-          fontFallback: <pw.Font>[latinFallback],
-          fontSize: fontSize,
-          fontWeight: bold ? pw.FontWeight.bold : pw.FontWeight.normal,
+    if (value.isEmpty) {
+      return pw.RichText(
+        textDirection: paragraphDirection,
+        textAlign: textAlign,
+        text: pw.TextSpan(
+          text: '',
+          style: pw.TextStyle(
+            font: persianFont,
+            fontSize: fontSize,
+          ),
         ),
+      );
+    }
+
+    final runs = _splitDirectionalRuns(value);
+
+    final spans = <pw.InlineSpan>[];
+    for (final run in runs) {
+      final isRtl = run.direction == pw.TextDirection.rtl;
+      final font = isRtl
+          ? persianFont
+          : (bold ? latinBoldFallback : latinFallback);
+
+      spans.add(
+        pw.TextSpan(
+          text: run.text,
+          style: pw.TextStyle(
+            font: font,
+            fontFallback: isRtl
+                ? <pw.Font>[latinFallback]
+                : <pw.Font>[persianFont],
+            fontSize: fontSize,
+            fontWeight: isRtl && bold
+                ? pw.FontWeight.bold
+                : pw.FontWeight.normal,
+          ),
+        ),
+      );
+    }
+
+    return pw.RichText(
+      textDirection: paragraphDirection,
+      textAlign: textAlign,
+      softWrap: true,
+      text: pw.TextSpan(
+        children: spans,
       ),
     );
   }
 
+  List<_DirectionalRun> _splitDirectionalRuns(String value) {
+    final runs = <_DirectionalRun>[];
+    final buffer = StringBuffer();
+    pw.TextDirection? currentDirection;
+    String? pendingNeutral;
+
+    void flush() {
+      if (buffer.isEmpty) return;
+      runs.add(
+        _DirectionalRun(
+          buffer.toString(),
+          currentDirection ?? pw.TextDirection.ltr,
+        ),
+      );
+      buffer.clear();
+    }
+
+    for (final rune in value.runes) {
+      final char = String.fromCharCode(rune);
+      final direction = _strongDirection(char);
+
+      if (direction == null) {
+        if (currentDirection == null) {
+          pendingNeutral = '${pendingNeutral ?? ''}$char';
+        } else {
+          buffer.write(char);
+        }
+        continue;
+      }
+
+      if (currentDirection == null) {
+        currentDirection = direction;
+        if (pendingNeutral != null) {
+          buffer.write(pendingNeutral);
+          pendingNeutral = null;
+        }
+        buffer.write(char);
+        continue;
+      }
+
+      if (direction != currentDirection) {
+        flush();
+        currentDirection = direction;
+      }
+
+      buffer.write(char);
+    }
+
+    if (pendingNeutral != null) {
+      if (currentDirection == null) {
+        currentDirection = pw.TextDirection.ltr;
+      }
+      buffer.write(pendingNeutral);
+    }
+
+    flush();
+    return runs;
+  }
+
+  pw.TextDirection? _strongDirection(String char) {
+    if (RegExp(r'[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]')
+        .hasMatch(char)) {
+      return pw.TextDirection.rtl;
+    }
+
+    if (RegExp(r'[A-Za-z\u00C0-\u024F\u1E00-\u1EFF0-9]').hasMatch(char)) {
+      return pw.TextDirection.ltr;
+    }
+
+    return null;
+  }
+
   pw.TextDirection _directionFor(String value) {
-    return RegExp(r'[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]')
-            .hasMatch(value)
-        ? pw.TextDirection.rtl
-        : pw.TextDirection.ltr;
+    for (final rune in value.runes) {
+      final direction = _strongDirection(String.fromCharCode(rune));
+      if (direction != null) return direction;
+    }
+    return pw.TextDirection.ltr;
   }
 
   String _documentTitle(Map<String, dynamic> root) {
@@ -396,4 +507,11 @@ class PdfExportService {
 
     return clean.isEmpty ? 'Pass-Managers' : clean;
   }
+}
+
+class _DirectionalRun {
+  const _DirectionalRun(this.text, this.direction);
+
+  final String text;
+  final pw.TextDirection direction;
 }
