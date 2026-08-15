@@ -169,8 +169,12 @@ class PdfExportService {
           padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 6),
           decoration: pw.BoxDecoration(color: PdfColor.fromInt(0xFFECECEC)),
           child: _richText(
-            'پوشه: ${node.name}', persianFont, latinFallback, latinBoldFallback,
-            fontSize: 14, bold: true,
+            'پوشه: ${node.name}',
+            persianFont,
+            latinFallback,
+            latinBoldFallback,
+            fontSize: 14,
+            bold: true,
             paragraphDirection: pw.TextDirection.rtl,
             textAlign: pw.TextAlign.right,
           ),
@@ -197,8 +201,12 @@ class PdfExportService {
       pw.Padding(
         padding: const pw.EdgeInsets.only(top: 8, bottom: 5),
         child: _richText(
-          'جدول: ${table.name}', persianFont, latinFallback, latinBoldFallback,
-          fontSize: 13, bold: true,
+          'جدول: ${table.name}',
+          persianFont,
+          latinFallback,
+          latinBoldFallback,
+          fontSize: 13,
+          bold: true,
           paragraphDirection: pw.TextDirection.rtl,
           textAlign: pw.TextAlign.right,
         ),
@@ -208,13 +216,31 @@ class PdfExportService {
     final columns = [...table.columns]
       ..sort((a, b) => a.position.compareTo(b.position));
     if (columns.isEmpty) {
-      widgets.add(_richText('این جدول فیلدی ندارد.', persianFont, latinFallback, latinBoldFallback,
-          fontSize: 10, paragraphDirection: pw.TextDirection.rtl, textAlign: pw.TextAlign.right));
+      widgets.add(
+        _richText(
+          'این جدول فیلدی ندارد.',
+          persianFont,
+          latinFallback,
+          latinBoldFallback,
+          fontSize: 10,
+          paragraphDirection: pw.TextDirection.rtl,
+          textAlign: pw.TextAlign.right,
+        ),
+      );
       return;
     }
     if (table.rows.isEmpty) {
-      widgets.add(_richText('این جدول رکوردی ندارد.', persianFont, latinFallback, latinBoldFallback,
-          fontSize: 10, paragraphDirection: pw.TextDirection.rtl, textAlign: pw.TextAlign.right));
+      widgets.add(
+        _richText(
+          'این جدول رکوردی ندارد.',
+          persianFont,
+          latinFallback,
+          latinBoldFallback,
+          fontSize: 10,
+          paragraphDirection: pw.TextDirection.rtl,
+          textAlign: pw.TextAlign.right,
+        ),
+      );
       return;
     }
 
@@ -223,7 +249,9 @@ class PdfExportService {
       for (var rowIndex = 0; rowIndex < table.rows.length; rowIndex++)
         <String>[
           '${rowIndex + 1}',
-          ...columns.map((column) => table.rows[rowIndex].values[column.name] ?? '—'),
+          ...columns.map(
+            (column) => table.rows[rowIndex].values[column.name] ?? '—',
+          ),
         ],
     ];
 
@@ -265,12 +293,16 @@ class PdfExportService {
           final isHeader = rowNum == 0;
           final direction = _directionFor(value);
           return _richText(
-            value, persianFont, latinFallback, latinBoldFallback,
+            value,
+            persianFont,
+            latinFallback,
+            latinBoldFallback,
             fontSize: isHeader ? 9 : 8.5,
             bold: isHeader,
             paragraphDirection: direction,
             textAlign: direction == pw.TextDirection.rtl
-                ? pw.TextAlign.right : pw.TextAlign.left,
+                ? pw.TextAlign.right
+                : pw.TextAlign.left,
           );
         },
       ),
@@ -292,7 +324,10 @@ class PdfExportService {
       return pw.RichText(
         textDirection: paragraphDirection,
         textAlign: textAlign,
-        text: pw.TextSpan(text: '', style: pw.TextStyle(font: persianFont, fontSize: fontSize)),
+        text: pw.TextSpan(
+          text: '',
+          style: pw.TextStyle(font: persianFont, fontSize: fontSize),
+        ),
       );
     }
     final runs = _splitDirectionalRuns(value);
@@ -328,7 +363,12 @@ class PdfExportService {
 
     void flush() {
       if (buffer.isEmpty) return;
-      runs.add(_DirectionalRun(buffer.toString(), currentDirection ?? pw.TextDirection.ltr));
+      runs.add(
+        _DirectionalRun(
+          buffer.toString(),
+          currentDirection ?? pw.TextDirection.ltr,
+        ),
+      );
       buffer.clear();
     }
 
@@ -343,24 +383,29 @@ class PdfExportService {
         }
         continue;
       }
+
       if (currentDirection == null) {
         currentDirection = direction;
-        if (pendingNeutral != null) {
-          buffer.write(pendingNeutral!);
+        final neutral = pendingNeutral;
+        if (neutral != null) {
+          buffer.write(neutral);
           pendingNeutral = null;
         }
         buffer.write(char);
         continue;
       }
+
       if (direction != currentDirection) {
         flush();
         currentDirection = direction;
       }
       buffer.write(char);
     }
-    if (pendingNeutral != null) {
+
+    final neutral = pendingNeutral;
+    if (neutral != null) {
       currentDirection ??= pw.TextDirection.ltr;
-      buffer.write(pendingNeutral!);
+      buffer.write(neutral);
     }
     flush();
     return runs;
