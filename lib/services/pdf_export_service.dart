@@ -15,8 +15,6 @@ class PdfExportService {
   static const String _fontAsset = 'assets/fonts/BNazanin.ttf';
 
   Future<String?> exportTree({
-    // Kept for API compatibility with existing callers. PDF generation does
-    // not depend on BuildContext, Navigator, Overlay, or Flutter rendering.
     BuildContext? context,
     required Map<String, dynamic> root,
   }) async {
@@ -335,6 +333,7 @@ class PdfExportService {
         cellBuilder: (index, data, rowNum) {
           final value = data?.toString() ?? '';
           final isHeader = rowNum == 0;
+          final direction = _directionFor(value);
 
           return _richText(
             value,
@@ -343,8 +342,8 @@ class PdfExportService {
             latinBoldFallback,
             fontSize: isHeader ? 9 : 8.5,
             bold: isHeader,
-            paragraphDirection: _directionFor(value),
-            textAlign: _directionFor(value) == pw.TextDirection.rtl
+            paragraphDirection: direction,
+            textAlign: direction == pw.TextDirection.rtl
                 ? pw.TextAlign.right
                 : pw.TextAlign.left,
           );
@@ -380,8 +379,8 @@ class PdfExportService {
     }
 
     final runs = _splitDirectionalRuns(value);
-
     final spans = <pw.InlineSpan>[];
+
     for (final run in runs) {
       final isRtl = run.direction == pw.TextDirection.rtl;
       final font = isRtl
@@ -409,9 +408,7 @@ class PdfExportService {
       textDirection: paragraphDirection,
       textAlign: textAlign,
       softWrap: true,
-      text: pw.TextSpan(
-        children: spans,
-      ),
+      text: pw.TextSpan(children: spans),
     );
   }
 
@@ -480,7 +477,8 @@ class PdfExportService {
       return pw.TextDirection.rtl;
     }
 
-    if (RegExp(r'[A-Za-z\u00C0-\u024F\u1E00-\u1EFF0-9]').hasMatch(char)) {
+    if (RegExp(r'[A-Za-z0-9\u00C0-\u024F\u1E00-\u1EFF]')
+        .hasMatch(char)) {
       return pw.TextDirection.ltr;
     }
 
