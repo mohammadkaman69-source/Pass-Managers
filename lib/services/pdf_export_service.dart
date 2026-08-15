@@ -357,6 +357,7 @@ class PdfExportService {
                 value,
                 textDirection: pw.TextDirection.ltr,
                 textAlign: pw.TextAlign.left,
+                softWrap: true,
                 style: pw.TextStyle(
                   font: latinBoldFallback,
                   fontFallback: <pw.Font>[persianFont],
@@ -366,7 +367,7 @@ class PdfExportService {
               );
             }
 
-            final direction = _directionFor(value);
+            final direction = _paragraphDirectionFor(value);
             return _richText(
               value,
               persianFont,
@@ -550,6 +551,15 @@ class PdfExportService {
       if (direction != null) return direction;
     }
     return pw.TextDirection.ltr;
+  }
+
+  pw.TextDirection _paragraphDirectionFor(String value) {
+    // A mixed value needs an RTL paragraph when Persian is present; otherwise
+    // the Latin run can be placed correctly but the following Persian run may
+    // be reordered/garbled by the PDF bidi engine. Pure Latin stays LTR.
+    return _containsRtl(value)
+        ? pw.TextDirection.rtl
+        : pw.TextDirection.ltr;
   }
 
   String _documentTitle(Map<String, dynamic> root) {
