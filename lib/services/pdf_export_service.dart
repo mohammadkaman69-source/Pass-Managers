@@ -13,6 +13,7 @@ class PdfExportService {
       MethodChannel('pass_managers/file_saver');
 
   static const String _fontAsset = 'assets/fonts/BNazanin.ttf';
+  static const String _lrm = '\u200E';
 
   Future<String?> exportTree({
     BuildContext? context,
@@ -310,6 +311,12 @@ class PdfExportService {
     widgets.add(const pw.SizedBox(height: 7));
   }
 
+  /// Keeps the document's overall direction RTL where appropriate, but splits
+  /// mixed strings into directional runs. Latin runs are wrapped with LRM so
+  /// BiDi layout cannot reverse their internal character order.
+  ///
+  /// Examples that must remain byte-for-byte ordered visually:
+  /// BOOK, Password123, admin123, P@ssW0rd, test@example.com and IPs.
   pw.Widget _richText(
     String value,
     pw.Font persianFont,
@@ -330,23 +337,34 @@ class PdfExportService {
         ),
       );
     }
+
     final runs = _splitDirectionalRuns(value);
     final spans = <pw.InlineSpan>[];
+
     for (final run in runs) {
+      if (run.text.isEmpty) continue;
       final isRtl = run.direction == pw.TextDirection.rtl;
-      final font = isRtl ? persianFont : (bold ? latinBoldFallback : latinFallback);
+      final font = isRtl
+          ? persianFont
+          : (bold ? latinBoldFallback : latinFallback);
+      final protectedText = isRtl
+          ? run.text
+          : '$_lrm${run.text}$_lrm';
+
       spans.add(
         pw.TextSpan(
-          text: run.text,
+          text: protectedText,
           style: pw.TextStyle(
             font: font,
-            fontFallback: isRtl ? <pw.Font>[latinFallback] : <pw.Font>[persianFont],
+            fontFallback:
+                isRtl ? <pw.Font>[latinFallback] : <pw.Font>[persianFont],
             fontSize: fontSize,
-            fontWeight: isRtl && bold ? pw.FontWeight.bold : pw.FontWeight.normal,
+            fontWeight: bold ? pw.FontWeight.bold : pw.FontWeight.normal,
           ),
         ),
       );
     }
+
     return pw.RichText(
       textDirection: paragraphDirection,
       textAlign: textAlign,
@@ -359,39 +377,34 @@ class PdfExportService {
     final runs = <_DirectionalRun>[];
     final buffer = StringBuffer();
     pw.TextDirection? currentDirection;
-    String? pendingNeutral;
+    var pendingNeutral = StringBuffer();
 
     void flush() {
-      if (buffer.isEmpty) return;
-      runs.add(
-        _DirectionalRun(
-          buffer.toString(),
-          currentDirection ?? pw.TextDirection.ltr,
-        ),
-      );
+      if (buffer.isEmpty || currentDirection == null) return;
+      runs.add(_DirectionalRun(buffer.toString(), currentDirection!));
       buffer.clear();
     }
 
     for (final rune in value.runes) {
-      final char = String.fromCharCode(rune);
-      final direction = _strongDirection(char);
+      final character = String.fromCharCode(rune);
+      final direction = _strongDirection(character);
+
       if (direction == null) {
         if (currentDirection == null) {
-          pendingNeutral = '${pendingNeutral ?? ''}$char';
+          pendingNeutral.write(character);
         } else {
-          buffer.write(char);
+          buffer.write(character);
         }
         continue;
       }
 
       if (currentDirection == null) {
         currentDirection = direction;
-        final neutral = pendingNeutral;
-        if (neutral != null) {
-          buffer.write(neutral);
-          pendingNeutral = null;
+        if (pendingNeutral.isNotEmpty) {
+          buffer.write(pendingNeutral.toString());
+          pendingNeutral = StringBuffer();
         }
-        buffer.write(char);
+        buffer.write(character);
         continue;
       }
 
@@ -399,23 +412,27 @@ class PdfExportService {
         flush();
         currentDirection = direction;
       }
-      buffer.write(char);
+      buffer.write(character);
     }
 
-    final neutral = pendingNeutral;
-    if (neutral != null) {
+    if (pendingNeutral.isNotEmpty) {
       currentDirection ??= pw.TextDirection.ltr;
-      buffer.write(neutral);
+      buffer.write(pendingNeutral.toString());
     }
     flush();
-    return runs;
+
+    return runs.isEmpty
+        ? <_DirectionalRun>[_DirectionalRun(value, pw.TextDirection.ltr)]
+        : runs;
   }
 
-  pw.TextDirection? _strongDirection(String char) {
-    if (RegExp(r'[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]').hasMatch(char)) {
+  pw.TextDirection? _strongDirection(String character) {
+    if (RegExp(r'[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]')
+        .hasMatch(character)) {
       return pw.TextDirection.rtl;
     }
-    if (RegExp(r'[A-Za-z0-9\u00C0-\u024F\u1E00-\u1EFF]').hasMatch(char)) {
+    if (RegExp(r'[A-Za-z0-9\u00C0-\u024F\u1E00-\u1EFF]')
+        .hasMatch(character)) {
       return pw.TextDirection.ltr;
     }
     return null;
