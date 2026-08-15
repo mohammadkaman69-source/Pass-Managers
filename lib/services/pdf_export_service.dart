@@ -16,7 +16,7 @@ class PdfExportService {
       MethodChannel('pass_managers/file_saver');
 
   Future<String?> exportTree({
-    BuildContext? context,
+    required BuildContext context,
     required Map<String, dynamic> root,
   }) async {
     final model = _PdfDocumentModel.fromRoot(root);
@@ -97,21 +97,13 @@ class PdfExportService {
   }
 
   Future<ui.Image> _renderPage(
-    BuildContext? suppliedContext,
+    BuildContext context,
     String title,
     _PdfPageData page,
   ) async {
-    final hostContext =
-        suppliedContext ?? WidgetsBinding.instance.rootElement;
-    if (hostContext == null) {
-      throw StateError(
-        'Flutter root context is not available for PDF rendering.',
-      );
-    }
-
     final overlay =
-        Overlay.maybeOf(hostContext, rootOverlay: true) ??
-        Navigator.maybeOf(hostContext, rootNavigator: true)?.overlay;
+        Overlay.maybeOf(context, rootOverlay: true) ??
+        Navigator.maybeOf(context, rootNavigator: true)?.overlay;
     if (overlay == null) {
       throw StateError(
         'A Navigator/Overlay is not available for PDF rendering.',
@@ -126,9 +118,6 @@ class PdfExportService {
         top: 0,
         child: IgnorePointer(
           child: Opacity(
-            // Keep the subtree painted so RenderRepaintBoundary receives an
-            // OffsetLayer, while making the temporary page effectively
-            // invisible to the user for the single capture frame.
             opacity: 0.001,
             child: RepaintBoundary(
               key: key,
@@ -155,13 +144,11 @@ class PdfExportService {
     overlay.insert(entry);
     try {
       RenderRepaintBoundary? renderObject;
-      for (var attempt = 0; attempt < 3; attempt++) {
+      for (var attempt = 0; attempt < 5; attempt++) {
         await WidgetsBinding.instance.endOfFrame;
         renderObject = key.currentContext?.findRenderObject()
             as RenderRepaintBoundary?;
-        if (renderObject != null &&
-            renderObject.hasSize &&
-            !renderObject.debugNeedsPaint) {
+        if (renderObject != null && renderObject.hasSize) {
           break;
         }
         await Future<void>.delayed(Duration.zero);
@@ -169,9 +156,6 @@ class PdfExportService {
 
       if (renderObject == null || !renderObject.hasSize) {
         throw StateError('PDF page could not be laid out.');
-      }
-      if (renderObject.debugNeedsPaint) {
-        throw StateError('PDF page could not be painted before capture.');
       }
 
       return renderObject.toImage(pixelRatio: 1.0);
