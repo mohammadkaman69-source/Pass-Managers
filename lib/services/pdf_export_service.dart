@@ -171,7 +171,6 @@ class PdfExportService {
     required int level,
   }) {
     final indent = level * 22.0;
-    final branchPrefix = level == 0 ? '' : '└─ ';
 
     if (node.isFolder) {
       widgets.add(
@@ -201,7 +200,7 @@ class PdfExportService {
                 : null,
           ),
           child: _richText(
-            '$branchPrefixپوشه: ${node.name}',
+            node.name,
             persianFont,
             latinFallback,
             latinBoldFallback,
@@ -234,7 +233,6 @@ class PdfExportService {
         latinBoldFallback,
         level: level,
         indent: indent,
-        branchPrefix: branchPrefix,
       );
     }
   }
@@ -247,7 +245,6 @@ class PdfExportService {
     pw.Font latinBoldFallback, {
     required int level,
     required double indent,
-    required String branchPrefix,
   }) {
     widgets.add(
       pw.Padding(
@@ -257,7 +254,7 @@ class PdfExportService {
           bottom: 5,
         ),
         child: _richText(
-          '$branchPrefixجدول: ${table.name}',
+          table.name,
           persianFont,
           latinFallback,
           latinBoldFallback,
