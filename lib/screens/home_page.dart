@@ -160,6 +160,7 @@ class _HomePageState extends State<HomePage> {
       if (!mounted) return;
       _showMessage('نسخه پشتیبان با موفقیت بازیابی شد.');
     } on BackupCancelledException {
+      // Cancellation is an expected user action; no message is required.
     } catch (error) {
       if (mounted) _showMessage('خطا در بازیابی نسخه پشتیبان: $error');
     } finally {
