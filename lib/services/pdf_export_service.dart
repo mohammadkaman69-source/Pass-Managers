@@ -27,12 +27,8 @@ class PdfExportService {
       try {
         final result = await _channel.invokeMethod<String>(
           'savePdf',
-          <String, dynamic>{
-            'fileName': fileName,
-            'bytes': pdfBytes,
-          },
+          <String, dynamic>{'fileName': fileName, 'bytes': pdfBytes},
         );
-
         if (result != null && result.trim().isNotEmpty) {
           try {
             await _channel.invokeMethod<bool>(
@@ -41,7 +37,6 @@ class PdfExportService {
             );
           } catch (_) {}
         }
-
         return result;
       } finally {
         pdfBytes.fillRange(0, pdfBytes.length, 0);
@@ -56,7 +51,6 @@ class PdfExportService {
         allowedExtensions: const ['pdf'],
         bytes: pdfBytes,
       );
-
       return savedPath?.toString();
     } finally {
       pdfBytes.fillRange(0, pdfBytes.length, 0);
@@ -71,7 +65,6 @@ class PdfExportService {
     final persianFont = pw.Font.ttf(fontData.buffer.asByteData());
     final latinFallback = pw.Font.helvetica();
     final latinBoldFallback = pw.Font.helveticaBold();
-
     final document = pw.Document();
     final exportDocument = _toExportDocument(root);
     final content = _buildContent(
@@ -117,20 +110,17 @@ class PdfExportService {
         build: (_) => content,
       ),
     );
-
     return document;
   }
 
   TreeExportDocument _toExportDocument(Map<String, dynamic> root) {
     final rawChildren = root['children'];
-
     final children = rawChildren is List
         ? rawChildren
             .whereType<Map>()
             .map((item) => Map<String, dynamic>.from(item))
             .toList()
         : <Map<String, dynamic>>[];
-
     return TreeExportDocument.fromRepositoryData(children);
   }
 
@@ -141,17 +131,9 @@ class PdfExportService {
     pw.Font latinBoldFallback,
   ) {
     final widgets = <pw.Widget>[];
-
     for (final node in document.roots) {
-      _appendNode(
-        widgets,
-        node,
-        persianFont,
-        latinFallback,
-        latinBoldFallback,
-      );
+      _appendNode(widgets, node, persianFont, latinFallback, latinBoldFallback);
     }
-
     if (widgets.isEmpty) {
       widgets.add(
         pw.Container(
@@ -169,7 +151,6 @@ class PdfExportService {
         ),
       );
     }
-
     return widgets;
   }
 
@@ -186,42 +167,22 @@ class PdfExportService {
           width: double.infinity,
           margin: const pw.EdgeInsets.only(top: 8, bottom: 6),
           padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-          decoration: const pw.BoxDecoration(
-            color: PdfColor.fromInt(0xFFECECEC),
-          ),
+          decoration: const pw.BoxDecoration(color: PdfColor.fromInt(0xFFECECEC)),
           child: _richText(
-            'پوشه: ${node.name}',
-            persianFont,
-            latinFallback,
-            latinBoldFallback,
-            fontSize: 14,
-            bold: true,
+            'پوشه: ${node.name}', persianFont, latinFallback, latinBoldFallback,
+            fontSize: 14, bold: true,
             paragraphDirection: pw.TextDirection.rtl,
             textAlign: pw.TextAlign.right,
           ),
         ),
       );
-
       for (final child in node.children) {
-        _appendNode(
-          widgets,
-          child,
-          persianFont,
-          latinFallback,
-          latinBoldFallback,
-        );
+        _appendNode(widgets, child, persianFont, latinFallback, latinBoldFallback);
       }
       return;
     }
-
     if (node.isTable) {
-      _appendTable(
-        widgets,
-        node,
-        persianFont,
-        latinFallback,
-        latinBoldFallback,
-      );
+      _appendTable(widgets, node, persianFont, latinFallback, latinBoldFallback);
     }
   }
 
@@ -236,12 +197,8 @@ class PdfExportService {
       pw.Padding(
         padding: const pw.EdgeInsets.only(top: 8, bottom: 5),
         child: _richText(
-          'جدول: ${table.name}',
-          persianFont,
-          latinFallback,
-          latinBoldFallback,
-          fontSize: 13,
-          bold: true,
+          'جدول: ${table.name}', persianFont, latinFallback, latinBoldFallback,
+          fontSize: 13, bold: true,
           paragraphDirection: pw.TextDirection.rtl,
           textAlign: pw.TextAlign.right,
         ),
@@ -250,34 +207,14 @@ class PdfExportService {
 
     final columns = [...table.columns]
       ..sort((a, b) => a.position.compareTo(b.position));
-
     if (columns.isEmpty) {
-      widgets.add(
-        _richText(
-          'این جدول فیلدی ندارد.',
-          persianFont,
-          latinFallback,
-          latinBoldFallback,
-          fontSize: 10,
-          paragraphDirection: pw.TextDirection.rtl,
-          textAlign: pw.TextAlign.right,
-        ),
-      );
+      widgets.add(_richText('این جدول فیلدی ندارد.', persianFont, latinFallback, latinBoldFallback,
+          fontSize: 10, paragraphDirection: pw.TextDirection.rtl, textAlign: pw.TextAlign.right));
       return;
     }
-
     if (table.rows.isEmpty) {
-      widgets.add(
-        _richText(
-          'این جدول رکوردی ندارد.',
-          persianFont,
-          latinFallback,
-          latinBoldFallback,
-          fontSize: 10,
-          paragraphDirection: pw.TextDirection.rtl,
-          textAlign: pw.TextAlign.right,
-        ),
-      );
+      widgets.add(_richText('این جدول رکوردی ندارد.', persianFont, latinFallback, latinBoldFallback,
+          fontSize: 10, paragraphDirection: pw.TextDirection.rtl, textAlign: pw.TextAlign.right));
       return;
     }
 
@@ -286,9 +223,7 @@ class PdfExportService {
       for (var rowIndex = 0; rowIndex < table.rows.length; rowIndex++)
         <String>[
           '${rowIndex + 1}',
-          ...columns.map(
-            (column) => table.rows[rowIndex].values[column.name] ?? '—',
-          ),
+          ...columns.map((column) => table.rows[rowIndex].values[column.name] ?? '—'),
         ],
     ];
 
@@ -304,19 +239,14 @@ class PdfExportService {
         headerCount: 1,
         columnWidths: columnWidths,
         tableWidth: pw.TableWidth.max,
-        cellPadding: const pw.EdgeInsets.symmetric(
-          horizontal: 5,
-          vertical: 5,
-        ),
+        cellPadding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 5),
         cellAlignment: pw.Alignment.centerRight,
         headerAlignment: pw.Alignment.centerRight,
         headerDirection: pw.TextDirection.rtl,
         tableDirection: pw.TextDirection.rtl,
-        headerDecoration: const pw.BoxDecoration(
-          color: PdfColor.fromInt(0xFFE0E0E0),
-        ),
+        headerDecoration: const pw.BoxDecoration(color: PdfColor.fromInt(0xFFE0E0E0)),
         border: pw.TableBorder.all(
-          color: const PdfColor.fromInt(0xFF777777),
+          color: PdfColor.fromInt(0xFF777777),
           width: 0.5,
         ),
         headerStyle: pw.TextStyle(
@@ -334,23 +264,17 @@ class PdfExportService {
           final value = data?.toString() ?? '';
           final isHeader = rowNum == 0;
           final direction = _directionFor(value);
-
           return _richText(
-            value,
-            persianFont,
-            latinFallback,
-            latinBoldFallback,
+            value, persianFont, latinFallback, latinBoldFallback,
             fontSize: isHeader ? 9 : 8.5,
             bold: isHeader,
             paragraphDirection: direction,
             textAlign: direction == pw.TextDirection.rtl
-                ? pw.TextAlign.right
-                : pw.TextAlign.left,
+                ? pw.TextAlign.right : pw.TextAlign.left,
           );
         },
       ),
     );
-
     widgets.add(const pw.SizedBox(height: 7));
   }
 
@@ -368,42 +292,26 @@ class PdfExportService {
       return pw.RichText(
         textDirection: paragraphDirection,
         textAlign: textAlign,
-        text: pw.TextSpan(
-          text: '',
-          style: pw.TextStyle(
-            font: persianFont,
-            fontSize: fontSize,
-          ),
-        ),
+        text: pw.TextSpan(text: '', style: pw.TextStyle(font: persianFont, fontSize: fontSize)),
       );
     }
-
     final runs = _splitDirectionalRuns(value);
     final spans = <pw.InlineSpan>[];
-
     for (final run in runs) {
       final isRtl = run.direction == pw.TextDirection.rtl;
-      final font = isRtl
-          ? persianFont
-          : (bold ? latinBoldFallback : latinFallback);
-
+      final font = isRtl ? persianFont : (bold ? latinBoldFallback : latinFallback);
       spans.add(
         pw.TextSpan(
           text: run.text,
           style: pw.TextStyle(
             font: font,
-            fontFallback: isRtl
-                ? <pw.Font>[latinFallback]
-                : <pw.Font>[persianFont],
+            fontFallback: isRtl ? <pw.Font>[latinFallback] : <pw.Font>[persianFont],
             fontSize: fontSize,
-            fontWeight: isRtl && bold
-                ? pw.FontWeight.bold
-                : pw.FontWeight.normal,
+            fontWeight: isRtl && bold ? pw.FontWeight.bold : pw.FontWeight.normal,
           ),
         ),
       );
     }
-
     return pw.RichText(
       textDirection: paragraphDirection,
       textAlign: textAlign,
@@ -420,19 +328,13 @@ class PdfExportService {
 
     void flush() {
       if (buffer.isEmpty) return;
-      runs.add(
-        _DirectionalRun(
-          buffer.toString(),
-          currentDirection ?? pw.TextDirection.ltr,
-        ),
-      );
+      runs.add(_DirectionalRun(buffer.toString(), currentDirection ?? pw.TextDirection.ltr));
       buffer.clear();
     }
 
     for (final rune in value.runes) {
       final char = String.fromCharCode(rune);
       final direction = _strongDirection(char);
-
       if (direction == null) {
         if (currentDirection == null) {
           pendingNeutral = '${pendingNeutral ?? ''}$char';
@@ -441,7 +343,6 @@ class PdfExportService {
         }
         continue;
       }
-
       if (currentDirection == null) {
         currentDirection = direction;
         if (pendingNeutral != null) {
@@ -451,37 +352,29 @@ class PdfExportService {
         buffer.write(char);
         continue;
       }
-
       if (direction != currentDirection) {
         flush();
         currentDirection = direction;
       }
-
       buffer.write(char);
     }
-
     if (pendingNeutral != null) {
       if (currentDirection == null) {
         currentDirection = pw.TextDirection.ltr;
       }
       buffer.write(pendingNeutral);
     }
-
     flush();
     return runs;
   }
 
   pw.TextDirection? _strongDirection(String char) {
-    if (RegExp(r'[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]')
-        .hasMatch(char)) {
+    if (RegExp(r'[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]').hasMatch(char)) {
       return pw.TextDirection.rtl;
     }
-
-    if (RegExp(r'[A-Za-z0-9\u00C0-\u024F\u1E00-\u1EFF]')
-        .hasMatch(char)) {
+    if (RegExp(r'[A-Za-z0-9\u00C0-\u024F\u1E00-\u1EFF]').hasMatch(char)) {
       return pw.TextDirection.ltr;
     }
-
     return null;
   }
 
@@ -499,17 +392,13 @@ class PdfExportService {
   }
 
   String _sanitizeFileName(String name) {
-    final clean = name
-        .replaceAll(RegExp(r'[<>:"/\\|?*]'), '_')
-        .trim();
-
+    final clean = name.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_').trim();
     return clean.isEmpty ? 'Pass-Managers' : clean;
   }
 }
 
 class _DirectionalRun {
   const _DirectionalRun(this.text, this.direction);
-
   final String text;
   final pw.TextDirection direction;
 }
