@@ -28,23 +28,15 @@ class PdfExportService {
       try {
         final result = await _channel.invokeMethod<String>(
           'savePdf',
-          <String, dynamic>{
-            'fileName': fileName,
-            'bytes': pdfBytes,
-          },
+          <String, dynamic>{'fileName': fileName, 'bytes': pdfBytes},
         );
-
         if (result != null && result.trim().isNotEmpty) {
           try {
-            await _channel.invokeMethod<bool>(
-              'openPdf',
-              <String, dynamic>{
-                'uri': result,
-              },
-            );
+            await _channel.invokeMethod<bool>('openPdf', <String, dynamic>{
+              'uri': result,
+            });
           } catch (_) {}
         }
-
         return result;
       } finally {
         pdfBytes.fillRange(0, pdfBytes.length, 0);
@@ -59,7 +51,6 @@ class PdfExportService {
         allowedExtensions: const ['pdf'],
         bytes: pdfBytes,
       );
-
       return savedPath?.toString();
     } finally {
       pdfBytes.fillRange(0, pdfBytes.length, 0);
@@ -74,10 +65,8 @@ class PdfExportService {
     final persianFont = pw.Font.ttf(fontData.buffer.asByteData());
     final latinFallback = pw.Font.helvetica();
     final latinBoldFallback = pw.Font.helveticaBold();
-
     final document = pw.Document();
     final exportDocument = _toExportDocument(root);
-
     final content = _buildContent(
       exportDocument,
       persianFont,
@@ -121,24 +110,17 @@ class PdfExportService {
         build: (_) => content,
       ),
     );
-
     return document;
   }
 
-  TreeExportDocument _toExportDocument(
-    Map<String, dynamic> root,
-  ) {
+  TreeExportDocument _toExportDocument(Map<String, dynamic> root) {
     final rawChildren = root['children'];
-
     final children = rawChildren is List
         ? rawChildren
             .whereType<Map>()
-            .map(
-              (item) => Map<String, dynamic>.from(item),
-            )
+            .map((item) => Map<String, dynamic>.from(item))
             .toList()
         : <Map<String, dynamic>>[];
-
     return TreeExportDocument.fromRepositoryData(children);
   }
 
@@ -149,7 +131,6 @@ class PdfExportService {
     pw.Font latinBoldFallback,
   ) {
     final widgets = <pw.Widget>[];
-
     for (final node in document.roots) {
       _appendNode(
         widgets,
@@ -160,7 +141,6 @@ class PdfExportService {
         level: 0,
       );
     }
-
     if (widgets.isEmpty) {
       widgets.add(
         pw.Container(
@@ -178,7 +158,6 @@ class PdfExportService {
         ),
       );
     }
-
     return widgets;
   }
 
@@ -191,15 +170,11 @@ class PdfExportService {
     required int level,
   }) {
     final indent = level * 22.0;
-
     if (node.isFolder) {
       widgets.add(
         pw.Container(
           width: double.infinity,
-          margin: pw.EdgeInsets.only(
-            top: level == 0 ? 8 : 4,
-            bottom: 5,
-          ),
+          margin: pw.EdgeInsets.only(top: level == 0 ? 8 : 4, bottom: 5),
           padding: pw.EdgeInsets.only(
             right: 8 + indent,
             left: 8,
@@ -231,7 +206,6 @@ class PdfExportService {
           ),
         ),
       );
-
       for (final child in node.children) {
         _appendNode(
           widgets,
@@ -242,10 +216,8 @@ class PdfExportService {
           level: level + 1,
         );
       }
-
       return;
     }
-
     if (node.isTable) {
       _appendTable(
         widgets,
@@ -270,11 +242,7 @@ class PdfExportService {
   }) {
     widgets.add(
       pw.Padding(
-        padding: pw.EdgeInsets.only(
-          right: indent,
-          top: 7,
-          bottom: 5,
-        ),
+        padding: pw.EdgeInsets.only(right: indent, top: 7, bottom: 5),
         child: _richText(
           table.name,
           persianFont,
@@ -308,7 +276,6 @@ class PdfExportService {
       );
       return;
     }
-
     if (table.rows.isEmpty) {
       widgets.add(
         pw.Padding(
@@ -327,9 +294,6 @@ class PdfExportService {
       return;
     }
 
-    // Headers are supplied as widgets instead of data rows because
-    // TableHelper.fromTextArray does not call cellBuilder for header rows.
-    // This makes headers use exactly the same bidi renderer as field values.
     final headers = pdfColumns
         .map(
           (column) => _richText(
@@ -348,12 +312,13 @@ class PdfExportService {
         )
         .toList();
 
+    // Values are keyed by fieldId. Never use the header name here because
+    // duplicate headers are valid and each field has its own value.
     final data = <List<String>>[
-      for (var rowIndex = 0; rowIndex < table.rows.length; rowIndex++)
+      for (final row in table.rows)
         pdfColumns
             .map(
-              (column) =>
-                  table.rows[rowIndex].values[column.name] ?? '—',
+              (column) => row.values[column.id.toString()] ?? '—',
             )
             .toList(),
     ];
@@ -388,24 +353,18 @@ class PdfExportService {
           ),
           headerStyle: pw.TextStyle(
             font: persianFont,
-            fontFallback: <pw.Font>[
-              latinFallback,
-              latinBoldFallback,
-            ],
+            fontFallback: <pw.Font>[latinFallback, latinBoldFallback],
             fontSize: 9,
             fontWeight: pw.FontWeight.bold,
           ),
           cellStyle: pw.TextStyle(
             font: persianFont,
-            fontFallback: <pw.Font>[
-              latinFallback,
-            ],
+            fontFallback: <pw.Font>[latinFallback],
             fontSize: 8.5,
           ),
-          cellBuilder: (index, data, rowNum) {
-            final value = data?.toString() ?? '';
+          cellBuilder: (index, valueData, rowNum) {
+            final value = valueData?.toString() ?? '';
             final direction = _paragraphDirectionFor(value);
-
             return _richText(
               value,
               persianFont,
@@ -421,52 +380,38 @@ class PdfExportService {
         ),
       ),
     );
-
-    widgets.add(
-      pw.SizedBox(height: 7),
-    );
+    widgets.add(const pw.SizedBox(height: 7));
   }
 
-  List<TreeExportColumn> _columnsForTable(
-    TreeExportNode table,
-  ) {
-    final byName = <String, TreeExportColumn>{};
+  List<TreeExportColumn> _columnsForTable(TreeExportNode table) {
+    // Field IDs are the identity. Header names are display labels only and
+    // therefore must never be used for deduplication.
+    final byId = <int, TreeExportColumn>{};
 
     for (final column in table.columns) {
       if (column.name.trim().isEmpty) continue;
-
-      final existing = byName[column.name];
-
+      final existing = byId[column.id];
       if (existing == null || column.position < existing.position) {
-        byName[column.name] = column;
+        byId[column.id] = column;
       }
     }
 
     for (final row in table.rows) {
       for (final field in row.fields) {
         if (field.name.trim().isEmpty) continue;
-
-        final existing = byName[field.name];
-
+        final existing = byId[field.id];
         if (existing == null || field.position < existing.position) {
-          byName[field.name] = field;
+          byId[field.id] = field;
         }
       }
     }
 
-    final columns = byName.values.toList()
-      ..sort(
-        (a, b) {
-          final position = a.position.compareTo(b.position);
-
-          if (position != 0) {
-            return position;
-          }
-
-          return a.name.compareTo(b.name);
-        },
-      );
-
+    final columns = byId.values.toList()
+      ..sort((a, b) {
+        final position = a.position.compareTo(b.position);
+        if (position != 0) return position;
+        return a.id.compareTo(b.id);
+      });
     return columns;
   }
 
@@ -486,30 +431,20 @@ class PdfExportService {
         textAlign: textAlign,
         text: pw.TextSpan(
           text: '',
-          style: pw.TextStyle(
-            font: persianFont,
-            fontSize: fontSize,
-          ),
+          style: pw.TextStyle(font: persianFont, fontSize: fontSize),
         ),
       );
     }
 
     final runs = _splitDirectionalRuns(value);
     final spans = <pw.InlineSpan>[];
-
     for (final run in runs) {
       if (run.text.isEmpty) continue;
-
       final isRtl = run.direction == pw.TextDirection.rtl;
-
       final font = isRtl
           ? persianFont
           : (bold ? latinBoldFallback : latinFallback);
-
-      final protectedText = isRtl
-          ? run.text
-          : '$_lrm${run.text}$_lrm';
-
+      final protectedText = isRtl ? run.text : '$_lrm${run.text}$_lrm';
       spans.add(
         pw.TextSpan(
           text: protectedText,
@@ -529,66 +464,44 @@ class PdfExportService {
       textDirection: paragraphDirection,
       textAlign: textAlign,
       softWrap: true,
-      text: pw.TextSpan(
-        children: spans,
-      ),
+      text: pw.TextSpan(children: spans),
     );
   }
 
-  bool _containsRtl(String value) {
-    return RegExp(
-      r'[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]',
-    ).hasMatch(value);
-  }
+  bool _containsRtl(String value) => RegExp(
+        r'[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]',
+      ).hasMatch(value);
 
-  List<_DirectionalRun> _splitDirectionalRuns(
-    String value,
-  ) {
+  List<_DirectionalRun> _splitDirectionalRuns(String value) {
     final runs = <_DirectionalRun>[];
     final buffer = StringBuffer();
     pw.TextDirection? currentDirection;
     var pendingNeutral = StringBuffer();
 
     void flush() {
-      if (buffer.isEmpty || currentDirection == null) {
-        return;
-      }
-
-      runs.add(
-        _DirectionalRun(
-          buffer.toString(),
-          currentDirection,
-        ),
-      );
-
+      if (buffer.isEmpty || currentDirection == null) return;
+      runs.add(_DirectionalRun(buffer.toString(), currentDirection));
       buffer.clear();
     }
 
     for (final rune in value.runes) {
       final character = String.fromCharCode(rune);
       final direction = _strongDirection(character);
-
       if (direction == null) {
         if (currentDirection == null) {
           pendingNeutral.write(character);
         } else {
           buffer.write(character);
         }
-
         continue;
       }
 
       if (currentDirection == null) {
         currentDirection = direction;
-
         if (pendingNeutral.isNotEmpty) {
-          buffer.write(
-            pendingNeutral.toString(),
-          );
-
+          buffer.write(pendingNeutral.toString());
           pendingNeutral = StringBuffer();
         }
-
         buffer.write(character);
         continue;
       }
@@ -597,86 +510,49 @@ class PdfExportService {
         flush();
         currentDirection = direction;
       }
-
       buffer.write(character);
     }
 
     if (pendingNeutral.isNotEmpty) {
       currentDirection ??= pw.TextDirection.ltr;
-      buffer.write(
-        pendingNeutral.toString(),
-      );
+      buffer.write(pendingNeutral.toString());
     }
-
     flush();
 
     return runs.isEmpty
         ? <_DirectionalRun>[
-            _DirectionalRun(
-              value,
-              pw.TextDirection.ltr,
-            ),
+            _DirectionalRun(value, pw.TextDirection.ltr),
           ]
         : runs;
   }
 
-  pw.TextDirection? _strongDirection(
-    String character,
-  ) {
-    if (RegExp(
-      r'[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]',
-    ).hasMatch(character)) {
+  pw.TextDirection? _strongDirection(String character) {
+    if (RegExp(r'[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]').hasMatch(character)) {
       return pw.TextDirection.rtl;
     }
-
-    if (RegExp(
-      r'[A-Za-z0-9\u00C0-\u024F\u1E00-\u1EFF]',
-    ).hasMatch(character)) {
+    if (RegExp(r'[A-Za-z0-9\u00C0-\u024F\u1E00-\u1EFF]').hasMatch(character)) {
       return pw.TextDirection.ltr;
     }
-
     return null;
   }
 
-  pw.TextDirection _paragraphDirectionFor(
-    String value,
-  ) {
-    return _containsRtl(value)
-        ? pw.TextDirection.rtl
-        : pw.TextDirection.ltr;
+  pw.TextDirection _paragraphDirectionFor(String value) {
+    return _containsRtl(value) ? pw.TextDirection.rtl : pw.TextDirection.ltr;
   }
 
-  String _documentTitle(
-    Map<String, dynamic> root,
-  ) {
+  String _documentTitle(Map<String, dynamic> root) {
     final title = root['name']?.toString().trim() ?? '';
-
-    return title.isEmpty
-        ? 'Pass Managers'
-        : title;
+    return title.isEmpty ? 'Pass Managers' : title;
   }
 
-  String _sanitizeFileName(
-    String name,
-  ) {
-    final clean = name
-        .replaceAll(
-          RegExp(r'[<>:"/\\|?*]'),
-          '_',
-        )
-        .trim();
-
-    return clean.isEmpty
-        ? 'Pass-Managers'
-        : clean;
+  String _sanitizeFileName(String name) {
+    final clean = name.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_').trim();
+    return clean.isEmpty ? 'Pass-Managers' : clean;
   }
 }
 
 class _DirectionalRun {
-  const _DirectionalRun(
-    this.text,
-    this.direction,
-  );
+  const _DirectionalRun(this.text, this.direction);
 
   final String text;
   final pw.TextDirection direction;
