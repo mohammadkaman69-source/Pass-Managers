@@ -49,7 +49,7 @@ class _TablePageState extends State<TablePage> {
         final rowId = record['id'] as int;
         final fields = await _repository.getFields(rowId);
         final columns = <TableColumnDefinition>[];
-        final values = <String, String>{};
+        final values = <int, String>{};
 
         for (final field in fields) {
           final fieldId = field['id'] as int;
@@ -58,13 +58,8 @@ class _TablePageState extends State<TablePage> {
           final value = valueRecords.isEmpty
               ? ''
               : valueRecords.first['value'] as String;
-          columns.add(
-            TableColumnDefinition(
-              name,
-              fieldId: fieldId,
-            ),
-          );
-          values[name] = value;
+          columns.add(TableColumnDefinition(name, fieldId: fieldId));
+          values[fieldId] = value;
         }
 
         final row = TableRowData(columns: columns, values: values);
@@ -90,8 +85,8 @@ class _TablePageState extends State<TablePage> {
   }
 
   Future<Map<String, int>?> _askRowAndColumnCounts() async {
-    final rowsController = TextEditingController(text: '1');
     final columnsController = TextEditingController();
+    final rowsController = TextEditingController(text: '1');
 
     final result = await showDialog<Map<String, int>>(
       context: context,
@@ -101,22 +96,22 @@ class _TablePageState extends State<TablePage> {
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
-              controller: rowsController,
+              controller: columnsController,
               autofocus: true,
               keyboardType: TextInputType.number,
               decoration: const InputDecoration(
-                labelText: 'Number of rows',
-                hintText: 'Example: 3',
+                labelText: 'Number of columns',
+                hintText: 'Example: 5',
                 border: OutlineInputBorder(),
               ),
             ),
             const SizedBox(height: 12),
             TextField(
-              controller: columnsController,
+              controller: rowsController,
               keyboardType: TextInputType.number,
               decoration: const InputDecoration(
-                labelText: 'Number of columns',
-                hintText: 'Example: 5',
+                labelText: 'Number of rows',
+                hintText: 'Example: 3',
                 border: OutlineInputBorder(),
               ),
             ),
@@ -129,15 +124,15 @@ class _TablePageState extends State<TablePage> {
           ),
           ElevatedButton(
             onPressed: () {
-              final rowCount = int.tryParse(rowsController.text.trim());
               final columnCount = int.tryParse(columnsController.text.trim());
-              if (rowCount != null &&
-                  rowCount > 0 &&
-                  columnCount != null &&
-                  columnCount > 0) {
+              final rowCount = int.tryParse(rowsController.text.trim());
+              if (columnCount != null &&
+                  columnCount > 0 &&
+                  rowCount != null &&
+                  rowCount > 0) {
                 Navigator.pop(dialogContext, {
-                  'rows': rowCount,
                   'columns': columnCount,
+                  'rows': rowCount,
                 });
               }
             },
@@ -147,8 +142,8 @@ class _TablePageState extends State<TablePage> {
       ),
     );
 
-    rowsController.dispose();
     columnsController.dispose();
+    rowsController.dispose();
     return result;
   }
 
@@ -183,9 +178,7 @@ class _TablePageState extends State<TablePage> {
             ElevatedButton(
               onPressed: () {
                 final value = controller.text.trim();
-                if (value.isNotEmpty) {
-                  Navigator.pop(dialogContext, value);
-                }
+                if (value.isNotEmpty) Navigator.pop(dialogContext, value);
               },
               child: const Text('Next'),
             ),
@@ -193,14 +186,8 @@ class _TablePageState extends State<TablePage> {
         ),
       );
       controller.dispose();
-
       if (name == null || name.trim().isEmpty) return null;
-      final normalized = name.trim();
-      if (names.any((item) => item.toLowerCase() == normalized.toLowerCase())) {
-        _showError('Column names must be unique.');
-        return null;
-      }
-      names.add(normalized);
+      names.add(name.trim());
     }
 
     return names;
@@ -210,8 +197,8 @@ class _TablePageState extends State<TablePage> {
     final counts = await _askRowAndColumnCounts();
     if (counts == null) return;
 
-    final rowCount = counts['rows']!;
     final columnCount = counts['columns']!;
+    final rowCount = counts['rows']!;
     final names = await _askColumnNames(columnCount);
     if (names == null || names.isEmpty) return;
 
@@ -222,7 +209,7 @@ class _TablePageState extends State<TablePage> {
       for (var rowIndex = 0; rowIndex < rowCount; rowIndex++) {
         final rowId = await _repository.createRow(tableId: widget.tableId);
         final columns = <TableColumnDefinition>[];
-        final row = TableRowData(columns: columns);
+        final values = <int, String>{};
 
         for (var i = 0; i < names.length; i++) {
           final fieldId = await _repository.createField(
@@ -231,14 +218,11 @@ class _TablePageState extends State<TablePage> {
             position: i,
             value: '',
           );
-          columns.add(
-            TableColumnDefinition(
-              names[i],
-              fieldId: fieldId,
-            ),
-          );
+          columns.add(TableColumnDefinition(names[i], fieldId: fieldId));
+          values[fieldId] = '';
         }
 
+        final row = TableRowData(columns: columns, values: values);
         createdRows.add(row);
         createdIds[row] = rowId;
       }
@@ -262,14 +246,14 @@ class _TablePageState extends State<TablePage> {
   }
 
   Future<void> editRow(TableRowData row) async {
-    final controllers = <String, TextEditingController>{};
-    final obscure = <String, bool>{};
+    final controllers = <int, TextEditingController>{};
+    final obscure = <int, bool>{};
 
     for (final column in row.columns) {
-      controllers[column.name] = TextEditingController(
-        text: row.values[column.name] ?? '',
-      );
-      obscure[column.name] = column.name.toLowerCase().contains('password');
+      final fieldId = column.fieldId;
+      if (fieldId == null) continue;
+      controllers[fieldId] = TextEditingController(text: row.values[fieldId] ?? '');
+      obscure[fieldId] = column.name.toLowerCase().contains('password');
     }
 
     final result = await showDialog<bool>(
@@ -282,12 +266,14 @@ class _TablePageState extends State<TablePage> {
             child: SingleChildScrollView(
               child: Column(
                 children: row.columns.map((column) {
+                  final fieldId = column.fieldId;
+                  if (fieldId == null) return const SizedBox.shrink();
                   final isPassword = column.name.toLowerCase().contains('password');
-                  final isObscured = obscure[column.name] ?? true;
+                  final isObscured = obscure[fieldId] ?? true;
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 14),
                     child: TextField(
-                      controller: controllers[column.name],
+                      controller: controllers[fieldId],
                       obscureText: isPassword && isObscured,
                       decoration: InputDecoration(
                         border: const OutlineInputBorder(),
@@ -296,7 +282,7 @@ class _TablePageState extends State<TablePage> {
                             ? IconButton(
                                 onPressed: () {
                                   setDialogState(() {
-                                    obscure[column.name] = !isObscured;
+                                    obscure[fieldId] = !isObscured;
                                   });
                                 },
                                 icon: Icon(
@@ -321,7 +307,9 @@ class _TablePageState extends State<TablePage> {
             ElevatedButton(
               onPressed: () {
                 for (final column in row.columns) {
-                  row.values[column.name] = controllers[column.name]!.text;
+                  final fieldId = column.fieldId;
+                  if (fieldId == null) continue;
+                  row.values[fieldId] = controllers[fieldId]!.text;
                 }
                 Navigator.pop(dialogContext, true);
               },
@@ -338,15 +326,12 @@ class _TablePageState extends State<TablePage> {
     if (result != true) return;
 
     try {
-      final rowId = _rowIds[row];
-      if (rowId == null) throw StateError('Row ID was not found.');
-      final fields = await _repository.getFields(rowId);
-      for (final field in fields) {
-        final fieldId = field['id'] as int;
-        final fieldName = field['name'] as String;
+      for (final column in row.columns) {
+        final fieldId = column.fieldId;
+        if (fieldId == null) continue;
         await _repository.updateFieldValue(
           fieldId: fieldId,
-          value: row.values[fieldName] ?? '',
+          value: row.values[fieldId] ?? '',
         );
       }
       if (mounted) setState(() {});
@@ -427,11 +412,6 @@ class _TablePageState extends State<TablePage> {
     controller.dispose();
     if (name == null || name.isEmpty) return;
 
-    if (row.columns.any((column) => column.name.toLowerCase() == name.toLowerCase())) {
-      _showError('A field with this name already exists in this record.');
-      return;
-    }
-
     final rowId = _rowIds[row];
     if (rowId == null) {
       _showError('Row ID was not found.');
@@ -447,13 +427,8 @@ class _TablePageState extends State<TablePage> {
       );
       if (!mounted) return;
       setState(() {
-        row.columns.add(
-          TableColumnDefinition(
-            name,
-            fieldId: fieldId,
-          ),
-        );
-        row.values[name] = '';
+        row.columns.add(TableColumnDefinition(name, fieldId: fieldId));
+        row.values[fieldId] = '';
       });
     } catch (error) {
       _showError('Failed to add field: $error');
@@ -464,8 +439,7 @@ class _TablePageState extends State<TablePage> {
     TableRowData row,
     TableColumnDefinition column,
   ) async {
-    final oldName = column.name;
-    final controller = TextEditingController(text: oldName);
+    final controller = TextEditingController(text: column.name);
     final newName = await showDialog<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -494,27 +468,14 @@ class _TablePageState extends State<TablePage> {
       ),
     );
     controller.dispose();
-    if (newName == null || newName.isEmpty || newName == oldName) return;
-
-    if (row.columns.any(
-      (item) => item != column && item.name.toLowerCase() == newName.toLowerCase(),
-    )) {
-      _showError('A field with this name already exists in this record.');
-      return;
-    }
+    if (newName == null || newName.isEmpty || newName == column.name) return;
 
     try {
       final fieldId = await _fieldIdForColumn(row, column);
       if (fieldId == null) throw StateError('Field ID was not found.');
-      final value = row.values[oldName] ?? '';
       await _repository.renameField(fieldId: fieldId, name: newName);
-      await _repository.updateFieldValue(fieldId: fieldId, value: value);
       if (!mounted) return;
-      setState(() {
-        row.values.remove(oldName);
-        row.values[newName] = value;
-        column.name = newName;
-      });
+      setState(() => column.name = newName);
     } catch (error) {
       _showError('Failed to rename field: $error');
     }
@@ -554,9 +515,8 @@ class _TablePageState extends State<TablePage> {
       await _repository.deleteField(fieldId);
       if (!mounted) return;
       setState(() {
-        final name = column.name;
         row.columns.remove(column);
-        row.values.remove(name);
+        row.values.remove(fieldId);
       });
     } catch (error) {
       _showError('Failed to delete field: $error');
@@ -570,7 +530,10 @@ class _TablePageState extends State<TablePage> {
   ) async {
     final columns = row.columns;
     final oldIndex = columns.indexOf(column);
-    if (oldIndex < 0 || newIndex < 0 || newIndex >= columns.length || oldIndex == newIndex) {
+    if (oldIndex < 0 ||
+        newIndex < 0 ||
+        newIndex >= columns.length ||
+        oldIndex == newIndex) {
       return;
     }
 
@@ -580,10 +543,7 @@ class _TablePageState extends State<TablePage> {
     }
 
     try {
-      final ids = columns
-          .map((item) => item.fieldId!)
-          .toList();
-
+      final ids = columns.map((item) => item.fieldId!).toList();
       final moved = ids.removeAt(oldIndex);
       ids.insert(newIndex, moved);
       await _repository.updateFieldPositions(ids);
@@ -736,7 +696,8 @@ class _TablePageState extends State<TablePage> {
               )
             else
               ...row.columns.map((column) {
-                final value = row.values[column.name] ?? '';
+                final fieldId = column.fieldId;
+                final value = fieldId == null ? '' : row.values[fieldId] ?? '';
                 final isPassword = column.name.toLowerCase().contains('password');
                 final displayValue = isPassword && value.isNotEmpty
                     ? '••••••••'
