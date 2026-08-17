@@ -8,17 +8,11 @@ enum TreeItemType {
 
 class TreeItem {
   int? id;
-
   int? parentId;
-
   String name;
-
   final TreeItemType type;
-
   final List<TreeItem> children;
-
   final List<TableColumnDefinition> columns;
-
   final List<TableRowData> rows;
 
   TreeItem.folder(
@@ -36,14 +30,7 @@ class TreeItem {
     this.parentId,
   })  : type = TreeItemType.table,
         children = [],
-        columns = [
-          TableColumnDefinition('Name'),
-          TableColumnDefinition('IP'),
-          TableColumnDefinition('Username'),
-          TableColumnDefinition('Password'),
-          TableColumnDefinition('Version'),
-          TableColumnDefinition('Description'),
-        ],
+        columns = [],
         rows = [];
 
   TreeItem copy() {
@@ -53,13 +40,7 @@ class TreeItem {
         id: id,
         parentId: parentId,
       );
-
-      copied.children.addAll(
-        children.map(
-          (child) => child.copy(),
-        ),
-      );
-
+      copied.children.addAll(children.map((child) => child.copy()));
       return copied;
     }
 
@@ -68,23 +49,12 @@ class TreeItem {
       id: id,
       parentId: parentId,
     );
-
     copied.columns
       ..clear()
-      ..addAll(
-        columns.map(
-          (column) => column.copy(),
-        ),
-      );
-
+      ..addAll(columns.map((column) => column.copy()));
     copied.rows
       ..clear()
-      ..addAll(
-        rows.map(
-          (row) => row.copy(),
-        ),
-      );
-
+      ..addAll(rows.map((row) => row.copy()));
     return copied;
   }
 }
