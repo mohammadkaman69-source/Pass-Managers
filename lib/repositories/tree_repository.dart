@@ -737,7 +737,7 @@ class TreeRepository {
           'position': position,
         });
 
-        values[fieldName] =
+        values[fieldId.toString()] =
             value;
       }
 
@@ -908,6 +908,8 @@ class TreeRepository {
             ? field['position'] as int
             : 0;
 
+        final originalFieldId = field['id'];
+
         final fieldId = await db.insert('table_fields', {
           'row_id': rowId,
           'name': fieldName,
@@ -917,8 +919,11 @@ class TreeRepository {
         });
 
         var value = '';
-        if (values is Map && values[fieldName] != null) {
-          value = values[fieldName].toString();
+        if (values is Map) {
+          final key = originalFieldId?.toString();
+          if (key != null && values[key] != null) {
+            value = values[key].toString();
+          }
         }
 
         final encryptedValue = await _encryptValue(value);
@@ -929,5 +934,4 @@ class TreeRepository {
       }
     }
   }
-
 }
