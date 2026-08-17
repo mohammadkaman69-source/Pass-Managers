@@ -84,21 +84,38 @@ class _TablePageState extends State<TablePage> {
     }
   }
 
-  Future<int?> _askPositiveInteger() async {
-    final controller = TextEditingController();
-    final value = await showDialog<int>(
+  Future<Map<String, int>?> _askRowAndColumnCounts() async {
+    final rowsController = TextEditingController(text: '1');
+    final columnsController = TextEditingController();
+
+    final result = await showDialog<Map<String, int>>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Add Record'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          keyboardType: TextInputType.number,
-          decoration: const InputDecoration(
-            labelText: 'Number of columns',
-            hintText: 'Example: 5',
-            border: OutlineInputBorder(),
-          ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: rowsController,
+              autofocus: true,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'Number of rows',
+                hintText: 'Example: 3',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: columnsController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'Number of columns',
+                hintText: 'Example: 5',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
         ),
         actions: [
           TextButton(
@@ -107,9 +124,16 @@ class _TablePageState extends State<TablePage> {
           ),
           ElevatedButton(
             onPressed: () {
-              final count = int.tryParse(controller.text.trim());
-              if (count != null && count > 0) {
-                Navigator.pop(dialogContext, count);
+              final rowCount = int.tryParse(rowsController.text.trim());
+              final columnCount = int.tryParse(columnsController.text.trim());
+              if (rowCount != null &&
+                  rowCount > 0 &&
+                  columnCount != null &&
+                  columnCount > 0) {
+                Navigator.pop(dialogContext, {
+                  'rows': rowCount,
+                  'columns': columnCount,
+                });
               }
             },
             child: const Text('Continue'),
@@ -117,8 +141,10 @@ class _TablePageState extends State<TablePage> {
         ],
       ),
     );
-    controller.dispose();
-    return value;
+
+    rowsController.dispose();
+    columnsController.dispose();
+    return result;
   }
 
   Future<List<String>?> _askColumnNames(int count) async {
@@ -176,33 +202,43 @@ class _TablePageState extends State<TablePage> {
   }
 
   Future<void> addRow() async {
-    final count = await _askPositiveInteger();
-    if (count == null) return;
+    final counts = await _askRowAndColumnCounts();
+    if (counts == null) return;
 
-    final names = await _askColumnNames(count);
+    final rowCount = counts['rows']!;
+    final columnCount = counts['columns']!;
+    final names = await _askColumnNames(columnCount);
     if (names == null || names.isEmpty) return;
 
     try {
-      final rowId = await _repository.createRow(tableId: widget.tableId);
-      final columns = names.map(TableColumnDefinition.new).toList();
-      final row = TableRowData(columns: columns);
+      final createdRows = <TableRowData>[];
+      final createdIds = <TableRowData, int>{};
 
-      for (var i = 0; i < names.length; i++) {
-        await _repository.createField(
-          rowId: rowId,
-          name: names[i],
-          position: i,
-          value: '',
-        );
+      for (var rowIndex = 0; rowIndex < rowCount; rowIndex++) {
+        final rowId = await _repository.createRow(tableId: widget.tableId);
+        final columns = names.map(TableColumnDefinition.new).toList();
+        final row = TableRowData(columns: columns);
+
+        for (var i = 0; i < names.length; i++) {
+          await _repository.createField(
+            rowId: rowId,
+            name: names[i],
+            position: i,
+            value: '',
+          );
+        }
+
+        createdRows.add(row);
+        createdIds[row] = rowId;
       }
 
       if (!mounted) return;
       setState(() {
-        widget.table.rows.add(row);
-        _rowIds[row] = rowId;
+        widget.table.rows.addAll(createdRows);
+        _rowIds.addAll(createdIds);
       });
     } catch (error) {
-      _showError('Failed to add record: $error');
+      _showError('Failed to add records: $error');
     }
   }
 
