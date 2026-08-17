@@ -23,8 +23,8 @@ class TablePage extends StatefulWidget {
 
 class _TablePageState extends State<TablePage> {
   final TreeRepository _repository = TreeRepository();
-  bool _isLoading = true;
   final Map<TableRowData, int> _rowIds = {};
+  bool _isLoading = true;
 
   @override
   void initState() {
@@ -41,48 +41,40 @@ class _TablePageState extends State<TablePage> {
 
   Future<void> _loadRows() async {
     try {
-      final rowRecords = await _repository.getRows(widget.tableId);
-      final loadedRows = <TableRowData>[];
-      final loadedIds = <TableRowData, int>{};
+      final records = await _repository.getRows(widget.tableId);
+      final rows = <TableRowData>[];
+      final ids = <TableRowData, int>{};
 
-      for (final rowRecord in rowRecords) {
-        final rowId = rowRecord['id'] as int;
-        final fieldRecords = await _repository.getFields(rowId);
+      for (final record in records) {
+        final rowId = record['id'] as int;
+        final fields = await _repository.getFields(rowId);
         final columns = <TableColumnDefinition>[];
         final values = <String, String>{};
 
-        for (final fieldRecord in fieldRecords) {
-          final fieldId = fieldRecord['id'] as int;
-          final name = fieldRecord['name'] as String;
+        for (final field in fields) {
+          final fieldId = field['id'] as int;
+          final name = field['name'] as String;
           final valueRecords = await _repository.getValues(fieldId);
-          var value = '';
-          if (valueRecords.isNotEmpty) {
-            value = valueRecords.first['value'] as String;
-          }
+          final value = valueRecords.isEmpty
+              ? ''
+              : valueRecords.first['value'] as String;
           columns.add(TableColumnDefinition(name));
           values[name] = value;
         }
 
-        if (columns.isEmpty) {
-          columns.addAll(widget.table.columns.map((column) => column.copy()));
-          for (final column in columns) {
-            values[column.name] = '';
-          }
-        }
-
         final row = TableRowData(columns: columns, values: values);
-        loadedRows.add(row);
-        loadedIds[row] = rowId;
+        rows.add(row);
+        ids[row] = rowId;
       }
 
       if (!mounted) return;
       setState(() {
         widget.table.rows
           ..clear()
-          ..addAll(loadedRows);
+          ..addAll(rows);
         _rowIds
           ..clear()
-          ..addAll(loadedIds);
+          ..addAll(ids);
         _isLoading = false;
       });
     } catch (error) {
@@ -92,20 +84,115 @@ class _TablePageState extends State<TablePage> {
     }
   }
 
+  Future<int?> _askPositiveInteger() async {
+    final controller = TextEditingController();
+    final value = await showDialog<int>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Add Record'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(
+            labelText: 'Number of columns',
+            hintText: 'Example: 5',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final count = int.tryParse(controller.text.trim());
+              if (count != null && count > 0) {
+                Navigator.pop(dialogContext, count);
+              }
+            },
+            child: const Text('Continue'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    return value;
+  }
+
+  Future<List<String>?> _askColumnNames(int count) async {
+    final names = <String>[];
+
+    for (var i = 0; i < count; i++) {
+      final controller = TextEditingController();
+      final name = await showDialog<String>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: Text('Column ${i + 1} of $count'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            textInputAction: TextInputAction.done,
+            decoration: const InputDecoration(
+              labelText: 'Header name',
+              border: OutlineInputBorder(),
+            ),
+            onSubmitted: (value) {
+              if (value.trim().isNotEmpty) {
+                Navigator.pop(dialogContext, value.trim());
+              }
+            },
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final value = controller.text.trim();
+                if (value.isNotEmpty) {
+                  Navigator.pop(dialogContext, value);
+                }
+              },
+              child: const Text('Next'),
+            ),
+          ],
+        ),
+      );
+      controller.dispose();
+
+      if (name == null || name.trim().isEmpty) return null;
+      final normalized = name.trim();
+      if (names.any((item) => item.toLowerCase() == normalized.toLowerCase())) {
+        _showError('Column names must be unique.');
+        return null;
+      }
+      names.add(normalized);
+    }
+
+    return names;
+  }
+
   Future<void> addRow() async {
+    final count = await _askPositiveInteger();
+    if (count == null) return;
+
+    final names = await _askColumnNames(count);
+    if (names == null || names.isEmpty) return;
+
     try {
       final rowId = await _repository.createRow(tableId: widget.tableId);
-      final row = TableRowData(
-        columns: widget.table.columns.map((column) => column.copy()).toList(),
-      );
+      final columns = names.map(TableColumnDefinition.new).toList();
+      final row = TableRowData(columns: columns);
 
-      for (var i = 0; i < row.columns.length; i++) {
-        final column = row.columns[i];
+      for (var i = 0; i < names.length; i++) {
         await _repository.createField(
           rowId: rowId,
-          name: column.name,
+          name: names[i],
           position: i,
-          value: row.values[column.name] ?? '',
+          value: '',
         );
       }
 
@@ -119,79 +206,90 @@ class _TablePageState extends State<TablePage> {
     }
   }
 
+  Future<int?> _fieldIdForColumn(
+    TableRowData row,
+    TableColumnDefinition column,
+  ) async {
+    final rowId = _rowIds[row];
+    if (rowId == null) return null;
+
+    final fields = await _repository.getFields(rowId);
+    final matches = fields.where(
+      (field) => field['name'] as String == column.name,
+    );
+    if (matches.length != 1) return null;
+    return matches.first['id'] as int;
+  }
+
   Future<void> editRow(TableRowData row) async {
     final controllers = <String, TextEditingController>{};
-    final obscureStates = <String, bool>{};
+    final obscure = <String, bool>{};
 
     for (final column in row.columns) {
       controllers[column.name] = TextEditingController(
         text: row.values[column.name] ?? '',
       );
-      obscureStates[column.name] = column.name.toLowerCase().contains('password');
+      obscure[column.name] = column.name.toLowerCase().contains('password');
     }
 
     final result = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              title: const Text('Edit Record'),
-              content: SizedBox(
-                width: 500,
-                child: SingleChildScrollView(
-                  child: Column(
-                    children: row.columns.map((column) {
-                      final isPassword = column.name.toLowerCase().contains('password');
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 14),
-                        child: TextField(
-                          controller: controllers[column.name],
-                          obscureText: isPassword && (obscureStates[column.name] ?? true),
-                          decoration: InputDecoration(
-                            border: const OutlineInputBorder(),
-                            labelText: column.name,
-                            suffixIcon: isPassword
-                                ? IconButton(
-                                    onPressed: () {
-                                      setDialogState(() {
-                                        obscureStates[column.name] =
-                                            !(obscureStates[column.name] ?? true);
-                                      });
-                                    },
-                                    icon: Icon(
-                                      (obscureStates[column.name] ?? true)
-                                          ? Icons.visibility_outlined
-                                          : Icons.visibility_off_outlined,
-                                    ),
-                                  )
-                                : null,
-                          ),
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                ),
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Edit Record'),
+          content: SizedBox(
+            width: 500,
+            child: SingleChildScrollView(
+              child: Column(
+                children: row.columns.map((column) {
+                  final isPassword = column.name.toLowerCase().contains('password');
+                  final isObscured = obscure[column.name] ?? true;
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 14),
+                    child: TextField(
+                      controller: controllers[column.name],
+                      obscureText: isPassword && isObscured,
+                      decoration: InputDecoration(
+                        border: const OutlineInputBorder(),
+                        labelText: column.name,
+                        suffixIcon: isPassword
+                            ? IconButton(
+                                onPressed: () {
+                                  setDialogState(() {
+                                    obscure[column.name] = !isObscured;
+                                  });
+                                },
+                                icon: Icon(
+                                  isObscured
+                                      ? Icons.visibility_outlined
+                                      : Icons.visibility_off_outlined,
+                                ),
+                              )
+                            : null,
+                      ),
+                    ),
+                  );
+                }).toList(),
               ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(dialogContext, false),
-                  child: const Text('Cancel'),
-                ),
-                ElevatedButton(
-                  onPressed: () {
-                    for (final column in row.columns) {
-                      row.values[column.name] = controllers[column.name]!.text;
-                    }
-                    Navigator.pop(dialogContext, true);
-                  },
-                  child: const Text('Save'),
-                ),
-              ],
-            );
-          },
-        );
-      },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                for (final column in row.columns) {
+                  row.values[column.name] = controllers[column.name]!.text;
+                }
+                Navigator.pop(dialogContext, true);
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        ),
+      ),
     );
 
     for (final controller in controllers.values) {
@@ -200,47 +298,25 @@ class _TablePageState extends State<TablePage> {
     if (result != true) return;
 
     try {
-      await _saveRow(row);
+      final rowId = _rowIds[row];
+      if (rowId == null) throw StateError('Row ID was not found.');
+      final fields = await _repository.getFields(rowId);
+      for (final field in fields) {
+        final fieldId = field['id'] as int;
+        final fieldName = field['name'] as String;
+        await _repository.updateFieldValue(
+          fieldId: fieldId,
+          value: row.values[fieldName] ?? '',
+        );
+      }
       if (mounted) setState(() {});
     } catch (error) {
       _showError('Failed to save record: $error');
     }
   }
 
-  Future<void> _saveRow(TableRowData row) async {
-    final rowId = _rowIds[row];
-    if (rowId == null) throw StateError('Row ID was not found.');
-
-    final fieldRecords = await _repository.getFields(rowId);
-    for (final fieldRecord in fieldRecords) {
-      final fieldId = fieldRecord['id'] as int;
-      final fieldName = fieldRecord['name'] as String;
-      await _repository.updateFieldValue(
-        fieldId: fieldId,
-        value: row.values[fieldName] ?? '',
-      );
-    }
-  }
-
-  Future<int?> _fieldIdForColumn(
-    TableRowData row,
-    TableColumnDefinition column,
-  ) async {
-    final rowId = _rowIds[row];
-    if (rowId == null) return null;
-
-    final fieldRecords = await _repository.getFields(rowId);
-    final matching = fieldRecords.where(
-      (field) => field['name'] as String == column.name,
-    );
-
-    if (matching.length != 1) return null;
-    return matching.first['id'] as int;
-  }
-
   Future<void> deleteRow(int index) async {
     if (index < 0 || index >= widget.table.rows.length) return;
-
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -290,7 +366,6 @@ class _TablePageState extends State<TablePage> {
           autofocus: true,
           decoration: const InputDecoration(
             labelText: 'Field name',
-            hintText: 'Example: Volume',
             border: OutlineInputBorder(),
           ),
         ),
@@ -310,8 +385,8 @@ class _TablePageState extends State<TablePage> {
       ),
     );
     controller.dispose();
-
     if (name == null || name.isEmpty) return;
+
     if (row.columns.any((column) => column.name.toLowerCase() == name.toLowerCase())) {
       _showError('A field with this name already exists in this record.');
       return;
@@ -374,9 +449,11 @@ class _TablePageState extends State<TablePage> {
       ),
     );
     controller.dispose();
-
     if (newName == null || newName.isEmpty || newName == oldName) return;
-    if (row.columns.any((item) => item != column && item.name.toLowerCase() == newName.toLowerCase())) {
+
+    if (row.columns.any(
+      (item) => item != column && item.name.toLowerCase() == newName.toLowerCase(),
+    )) {
       _showError('A field with this name already exists in this record.');
       return;
     }
@@ -384,11 +461,9 @@ class _TablePageState extends State<TablePage> {
     try {
       final fieldId = await _fieldIdForColumn(row, column);
       if (fieldId == null) throw StateError('Field ID was not found.');
-
       final value = row.values[oldName] ?? '';
       await _repository.renameField(fieldId: fieldId, name: newName);
       await _repository.updateFieldValue(fieldId: fieldId, value: value);
-
       if (!mounted) return;
       setState(() {
         row.values.remove(oldName);
@@ -431,13 +506,12 @@ class _TablePageState extends State<TablePage> {
     try {
       final fieldId = await _fieldIdForColumn(row, column);
       if (fieldId == null) throw StateError('Field ID was not found.');
-
       await _repository.deleteField(fieldId);
       if (!mounted) return;
       setState(() {
-        final columnName = column.name;
+        final name = column.name;
         row.columns.remove(column);
-        row.values.remove(columnName);
+        row.values.remove(name);
       });
     } catch (error) {
       _showError('Failed to delete field: $error');
@@ -451,7 +525,7 @@ class _TablePageState extends State<TablePage> {
   ) async {
     final columns = row.columns;
     final oldIndex = columns.indexOf(column);
-    if (oldIndex == -1 || newIndex < 0 || newIndex >= columns.length || oldIndex == newIndex) {
+    if (oldIndex < 0 || newIndex < 0 || newIndex >= columns.length || oldIndex == newIndex) {
       return;
     }
 
@@ -462,31 +536,30 @@ class _TablePageState extends State<TablePage> {
     }
 
     try {
-      final fieldRecords = await _repository.getFields(rowId);
-      if (fieldRecords.length != columns.length) {
+      final fields = await _repository.getFields(rowId);
+      if (fields.length != columns.length) {
         throw StateError('Database fields and UI fields are out of sync.');
       }
 
       final fieldByName = <String, int>{};
-      for (final field in fieldRecords) {
+      for (final field in fields) {
         final name = field['name'] as String;
-        final id = field['id'] as int;
         if (fieldByName.containsKey(name)) {
-          throw StateError('Duplicate field names detected in database.');
+          throw StateError('Duplicate field names detected.');
         }
-        fieldByName[name] = id;
+        fieldByName[name] = field['id'] as int;
       }
 
-      final fieldIds = <int>[];
-      for (final uiColumn in columns) {
-        final id = fieldByName[uiColumn.name];
+      final ids = <int>[];
+      for (final columnItem in columns) {
+        final id = fieldByName[columnItem.name];
         if (id == null) throw StateError('Field ID was not found.');
-        fieldIds.add(id);
+        ids.add(id);
       }
 
-      final movedId = fieldIds.removeAt(oldIndex);
-      fieldIds.insert(newIndex, movedId);
-      await _repository.updateFieldPositions(fieldIds);
+      final moved = ids.removeAt(oldIndex);
+      ids.insert(newIndex, moved);
+      await _repository.updateFieldPositions(ids);
 
       if (!mounted) return;
       setState(() {
@@ -552,21 +625,8 @@ class _TablePageState extends State<TablePage> {
   }
 
   Future<void> renameTable() async {
-    final name = await _askTableName();
-    if (name == null || name.isEmpty) return;
-
-    try {
-      await _repository.renameItem(id: widget.tableId, name: name);
-      if (!mounted) return;
-      setState(() => widget.table.name = name);
-    } catch (error) {
-      _showError('Failed to rename table: $error');
-    }
-  }
-
-  Future<String?> _askTableName() async {
     final controller = TextEditingController(text: widget.table.name);
-    final result = await showDialog<String>(
+    final name = await showDialog<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Rename Table'),
@@ -594,7 +654,15 @@ class _TablePageState extends State<TablePage> {
       ),
     );
     controller.dispose();
-    return result;
+    if (name == null || name.isEmpty) return;
+
+    try {
+      await _repository.renameItem(id: widget.tableId, name: name);
+      if (!mounted) return;
+      setState(() => widget.table.name = name);
+    } catch (error) {
+      _showError('Failed to rename table: $error');
+    }
   }
 
   Future<void> deleteTable() async {
@@ -634,44 +702,50 @@ class _TablePageState extends State<TablePage> {
         padding: const EdgeInsets.only(top: 8, bottom: 8),
         child: Column(
           children: [
-            ...row.columns.map((column) {
-              final value = row.values[column.name] ?? '';
-              final isPassword = column.name.toLowerCase().contains('password');
-              final displayValue = isPassword && value.isNotEmpty
-                  ? '••••••••'
-                  : value.isEmpty
-                      ? '—'
-                      : value;
+            if (row.columns.isEmpty)
+              const Padding(
+                padding: EdgeInsets.all(16),
+                child: Text('This record has no fields.'),
+              )
+            else
+              ...row.columns.map((column) {
+                final value = row.values[column.name] ?? '';
+                final isPassword = column.name.toLowerCase().contains('password');
+                final displayValue = isPassword && value.isNotEmpty
+                    ? '••••••••'
+                    : value.isEmpty
+                        ? '—'
+                        : value;
 
-              return InkWell(
-                onTap: () => editRow(row),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        flex: 4,
-                        child: Text(
-                          column.name,
-                          style: const TextStyle(fontWeight: FontWeight.bold),
+                return InkWell(
+                  onTap: () => editRow(row),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          flex: 4,
+                          child: Text(
+                            column.name,
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        flex: 6,
-                        child: Text(displayValue, textAlign: TextAlign.end),
-                      ),
-                      IconButton(
-                        onPressed: () => showColumnMenu(row, column),
-                        icon: const Icon(Icons.more_vert, size: 20),
-                        tooltip: 'Field options',
-                      ),
-                    ],
+                        const SizedBox(width: 12),
+                        Expanded(
+                          flex: 6,
+                          child: Text(displayValue, textAlign: TextAlign.end),
+                        ),
+                        IconButton(
+                          onPressed: () => showColumnMenu(row, column),
+                          icon: const Icon(Icons.more_vert, size: 20),
+                          tooltip: 'Field options',
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              );
-            }),
+                );
+              }),
             const Divider(height: 1),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8),
