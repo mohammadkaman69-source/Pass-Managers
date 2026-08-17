@@ -58,7 +58,12 @@ class _TablePageState extends State<TablePage> {
           final value = valueRecords.isEmpty
               ? ''
               : valueRecords.first['value'] as String;
-          columns.add(TableColumnDefinition(name));
+          columns.add(
+            TableColumnDefinition(
+              name,
+              fieldId: fieldId,
+            ),
+          );
           values[name] = value;
         }
 
@@ -216,15 +221,21 @@ class _TablePageState extends State<TablePage> {
 
       for (var rowIndex = 0; rowIndex < rowCount; rowIndex++) {
         final rowId = await _repository.createRow(tableId: widget.tableId);
-        final columns = names.map(TableColumnDefinition.new).toList();
+        final columns = <TableColumnDefinition>[];
         final row = TableRowData(columns: columns);
 
         for (var i = 0; i < names.length; i++) {
-          await _repository.createField(
+          final fieldId = await _repository.createField(
             rowId: rowId,
             name: names[i],
             position: i,
             value: '',
+          );
+          columns.add(
+            TableColumnDefinition(
+              names[i],
+              fieldId: fieldId,
+            ),
           );
         }
 
@@ -246,15 +257,8 @@ class _TablePageState extends State<TablePage> {
     TableRowData row,
     TableColumnDefinition column,
   ) async {
-    final rowId = _rowIds[row];
-    if (rowId == null) return null;
-
-    final fields = await _repository.getFields(rowId);
-    final matches = fields.where(
-      (field) => field['name'] as String == column.name,
-    );
-    if (matches.length != 1) return null;
-    return matches.first['id'] as int;
+    if (_rowIds[row] == null) return null;
+    return column.fieldId;
   }
 
   Future<void> editRow(TableRowData row) async {
@@ -435,7 +439,7 @@ class _TablePageState extends State<TablePage> {
     }
 
     try {
-      await _repository.createField(
+      final fieldId = await _repository.createField(
         rowId: rowId,
         name: name,
         position: row.columns.length,
@@ -443,7 +447,12 @@ class _TablePageState extends State<TablePage> {
       );
       if (!mounted) return;
       setState(() {
-        row.columns.add(TableColumnDefinition(name));
+        row.columns.add(
+          TableColumnDefinition(
+            name,
+            fieldId: fieldId,
+          ),
+        );
         row.values[name] = '';
       });
     } catch (error) {
@@ -565,33 +574,15 @@ class _TablePageState extends State<TablePage> {
       return;
     }
 
-    final rowId = _rowIds[row];
-    if (rowId == null) {
-      _showError('Row ID was not found.');
+    if (columns.any((item) => item.fieldId == null)) {
+      _showError('Field ID is missing for one or more fields.');
       return;
     }
 
     try {
-      final fields = await _repository.getFields(rowId);
-      if (fields.length != columns.length) {
-        throw StateError('Database fields and UI fields are out of sync.');
-      }
-
-      final fieldByName = <String, int>{};
-      for (final field in fields) {
-        final name = field['name'] as String;
-        if (fieldByName.containsKey(name)) {
-          throw StateError('Duplicate field names detected.');
-        }
-        fieldByName[name] = field['id'] as int;
-      }
-
-      final ids = <int>[];
-      for (final columnItem in columns) {
-        final id = fieldByName[columnItem.name];
-        if (id == null) throw StateError('Field ID was not found.');
-        ids.add(id);
-      }
+      final ids = columns
+          .map((item) => item.fieldId!)
+          .toList();
 
       final moved = ids.removeAt(oldIndex);
       ids.insert(newIndex, moved);
