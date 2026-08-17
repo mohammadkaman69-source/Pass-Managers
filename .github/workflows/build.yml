@@ -90,11 +90,21 @@ jobs:
           : "${ANDROID_KEY_ALIAS:?ANDROID_KEY_ALIAS secret is missing}"
           : "${ANDROID_KEY_PASSWORD:?ANDROID_KEY_PASSWORD secret is missing}"
 
-          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/app/pass_managers_release.jks
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | tr -d '[:space:]' | base64 --decode > android/app/pass_managers_release.jks
           test -s android/app/pass_managers_release.jks
+
+          echo "Decoded keystore size: $(wc -c < android/app/pass_managers_release.jks) bytes"
+          keytool -list -v \
+            -storetype PKCS12 \
+            -keystore android/app/pass_managers_release.jks \
+            -storepass "$ANDROID_KEYSTORE_PASSWORD" \
+            -alias "$ANDROID_KEY_ALIAS" \
+            >/dev/null
+          echo "Keystore validation successful."
 
           cat > android/key.properties <<EOF
           storeFile=app/pass_managers_release.jks
+          storeType=PKCS12
           storePassword=$ANDROID_KEYSTORE_PASSWORD
           keyAlias=$ANDROID_KEY_ALIAS
           keyPassword=$ANDROID_KEY_PASSWORD
