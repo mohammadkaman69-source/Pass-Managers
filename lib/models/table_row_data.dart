@@ -3,21 +3,21 @@ import 'table_column_definition.dart';
 class TableRowData {
   final List<TableColumnDefinition> columns;
 
-  final Map<String, String> values;
+  final Map<int, String> values;
 
   TableRowData({
     required List<TableColumnDefinition> columns,
-    Map<String, String>? values,
+    Map<int, String>? values,
   })  : columns = columns
             .map(
               (column) => column.copy(),
             )
             .toList(),
         values = values != null
-            ? Map<String, String>.from(values)
+            ? Map<int, String>.from(values)
             : {
                 for (final column in columns)
-                  column.name: '',
+                  if (column.fieldId != null) column.fieldId!: '',
               };
 
   TableRowData copy() {
