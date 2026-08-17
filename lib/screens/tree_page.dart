@@ -446,12 +446,12 @@ class _TreePageState extends State<TreePage> {
             );
           },
         ),
-      ).then((_) {
+      ).then((_) async {
         if (!mounted) {
           return;
         }
 
-        setState(() {});
+        await _loadChildren();
       });
 
       return;
@@ -483,12 +483,12 @@ class _TreePageState extends State<TreePage> {
           );
         },
       ),
-    ).then((_) {
+    ).then((_) async {
       if (!mounted) {
         return;
       }
 
-      setState(() {});
+      await _loadChildren();
     });
   }
 
