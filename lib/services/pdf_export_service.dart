@@ -557,7 +557,7 @@ class PdfExportService {
       runs.add(
         _DirectionalRun(
           buffer.toString(),
-          currentDirection!,
+          currentDirection,
         ),
       );
 
