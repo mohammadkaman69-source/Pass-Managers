@@ -66,8 +66,10 @@ class PdfExportService {
     final persianFont = pw.Font.ttf(fontData.buffer.asByteData());
     final latinFallback = pw.Font.helvetica();
     final latinBoldFallback = pw.Font.helveticaBold();
+
     final document = pw.Document();
     final exportDocument = _toExportDocument(root);
+
     final content = _buildContent(
       exportDocument,
       persianFont,
@@ -81,163 +83,13 @@ class PdfExportService {
         margin: const pw.EdgeInsets.fromLTRB(30, 30, 30, 34),
         maxPages: 500,
         textDirection: pw.TextDirection.rtl,
-        header: (_) => pw.Container(
-          alignment: pw.Alignment.centerRight,
-          padding: const pw.EdgeInsets.only(bottom: 8),
-          child: _richText(
-            title.isEmpty ? 'Pass Managers' : title,
-            persianFont,
-            latinFallback,
-            latinBoldFallback,
-            fontSize: 20,
-            bold: true,
-            paragraphDirection: pw.TextDirection.rtl,
-            textAlign: pw.TextAlign.right,
-          ),
-        ),
-        footer: (context) => pw.Container(
-          alignment: pw.Alignment.center,
-          padding: const pw.EdgeInsets.only(top: 7),
-          child: _richText(
-            'صفحه ${context.pageNumber} از ${context.pagesCount}',
-            persianFont,
-            latinFallback,
-            latinBoldFallback,
-            fontSize: 9,
-            paragraphDirection: pw.TextDirection.rtl,
-            textAlign: pw.TextAlign.center,
-          ),
-        ),
         build: (_) => content,
       ),
     );
+
     return document;
   }
-
-  TreeExportDocument _toExportDocument(Map<String, dynamic> root) {
-    final rawChildren = root['children'];
-    final children = rawChildren is List
-        ? rawChildren
-            .whereType<Map>()
-            .map((item) => Map<String, dynamic>.from(item))
-            .toList()
-        : <Map<String, dynamic>>[];
-    return TreeExportDocument.fromRepositoryData(children);
-  }
-
-  List<pw.Widget> _buildContent(
-    TreeExportDocument document,
-    pw.Font persianFont,
-    pw.Font latinFallback,
-    pw.Font latinBoldFallback,
-  ) {
-    final widgets = <pw.Widget>[];
-    for (final node in document.roots) {
-      _appendNode(
-        widgets,
-        node,
-        persianFont,
-        latinFallback,
-        latinBoldFallback,
-        level: 0,
-      );
-    }
-    if (widgets.isEmpty) {
-      widgets.add(
-        pw.Container(
-          alignment: pw.Alignment.centerRight,
-          padding: const pw.EdgeInsets.only(top: 12),
-          child: _richText(
-            'محتوایی برای Export وجود ندارد.',
-            persianFont,
-            latinFallback,
-            latinBoldFallback,
-            fontSize: 12,
-            paragraphDirection: pw.TextDirection.rtl,
-            textAlign: pw.TextAlign.right,
-          ),
-        ),
-      );
-    }
-    return widgets;
-  }
-
-  void _appendNode(
-    List<pw.Widget> widgets,
-    TreeExportNode node,
-    pw.Font persianFont,
-    pw.Font latinFallback,
-    pw.Font latinBoldFallback, {
-    required int level,
-  }) {
-    final indent = level * 22.0;
-
-    if (node.isFolder) {
-      widgets.add(
-        pw.Container(
-          width: double.infinity,
-          margin: pw.EdgeInsets.only(
-            top: level == 0 ? 8 : 4,
-            bottom: 5,
-          ),
-          padding: pw.EdgeInsets.only(
-            right: 8 + indent,
-            left: 8,
-            top: 6,
-            bottom: 6,
-          ),
-          decoration: pw.BoxDecoration(
-            color: level == 0
-                ? PdfColor.fromInt(0xFFE6E6E6)
-                : PdfColor.fromInt(0xFFF0F0F0),
-            border: level > 0
-                ? pw.Border(
-                    right: pw.BorderSide(
-                      color: PdfColor.fromInt(0xFFAAAAAA),
-                      width: 1,
-                    ),
-                  )
-                : null,
-          ),
-          child: _richText(
-            node.name,
-            persianFont,
-            latinFallback,
-            latinBoldFallback,
-            fontSize: level == 0 ? 14 : 12.5,
-            bold: true,
-            paragraphDirection: pw.TextDirection.rtl,
-            textAlign: pw.TextAlign.right,
-          ),
-        ),
-      );
-      for (final child in node.children) {
-        _appendNode(
-          widgets,
-          child,
-          persianFont,
-          latinFallback,
-          latinBoldFallback,
-          level: level + 1,
-        );
-      }
-      return;
-    }
-
-    if (node.isTable) {
-      _appendTable(
-        widgets,
-        node,
-        persianFont,
-        latinFallback,
-        latinBoldFallback,
-        level: level,
-        indent: indent,
-      );
-    }
-  }
-
-  void _appendTable(
+    void _appendTable(
     List<pw.Widget> widgets,
     TreeExportNode table,
     pw.Font persianFont,
@@ -267,6 +119,8 @@ class PdfExportService {
     );
 
     final columns = _columnsForTable(table);
+    final pdfColumns = columns.reversed.toList();
+
     if (columns.isEmpty) {
       widgets.add(
         pw.Padding(
@@ -284,6 +138,7 @@ class PdfExportService {
       );
       return;
     }
+
     if (table.rows.isEmpty) {
       widgets.add(
         pw.Padding(
@@ -302,10 +157,7 @@ class PdfExportService {
       return;
     }
 
-    // Headers are supplied as widgets instead of data rows because
-    // TableHelper.fromTextArray does not call cellBuilder for header rows.
-    // This makes headers use exactly the same bidi renderer as field values.
-    final headers = columns
+    final headers = pdfColumns
         .map(
           (column) => _richText(
             column.name,
@@ -315,17 +167,18 @@ class PdfExportService {
             fontSize: 9,
             bold: true,
             paragraphDirection: _paragraphDirectionFor(column.name),
-            textAlign: _paragraphDirectionFor(column.name) ==
-                    pw.TextDirection.rtl
-                ? pw.TextAlign.right
-                : pw.TextAlign.left,
+            textAlign:
+                _paragraphDirectionFor(column.name) ==
+                        pw.TextDirection.rtl
+                    ? pw.TextAlign.right
+                    : pw.TextAlign.left,
           ),
         )
         .toList();
 
     final data = <List<String>>[
       for (var rowIndex = 0; rowIndex < table.rows.length; rowIndex++)
-        columns
+        pdfColumns
             .map(
               (column) =>
                   table.rows[rowIndex].values[column.name] ?? '—',
@@ -334,7 +187,7 @@ class PdfExportService {
     ];
 
     final columnWidths = <int, pw.TableColumnWidth>{
-      for (var index = 0; index < columns.length; index++)
+      for (var index = 0; index < pdfColumns.length; index++)
         index: const pw.FlexColumnWidth(1),
     };
 
@@ -347,11 +200,13 @@ class PdfExportService {
           headerCount: 1,
           columnWidths: columnWidths,
           tableWidth: pw.TableWidth.max,
-          cellPadding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 5),
+          cellPadding:
+              const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 5),
           cellAlignment: pw.Alignment.centerRight,
           headerAlignment: pw.Alignment.centerRight,
           tableDirection: pw.TextDirection.rtl,
-          headerDecoration: pw.BoxDecoration(color: PdfColor.fromInt(0xFFE0E0E0)),
+          headerDecoration:
+              pw.BoxDecoration(color: PdfColor.fromInt(0xFFE0E0E0)),
           border: pw.TableBorder.all(
             color: PdfColor.fromInt(0xFF777777),
             width: 0.5,
@@ -370,6 +225,7 @@ class PdfExportService {
           cellBuilder: (index, data, rowNum) {
             final value = data?.toString() ?? '';
             final direction = _paragraphDirectionFor(value);
+
             return _richText(
               value,
               persianFont,
@@ -385,6 +241,7 @@ class PdfExportService {
         ),
       ),
     );
+
     widgets.add(pw.SizedBox(height: 7));
   }
 
@@ -393,7 +250,9 @@ class PdfExportService {
 
     for (final column in table.columns) {
       if (column.name.trim().isEmpty) continue;
+
       final existing = byName[column.name];
+
       if (existing == null || column.position < existing.position) {
         byName[column.name] = column;
       }
@@ -402,7 +261,9 @@ class PdfExportService {
     for (final row in table.rows) {
       for (final field in row.fields) {
         if (field.name.trim().isEmpty) continue;
+
         final existing = byName[field.name];
+
         if (existing == null || field.position < existing.position) {
           byName[field.name] = field;
         }
@@ -412,13 +273,14 @@ class PdfExportService {
     final columns = byName.values.toList()
       ..sort((a, b) {
         final position = a.position.compareTo(b.position);
+
         if (position != 0) return position;
+
         return a.name.compareTo(b.name);
       });
 
     return columns;
   }
-
   pw.Widget _richText(
     String value,
     pw.Font persianFont,
@@ -435,7 +297,10 @@ class PdfExportService {
         textAlign: textAlign,
         text: pw.TextSpan(
           text: '',
-          style: pw.TextStyle(font: persianFont, fontSize: fontSize),
+          style: pw.TextStyle(
+            font: persianFont,
+            fontSize: fontSize,
+          ),
         ),
       );
     }
@@ -445,10 +310,12 @@ class PdfExportService {
 
     for (final run in runs) {
       if (run.text.isEmpty) continue;
+
       final isRtl = run.direction == pw.TextDirection.rtl;
       final font = isRtl
           ? persianFont
           : (bold ? latinBoldFallback : latinFallback);
+
       final protectedText = isRtl
           ? run.text
           : '$_lrm${run.text}$_lrm';
@@ -461,7 +328,8 @@ class PdfExportService {
             fontFallback:
                 isRtl ? <pw.Font>[latinFallback] : <pw.Font>[persianFont],
             fontSize: fontSize,
-            fontWeight: bold ? pw.FontWeight.bold : pw.FontWeight.normal,
+            fontWeight:
+                bold ? pw.FontWeight.bold : pw.FontWeight.normal,
           ),
         ),
       );
@@ -489,7 +357,14 @@ class PdfExportService {
 
     void flush() {
       if (buffer.isEmpty || currentDirection == null) return;
-      runs.add(_DirectionalRun(buffer.toString(), currentDirection));
+
+      runs.add(
+        _DirectionalRun(
+          buffer.toString(),
+          currentDirection!,
+        ),
+      );
+
       buffer.clear();
     }
 
@@ -508,10 +383,12 @@ class PdfExportService {
 
       if (currentDirection == null) {
         currentDirection = direction;
+
         if (pendingNeutral.isNotEmpty) {
           buffer.write(pendingNeutral.toString());
           pendingNeutral = StringBuffer();
         }
+
         buffer.write(character);
         continue;
       }
@@ -520,6 +397,7 @@ class PdfExportService {
         flush();
         currentDirection = direction;
       }
+
       buffer.write(character);
     }
 
@@ -527,22 +405,32 @@ class PdfExportService {
       currentDirection ??= pw.TextDirection.ltr;
       buffer.write(pendingNeutral.toString());
     }
+
     flush();
 
     return runs.isEmpty
-        ? <_DirectionalRun>[_DirectionalRun(value, pw.TextDirection.ltr)]
+        ? <_DirectionalRun>[
+            _DirectionalRun(
+              value,
+              pw.TextDirection.ltr,
+            ),
+          ]
         : runs;
   }
 
   pw.TextDirection? _strongDirection(String character) {
-    if (RegExp(r'[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]')
-        .hasMatch(character)) {
+    if (RegExp(
+      r'[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]',
+    ).hasMatch(character)) {
       return pw.TextDirection.rtl;
     }
-    if (RegExp(r'[A-Za-z0-9\u00C0-\u024F\u1E00-\u1EFF]')
-        .hasMatch(character)) {
+
+    if (RegExp(
+      r'[A-Za-z0-9\u00C0-\u024F\u1E00-\u1EFF]',
+    ).hasMatch(character)) {
       return pw.TextDirection.ltr;
     }
+
     return null;
   }
 
@@ -554,17 +442,25 @@ class PdfExportService {
 
   String _documentTitle(Map<String, dynamic> root) {
     final title = root['name']?.toString().trim() ?? '';
+
     return title.isEmpty ? 'Pass Managers' : title;
   }
 
   String _sanitizeFileName(String name) {
-    final clean = name.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_').trim();
+    final clean = name
+        .replaceAll(RegExp(r'[<>:"/\\|?*]'), '_')
+        .trim();
+
     return clean.isEmpty ? 'Pass-Managers' : clean;
   }
 }
 
 class _DirectionalRun {
-  const _DirectionalRun(this.text, this.direction);
+  const _DirectionalRun(
+    this.text,
+    this.direction,
+  );
+
   final String text;
   final pw.TextDirection direction;
 }
