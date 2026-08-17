@@ -1,9 +1,16 @@
 class TableColumnDefinition {
   String name;
+  int? fieldId;
 
-  TableColumnDefinition(this.name);
+  TableColumnDefinition(
+    this.name, {
+    this.fieldId,
+  });
 
   TableColumnDefinition copy() {
-    return TableColumnDefinition(name);
+    return TableColumnDefinition(
+      name,
+      fieldId: fieldId,
+    );
   }
 }
