@@ -20,7 +20,7 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: 3.44.7
+          flutter-version: 3.47.0
           channel: stable
           cache: true
 
@@ -34,7 +34,7 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v4
         with:
-          packages: "platform-tools platforms;android-36 build-tools;35.0.0"
+          packages: "platform-tools platforms;android-36 build-tools;36.0.0"
           accept-android-sdk-licenses: true
           log-accepted-android-sdk-licenses: false
 
@@ -42,15 +42,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          echo "===== ANDROID SDK CHECK ====="
-          echo "ANDROID_HOME=${ANDROID_HOME:-}"
-          echo "ANDROID_SDK_ROOT=${ANDROID_SDK_ROOT:-}"
           SDK_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-}}"
           if [ -z "$SDK_ROOT" ]; then echo "ERROR: Android SDK root is not defined."; exit 1; fi
-          echo "SDK root: $SDK_ROOT"
           if [ ! -d "$SDK_ROOT/platform-tools" ]; then echo "ERROR: platform-tools is missing."; exit 1; fi
           if [ ! -d "$SDK_ROOT/platforms/android-36" ]; then echo "ERROR: Android platform 36 is missing."; exit 1; fi
-          if [ ! -d "$SDK_ROOT/build-tools/35.0.0" ]; then echo "ERROR: Android Build Tools 35.0.0 is missing."; exit 1; fi
+          if [ ! -d "$SDK_ROOT/build-tools/36.0.0" ]; then echo "ERROR: Android Build Tools 36.0.0 is missing."; exit 1; fi
           echo "Android SDK verification successful."
 
       - name: Flutter doctor
@@ -80,6 +76,33 @@ jobs:
           grep -q 'namespace = "com.example.pass_managers"' android/app/build.gradle || { echo "ERROR: Android namespace is incorrect."; exit 1; }
           echo "Android project configuration is valid."
 
+      - name: Configure permanent Android release signing
+        shell: bash
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          : "${ANDROID_KEYSTORE_BASE64:?ANDROID_KEYSTORE_BASE64 secret is missing}"
+          : "${ANDROID_KEYSTORE_PASSWORD:?ANDROID_KEYSTORE_PASSWORD secret is missing}"
+          : "${ANDROID_KEY_ALIAS:?ANDROID_KEY_ALIAS secret is missing}"
+          : "${ANDROID_KEY_PASSWORD:?ANDROID_KEY_PASSWORD secret is missing}"
+
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/app/pass_managers_release.jks
+          test -s android/app/pass_managers_release.jks
+
+          cat > android/key.properties <<EOF
+          storeFile=app/pass_managers_release.jks
+          storePassword=$ANDROID_KEYSTORE_PASSWORD
+          keyAlias=$ANDROID_KEY_ALIAS
+          keyPassword=$ANDROID_KEY_PASSWORD
+          EOF
+
+          chmod 600 android/app/pass_managers_release.jks android/key.properties
+          echo "Permanent release signing material configured."
+
       - name: Analyze Flutter project
         shell: bash
         run: |
@@ -107,6 +130,12 @@ jobs:
           path: build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
 
+      - name: Remove signing material
+        if: always()
+        shell: bash
+        run: |
+          rm -f android/key.properties android/app/pass_managers_release.jks
+
   windows-build:
     name: Windows Release
     runs-on: windows-latest
@@ -119,7 +148,7 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: 3.44.7
+          flutter-version: 3.47.0
           channel: stable
           cache: true
 
