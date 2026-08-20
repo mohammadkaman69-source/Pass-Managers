@@ -4,6 +4,7 @@ import '../models/table_column_definition.dart';
 import '../models/table_row_data.dart';
 import '../models/tree_item.dart';
 import '../repositories/tree_repository.dart';
+import '../widgets/app_search_bar.dart';
 
 class TablePage extends StatefulWidget {
   final TreeItem table;
@@ -25,6 +26,7 @@ class _TablePageState extends State<TablePage> {
   final TreeRepository _repository = TreeRepository();
   final Map<TableRowData, int> _rowIds = {};
   bool _isLoading = true;
+  String _searchQuery = '';
 
   @override
   void initState() {
@@ -834,6 +836,21 @@ class _TablePageState extends State<TablePage> {
     return groups;
   }
 
+  List<TableRowData> _filteredRows() {
+    final q = _searchQuery.trim().toLowerCase();
+    if (q.isEmpty) return widget.table.rows;
+    return widget.table.rows.where((row) {
+      for (final col in row.columns) {
+        if (col.name.toLowerCase().contains(q)) return true;
+        final fieldId = col.fieldId;
+        if (fieldId == null) continue;
+        final val = (row.values[fieldId] ?? '').toLowerCase();
+        if (val.contains(q)) return true;
+      }
+      return false;
+    }).toList();
+  }
+
   double _measureWidth(String text) {
     final len = text.trim().length;
     final width = 24.0 + len * 9.0;
@@ -1091,7 +1108,7 @@ class _TablePageState extends State<TablePage> {
 
   @override
   Widget build(BuildContext context) {
-    final groups = _groupRows(widget.table.rows);
+    final groups = _groupRows(_filteredRows());
 
     return Scaffold(
       appBar: AppBar(
@@ -1110,35 +1127,47 @@ class _TablePageState extends State<TablePage> {
             ),
         ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : widget.table.rows.isEmpty
-              ? Center(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.table_chart_outlined, size: 80),
-                        const SizedBox(height: 20),
-                        const Text('هنوز رکوردی نیست',
-                            style: TextStyle(fontSize: 18)),
-                        const SizedBox(height: 20),
-                        ElevatedButton.icon(
-                          onPressed: addRow,
-                          icon: const Icon(Icons.add),
-                          label: const Text('افزودن رکورد'),
+      body: Column(
+        children: [
+          AppSearchBar(
+            tableId: widget.tableId,
+            onQueryChanged: (q) {
+              setState(() => _searchQuery = q);
+            },
+          ),
+          Expanded(
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : widget.table.rows.isEmpty
+                    ? Center(
+                        child: SingleChildScrollView(
+                          padding: const EdgeInsets.all(24),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.table_chart_outlined, size: 80),
+                              const SizedBox(height: 20),
+                              const Text('هنوز رکوردی نیست',
+                                  style: TextStyle(fontSize: 18)),
+                              const SizedBox(height: 20),
+                              ElevatedButton.icon(
+                                onPressed: addRow,
+                                icon: const Icon(Icons.add),
+                                label: const Text('افزودن رکورد'),
+                              ),
+                            ],
+                          ),
                         ),
-                      ],
-                    ),
-                  ),
-                )
-              : ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 120),
-                  itemCount: groups.length,
-                  itemBuilder: (context, index) =>
-                      _buildSideBySideGroup(groups[index]),
-                ),
+                      )
+                    : ListView.builder(
+                        padding: const EdgeInsets.fromLTRB(12, 12, 12, 120),
+                        itemCount: groups.length,
+                        itemBuilder: (context, index) =>
+                            _buildSideBySideGroup(groups[index]),
+                      ),
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: addRow,
         icon: const Icon(Icons.add),
