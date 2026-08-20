@@ -140,7 +140,7 @@ class _HomePageState extends State<HomePage> {
         _isLoading = false;
       });
 
-      _showMessage('Failed to load data: $error');
+      _showMessage('بارگذاری داده‌ها ناموفق بود: $error');
     }
   }
 
@@ -210,7 +210,7 @@ class _HomePageState extends State<HomePage> {
           autofocus: true,
           obscureText: true,
           decoration: const InputDecoration(
-            labelText: 'Master Password',
+            labelText: 'رمز اصلی',
             border: OutlineInputBorder(),
           ),
         ),
@@ -249,7 +249,7 @@ class _HomePageState extends State<HomePage> {
     final verified = await SecurityManager().unlock(password);
 
     if (!verified) {
-      _showMessage('Master Password اشتباه است.');
+      _showMessage('رمز اصلی اشتباه است.');
       return;
     }
 
@@ -286,7 +286,7 @@ class _HomePageState extends State<HomePage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Restore Backup'),
+        title: const Text('بازیابی نسخه پشتیبان'),
         content: const Text(
           'با بازیابی، اطلاعات فعلی برنامه حذف و اطلاعات نسخه پشتیبان جایگزین می‌شود. ادامه می‌دهید؟',
         ),
@@ -324,7 +324,14 @@ class _HomePageState extends State<HomePage> {
 
       if (!mounted) return;
 
-      _showMessage('نسخه پشتیبان با موفقیت بازیابی شد.');
+      _showMessage(
+        'نسخه پشتیبان با موفقیت بازیابی شد. '
+        'ورود بیومتریک را در صورت نیاز دوباره فعال کنید.',
+      );
+    } on BackupCancelledException {
+      // کاربر فایل را انتخاب نکرد
+    } on BackupFormatException catch (error) {
+      _showMessage('خطا در بازیابی: ${error.message}');
     } catch (error) {
       _showMessage('خطا در بازیابی نسخه پشتیبان: $error');
     } finally {
@@ -354,7 +361,7 @@ class _HomePageState extends State<HomePage> {
       final disable = await showDialog<bool>(
         context: context,
         builder: (dialogContext) => AlertDialog(
-          title: const Text('Biometric Login'),
+          title: const Text('ورود بیومتریک'),
           content: const Text(
             'ورود بیومتریک فعال است. غیرفعال شود؟',
           ),
@@ -637,7 +644,7 @@ class _HomePageState extends State<HomePage> {
                           AppLogo(height: 72),
                           SizedBox(height: 16),
                           Text(
-                            'No items created yet',
+                            'هنوز موردی ساخته نشده',
                             style: TextStyle(
                               fontSize: 16,
                               color: Colors.grey,
