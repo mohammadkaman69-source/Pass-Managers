@@ -444,61 +444,6 @@ class _TablePageState extends State<TablePage> {
     await deleteRow(index);
   }
 
-  Future<void> addColumn(TableRowData row) async {
-    final controller = TextEditingController();
-    final name = await showDialog<String>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Add Field'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: const InputDecoration(
-            labelText: 'Field name',
-            border: OutlineInputBorder(),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              final value = controller.text.trim();
-              if (value.isNotEmpty) Navigator.pop(dialogContext, value);
-            },
-            child: const Text('Add Field'),
-          ),
-        ],
-      ),
-    );
-    controller.dispose();
-    if (name == null || name.isEmpty) return;
-
-    final rowId = _rowIds[row];
-    if (rowId == null) {
-      _showError('Row ID was not found.');
-      return;
-    }
-
-    try {
-      final fieldId = await _repository.createField(
-        rowId: rowId,
-        name: name,
-        position: row.columns.length,
-        value: '',
-      );
-      if (!mounted) return;
-      setState(() {
-        row.columns.add(TableColumnDefinition(name, fieldId: fieldId));
-        row.values[fieldId] = '';
-      });
-    } catch (error) {
-      _showError('Failed to add field: $error');
-    }
-  }
-
   Future<void> addColumnToGroup(List<TableRowData> group) async {
     if (group.isEmpty) return;
     final controller = TextEditingController();
@@ -864,7 +809,6 @@ class _TablePageState extends State<TablePage> {
     required int fieldIndex,
     required double width,
     required double height,
-    required int fieldCount,
   }) {
     if (fieldIndex >= row.columns.length) {
       return Container(
@@ -1024,7 +968,6 @@ class _TablePageState extends State<TablePage> {
                 fieldIndex: i,
                 width: w,
                 height: rowHeights[i],
-                fieldCount: fieldCount,
               ),
             cell(
               width: w,
