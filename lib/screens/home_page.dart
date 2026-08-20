@@ -11,6 +11,7 @@ import '../security/security_guard.dart';
 import '../security/security_manager.dart';
 import '../services/backup_service.dart';
 import '../services/pdf_export_service.dart';
+import '../widgets/app_logo.dart';
 import 'table_page.dart';
 import 'tree_page.dart';
 
@@ -487,7 +488,7 @@ class _HomePageState extends State<HomePage> {
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () => {
               final value = controller.text.trim();
               if (value.isNotEmpty) {
                 Navigator.pop(dialogContext, value);
@@ -607,7 +608,14 @@ class _HomePageState extends State<HomePage> {
         },
         child: Scaffold(
           appBar: AppBar(
-            title: const Text('Pass Managers'),
+            title: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                AppLogo.small(height: 26),
+                SizedBox(width: 10),
+                Text('Pass Managers'),
+              ],
+            ),
             actions: [
               IconButton(
                 onPressed: _showSecurityMenu,
