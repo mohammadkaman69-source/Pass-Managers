@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../security/security_manager.dart';
 import '../security/biometric_service.dart';
+import '../widgets/app_logo.dart';
 
 class LoginPage extends StatefulWidget {
   final VoidCallback? onLoginSuccess;
@@ -283,17 +284,25 @@ class _LoginPageState
               mainAxisSize:
                   MainAxisSize.min,
               children: [
+                // NexVault branding logo (UI only)
+                const AppLogo(
+                  height: 110,
+                  showShadow: true,
+                ),
+
+                const SizedBox(height: 16),
+
                 const Text(
                   'Pass Managers',
                   style: TextStyle(
-                    fontSize: 32,
+                    fontSize: 28,
                     fontWeight:
                         FontWeight.bold,
                   ),
                 ),
 
                 const SizedBox(
-                  height: 30,
+                  height: 28,
                 ),
 
                 if (createMode) ...[
