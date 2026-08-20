@@ -104,7 +104,7 @@ class BiometricService {
   Future<bool> _authenticate() async {
     try {
       return await _auth.authenticate(
-        localizedReason: 'برای ورود به Pass Managers احراز هویت کنید.',
+        localizedReason: 'برای ورود به NexVault احراز هویت کنید.',
         persistAcrossBackgrounding: true,
         biometricOnly: false,
       );

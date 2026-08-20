@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// Reusable NexVault / Pass Managers logo.
+/// Reusable NexVault logo.
 /// Pure UI widget — no security or data dependencies.
 class AppLogo extends StatelessWidget {
   final double height;
@@ -26,7 +26,6 @@ class AppLogo extends StatelessWidget {
   });
 
   String get _assetPath {
-    // Prefer the dedicated small icon for compact UI.
     if (height <= 40) {
       return 'assets/icon/icon_small.png';
     }
@@ -42,7 +41,6 @@ class AppLogo extends StatelessWidget {
       fit: fit,
       filterQuality: FilterQuality.high,
       errorBuilder: (context, error, stackTrace) {
-        // Fallback chain so the app never crashes if an asset is missing.
         return Image.asset(
           'assets/logo/nexvault_logo.png',
           height: height,

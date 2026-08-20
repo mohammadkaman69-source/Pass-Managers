@@ -1,6 +1,6 @@
-# Pass Managers
+# NexVault
 
-Pass Managers is a local-first password/vault manager built with Flutter.
+NexVault is a local-first password/vault manager built with Flutter.
 
 ## Current security and data features
 

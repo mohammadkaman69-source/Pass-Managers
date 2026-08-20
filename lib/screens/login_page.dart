@@ -284,7 +284,6 @@ class _LoginPageState
               mainAxisSize:
                   MainAxisSize.min,
               children: [
-                // NexVault branding logo (UI only)
                 const AppLogo(
                   height: 110,
                   showShadow: true,
@@ -293,7 +292,7 @@ class _LoginPageState
                 const SizedBox(height: 16),
 
                 const Text(
-                  'Pass Managers',
+                  'NexVault',
                   style: TextStyle(
                     fontSize: 28,
                     fontWeight:
