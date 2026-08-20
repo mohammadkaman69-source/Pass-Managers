@@ -237,14 +237,6 @@ class _TablePageState extends State<TablePage> {
     }
   }
 
-  Future<int?> _fieldIdForColumn(
-    TableRowData row,
-    TableColumnDefinition column,
-  ) async {
-    if (_rowIds[row] == null) return null;
-    return column.fieldId;
-  }
-
   Future<void> editRow(TableRowData row) async {
     final controllers = <int, TextEditingController>{};
     final obscure = <int, bool>{};
