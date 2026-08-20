@@ -53,7 +53,7 @@ class PdfExportService {
 
     try {
       final savedPath = await FilePicker.saveFile(
-        dialogTitle: 'ذخیره PDF Pass Managers',
+        dialogTitle: 'ذخیره PDF NexVault',
         fileName: fileName,
         type: FileType.custom,
         allowedExtensions: const ['pdf'],
@@ -95,7 +95,7 @@ class PdfExportService {
           alignment: pw.Alignment.centerRight,
           padding: const pw.EdgeInsets.only(bottom: 8),
           child: _richText(
-            title.isEmpty ? 'Pass Managers' : title,
+            title.isEmpty ? 'NexVault' : title,
             persianFont,
             latinFallback,
             latinBoldFallback,
@@ -656,7 +656,7 @@ class PdfExportService {
     final title = root['name']?.toString().trim() ?? '';
 
     return title.isEmpty
-        ? 'Pass Managers'
+        ? 'NexVault'
         : title;
   }
 
@@ -671,7 +671,7 @@ class PdfExportService {
         .trim();
 
     return clean.isEmpty
-        ? 'Pass-Managers'
+        ? 'NexVault'
         : clean;
   }
 }
