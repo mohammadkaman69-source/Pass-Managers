@@ -252,7 +252,8 @@ class _TablePageState extends State<TablePage> {
     for (final column in row.columns) {
       final fieldId = column.fieldId;
       if (fieldId == null) continue;
-      controllers[fieldId] = TextEditingController(text: row.values[fieldId] ?? '');
+      controllers[fieldId] =
+          TextEditingController(text: row.values[fieldId] ?? '');
       obscure[fieldId] = column.name.toLowerCase().contains('password');
     }
 
@@ -268,7 +269,8 @@ class _TablePageState extends State<TablePage> {
                 children: row.columns.map((column) {
                   final fieldId = column.fieldId;
                   if (fieldId == null) return const SizedBox.shrink();
-                  final isPassword = column.name.toLowerCase().contains('password');
+                  final isPassword =
+                      column.name.toLowerCase().contains('password');
                   final isObscured = obscure[fieldId] ?? true;
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 14),
@@ -340,6 +342,70 @@ class _TablePageState extends State<TablePage> {
     }
   }
 
+  Future<void> editCell(
+    TableRowData row,
+    TableColumnDefinition column,
+  ) async {
+    final fieldId = column.fieldId;
+    if (fieldId == null) return;
+
+    final controller = TextEditingController(text: row.values[fieldId] ?? '');
+    final isPassword = column.name.toLowerCase().contains('password');
+    var obscure = isPassword;
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text(column.name),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            obscureText: isPassword && obscure,
+            maxLines: isPassword ? 1 : 4,
+            decoration: InputDecoration(
+              border: const OutlineInputBorder(),
+              suffixIcon: isPassword
+                  ? IconButton(
+                      onPressed: () {
+                        setDialogState(() => obscure = !obscure);
+                      },
+                      icon: Icon(
+                        obscure
+                            ? Icons.visibility_outlined
+                            : Icons.visibility_off_outlined,
+                      ),
+                    )
+                  : null,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('Save'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    final newValue = controller.text;
+    controller.dispose();
+    if (result != true) return;
+
+    try {
+      row.values[fieldId] = newValue;
+      await _repository.updateFieldValue(fieldId: fieldId, value: newValue);
+      if (mounted) setState(() {});
+    } catch (error) {
+      _showError('Failed to save cell: $error');
+    }
+  }
+
   Future<void> deleteRow(int index) async {
     if (index < 0 || index >= widget.table.rows.length) return;
     final confirmed = await showDialog<bool>(
@@ -378,6 +444,12 @@ class _TablePageState extends State<TablePage> {
     } catch (error) {
       _showError('Failed to delete record: $error');
     }
+  }
+
+  Future<void> deleteRowObject(TableRowData row) async {
+    final index = widget.table.rows.indexOf(row);
+    if (index < 0) return;
+    await deleteRow(index);
   }
 
   Future<void> addColumn(TableRowData row) async {
@@ -435,6 +507,58 @@ class _TablePageState extends State<TablePage> {
     }
   }
 
+  Future<void> addColumnToGroup(List<TableRowData> group) async {
+    if (group.isEmpty) return;
+    final controller = TextEditingController();
+    final name = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Add Field'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(
+            labelText: 'Field name',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final value = controller.text.trim();
+              if (value.isNotEmpty) Navigator.pop(dialogContext, value);
+            },
+            child: const Text('Add Field'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (name == null || name.isEmpty) return;
+
+    try {
+      for (final row in group) {
+        final rowId = _rowIds[row];
+        if (rowId == null) continue;
+        final fieldId = await _repository.createField(
+          rowId: rowId,
+          name: name,
+          position: row.columns.length,
+          value: '',
+        );
+        row.columns.add(TableColumnDefinition(name, fieldId: fieldId));
+        row.values[fieldId] = '';
+      }
+      if (mounted) setState(() {});
+    } catch (error) {
+      _showError('Failed to add field: $error');
+    }
+  }
+
   Future<void> renameColumn(
     TableRowData row,
     TableColumnDefinition column,
@@ -476,6 +600,61 @@ class _TablePageState extends State<TablePage> {
       await _repository.renameField(fieldId: fieldId, name: newName);
       if (!mounted) return;
       setState(() => column.name = newName);
+    } catch (error) {
+      _showError('Failed to rename field: $error');
+    }
+  }
+
+  Future<void> renameColumnInGroup(
+    List<TableRowData> group,
+    int columnIndex,
+  ) async {
+    if (group.isEmpty) return;
+    final sample = group.first;
+    if (columnIndex < 0 || columnIndex >= sample.columns.length) return;
+
+    final oldName = sample.columns[columnIndex].name;
+    final controller = TextEditingController(text: oldName);
+    final newName = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Rename Field'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(
+            labelText: 'Field name',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final value = controller.text.trim();
+              if (value.isNotEmpty) Navigator.pop(dialogContext, value);
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (newName == null || newName.isEmpty || newName == oldName) return;
+
+    try {
+      for (final row in group) {
+        if (columnIndex >= row.columns.length) continue;
+        final column = row.columns[columnIndex];
+        final fieldId = column.fieldId;
+        if (fieldId == null) continue;
+        await _repository.renameField(fieldId: fieldId, name: newName);
+        column.name = newName;
+      }
+      if (mounted) setState(() {});
     } catch (error) {
       _showError('Failed to rename field: $error');
     }
@@ -523,6 +702,54 @@ class _TablePageState extends State<TablePage> {
     }
   }
 
+  Future<void> deleteColumnInGroup(
+    List<TableRowData> group,
+    int columnIndex,
+  ) async {
+    if (group.isEmpty) return;
+    final sample = group.first;
+    if (columnIndex < 0 || columnIndex >= sample.columns.length) return;
+    if (sample.columns.length <= 1) {
+      _showError('At least one field must remain in this record.');
+      return;
+    }
+
+    final name = sample.columns[columnIndex].name;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete Field'),
+        content: Text('Delete field "$name" from all rows in this table?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    try {
+      for (final row in group) {
+        if (columnIndex >= row.columns.length) continue;
+        final column = row.columns[columnIndex];
+        final fieldId = column.fieldId;
+        if (fieldId == null) continue;
+        await _repository.deleteField(fieldId);
+        row.columns.removeAt(columnIndex);
+        row.values.remove(fieldId);
+      }
+      if (mounted) setState(() {});
+    } catch (error) {
+      _showError('Failed to delete field: $error');
+    }
+  }
+
   Future<void> moveColumn(
     TableRowData row,
     TableColumnDefinition column,
@@ -558,8 +785,48 @@ class _TablePageState extends State<TablePage> {
     }
   }
 
-  void showColumnMenu(TableRowData row, TableColumnDefinition column) {
-    final index = row.columns.indexOf(column);
+  Future<void> moveColumnInGroup(
+    List<TableRowData> group,
+    int oldIndex,
+    int newIndex,
+  ) async {
+    if (group.isEmpty) return;
+    final sample = group.first;
+    if (oldIndex < 0 ||
+        newIndex < 0 ||
+        oldIndex >= sample.columns.length ||
+        newIndex >= sample.columns.length ||
+        oldIndex == newIndex) {
+      return;
+    }
+
+    try {
+      for (final row in group) {
+        if (row.columns.any((c) => c.fieldId == null)) continue;
+        if (oldIndex >= row.columns.length || newIndex >= row.columns.length) {
+          continue;
+        }
+        final ids = row.columns.map((c) => c.fieldId!).toList();
+        final moved = ids.removeAt(oldIndex);
+        ids.insert(newIndex, moved);
+        await _repository.updateFieldPositions(ids);
+
+        final col = row.columns.removeAt(oldIndex);
+        row.columns.insert(newIndex, col);
+      }
+      if (mounted) setState(() {});
+    } catch (error) {
+      _showError('Failed to move field: $error');
+    }
+  }
+
+  void showColumnMenuForGroup(
+    List<TableRowData> group,
+    int columnIndex,
+  ) {
+    final sample = group.first;
+    if (columnIndex < 0 || columnIndex >= sample.columns.length) return;
+
     showModalBottomSheet(
       context: context,
       builder: (sheetContext) => SafeArea(
@@ -571,28 +838,28 @@ class _TablePageState extends State<TablePage> {
               title: const Text('Rename Field'),
               onTap: () {
                 Navigator.pop(sheetContext);
-                renameColumn(row, column);
+                renameColumnInGroup(group, columnIndex);
               },
             ),
             ListTile(
               leading: const Icon(Icons.arrow_upward),
-              enabled: index > 0,
+              enabled: columnIndex > 0,
               title: const Text('Move Up'),
-              onTap: index > 0
+              onTap: columnIndex > 0
                   ? () {
                       Navigator.pop(sheetContext);
-                      moveColumn(row, column, index - 1);
+                      moveColumnInGroup(group, columnIndex, columnIndex - 1);
                     }
                   : null,
             ),
             ListTile(
               leading: const Icon(Icons.arrow_downward),
-              enabled: index < row.columns.length - 1,
+              enabled: columnIndex < sample.columns.length - 1,
               title: const Text('Move Down'),
-              onTap: index < row.columns.length - 1
+              onTap: columnIndex < sample.columns.length - 1
                   ? () {
                       Navigator.pop(sheetContext);
-                      moveColumn(row, column, index + 1);
+                      moveColumnInGroup(group, columnIndex, columnIndex + 1);
                     }
                   : null,
             ),
@@ -601,7 +868,7 @@ class _TablePageState extends State<TablePage> {
               title: const Text('Delete Field'),
               onTap: () {
                 Navigator.pop(sheetContext);
-                deleteColumn(row, column);
+                deleteColumnInGroup(group, columnIndex);
               },
             ),
             const SizedBox(height: 8),
@@ -682,90 +949,242 @@ class _TablePageState extends State<TablePage> {
     }
   }
 
-  Widget buildRowCard(TableRowData row, int rowIndex) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 16),
-      child: Padding(
-        padding: const EdgeInsets.only(top: 8, bottom: 8),
-        child: Column(
-          children: [
-            if (row.columns.isEmpty)
-              const Padding(
-                padding: EdgeInsets.all(16),
-                child: Text('This record has no fields.'),
-              )
-            else
-              ...row.columns.map((column) {
-                final fieldId = column.fieldId;
-                final value = fieldId == null ? '' : row.values[fieldId] ?? '';
-                final isPassword = column.name.toLowerCase().contains('password');
-                final displayValue = isPassword && value.isNotEmpty
-                    ? '••••••••'
-                    : value.isEmpty
-                        ? '—'
-                        : value;
+  String _rowSignature(TableRowData row) {
+    return row.columns.map((c) => c.name.trim()).join('|');
+  }
 
-                return InkWell(
-                  onTap: () => editRow(row),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          flex: 4,
-                          child: Text(
-                            column.name,
-                            style: const TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          flex: 6,
-                          child: Text(displayValue, textAlign: TextAlign.end),
-                        ),
-                        IconButton(
-                          onPressed: () => showColumnMenu(row, column),
-                          icon: const Icon(Icons.more_vert, size: 20),
-                          tooltip: 'Field options',
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              }),
-            const Divider(height: 1),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              child: Wrap(
-                alignment: WrapAlignment.end,
+  List<List<TableRowData>> _groupRows(List<TableRowData> rows) {
+    final groups = <List<TableRowData>>[];
+    List<TableRowData>? current;
+    String? currentSig;
+
+    for (final row in rows) {
+      final sig = _rowSignature(row);
+      if (current == null || sig != currentSig) {
+        current = <TableRowData>[row];
+        currentSig = sig;
+        groups.add(current);
+      } else {
+        current.add(row);
+      }
+    }
+    return groups;
+  }
+
+  double _columnWidth({
+    required String header,
+    required List<String> cellValues,
+  }) {
+    var maxLen = header.trim().length;
+    for (final v in cellValues) {
+      final len = v.trim().length;
+      if (len > maxLen) maxLen = len;
+    }
+    final width = 28.0 + maxLen * 9.0;
+    if (width < 72) return 72;
+    if (width > 280) return 280;
+    return width;
+  }
+
+  String _displayCellValue(TableColumnDefinition column, String raw) {
+    final isPassword = column.name.toLowerCase().contains('password');
+    if (isPassword && raw.isNotEmpty) return '••••••••';
+    return raw;
+  }
+
+  Widget _buildGridGroup(List<TableRowData> group) {
+    if (group.isEmpty) return const SizedBox.shrink();
+
+    final sample = group.first;
+    final columnCount = sample.columns.length;
+
+    final widths = <double>[];
+    for (var c = 0; c < columnCount; c++) {
+      final header = sample.columns[c].name;
+      final values = <String>[];
+      for (final row in group) {
+        if (c >= row.columns.length) {
+          values.add('');
+          continue;
+        }
+        final col = row.columns[c];
+        final fieldId = col.fieldId;
+        final raw = fieldId == null ? '' : (row.values[fieldId] ?? '');
+        values.add(_displayCellValue(col, raw));
+      }
+      widths.add(_columnWidth(header: header, cellValues: values));
+    }
+
+    final visualOrder =
+        List<int>.generate(columnCount, (i) => i).reversed.toList();
+
+    const headerBg = Color(0xFFE8E8E8);
+    const borderColor = Color(0xFFBDBDBD);
+
+    Widget cellBox({
+      required double width,
+      required Widget child,
+      Color? color,
+      VoidCallback? onTap,
+      VoidCallback? onLongPress,
+    }) {
+      final box = Container(
+        width: width,
+        constraints: const BoxConstraints(minHeight: 44),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+        decoration: BoxDecoration(
+          color: color,
+          border: Border.all(color: borderColor, width: 0.6),
+        ),
+        alignment: Alignment.centerRight,
+        child: child,
+      );
+      if (onTap == null && onLongPress == null) return box;
+      return InkWell(
+        onTap: onTap,
+        onLongPress: onLongPress,
+        child: box,
+      );
+    }
+
+    final headerCells = visualOrder.map((c) {
+      final col = sample.columns[c];
+      return cellBox(
+        width: widths[c],
+        color: headerBg,
+        onLongPress: () => showColumnMenuForGroup(group, c),
+        child: Text(
+          col.name,
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+          textAlign: TextAlign.right,
+          maxLines: 3,
+          overflow: TextOverflow.ellipsis,
+        ),
+      );
+    }).toList();
+
+    final dataRows = <Widget>[];
+    for (var r = 0; r < group.length; r++) {
+      final row = group[r];
+      final cells = visualOrder.map((c) {
+        if (c >= row.columns.length) {
+          return cellBox(
+            width: widths[c],
+            child: const SizedBox.shrink(),
+          );
+        }
+        final col = row.columns[c];
+        final fieldId = col.fieldId;
+        final raw = fieldId == null ? '' : (row.values[fieldId] ?? '');
+        final display = _displayCellValue(col, raw);
+        return cellBox(
+          width: widths[c],
+          onTap: () => editCell(row, col),
+          onLongPress: () => editRow(row),
+          child: Text(
+            display,
+            textAlign: TextAlign.right,
+            maxLines: 4,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 13),
+          ),
+        );
+      }).toList();
+
+      dataRows.add(
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ...cells,
+            cellBox(
+              width: 88,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  TextButton.icon(
+                  IconButton(
+                    padding: EdgeInsets.zero,
+                    constraints:
+                        const BoxConstraints(minWidth: 32, minHeight: 32),
+                    icon: const Icon(Icons.edit, size: 18),
+                    tooltip: 'Edit row',
                     onPressed: () => editRow(row),
-                    icon: const Icon(Icons.edit),
-                    label: const Text('Edit'),
                   ),
-                  TextButton.icon(
-                    onPressed: () => deleteRow(rowIndex),
-                    icon: const Icon(Icons.delete_outline),
-                    label: const Text('Delete'),
-                  ),
-                  TextButton.icon(
-                    onPressed: () => addColumn(row),
-                    icon: const Icon(Icons.add_box_outlined),
-                    label: const Text('Add Field'),
+                  IconButton(
+                    padding: EdgeInsets.zero,
+                    constraints:
+                        const BoxConstraints(minWidth: 32, minHeight: 32),
+                    icon: const Icon(Icons.delete_outline, size: 18),
+                    tooltip: 'Delete row',
+                    onPressed: () => deleteRowObject(row),
                   ),
                 ],
               ),
             ),
           ],
         ),
+      );
+    }
+
+    final totalWidth = widths.fold<double>(0, (a, b) => a + b) + 88;
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 16),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            reverse: true,
+            padding: const EdgeInsets.fromLTRB(8, 12, 8, 4),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minWidth: totalWidth),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      ...headerCells,
+                      cellBox(
+                        width: 88,
+                        color: headerBg,
+                        child: const Text(
+                          '',
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ],
+                  ),
+                  ...dataRows,
+                ],
+              ),
+            ),
+          ),
+          const Divider(height: 1),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            child: Wrap(
+              alignment: WrapAlignment.end,
+              spacing: 4,
+              children: [
+                TextButton.icon(
+                  onPressed: () => addColumnToGroup(group),
+                  icon: const Icon(Icons.add_box_outlined, size: 18),
+                  label: const Text('Add Field'),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final groups = _groupRows(widget.table.rows);
+
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.table.name),
@@ -794,7 +1213,8 @@ class _TablePageState extends State<TablePage> {
                       children: [
                         const Icon(Icons.table_chart_outlined, size: 80),
                         const SizedBox(height: 20),
-                        const Text('No records yet', style: TextStyle(fontSize: 18)),
+                        const Text('No records yet',
+                            style: TextStyle(fontSize: 18)),
                         const SizedBox(height: 20),
                         ElevatedButton.icon(
                           onPressed: addRow,
@@ -806,10 +1226,10 @@ class _TablePageState extends State<TablePage> {
                   ),
                 )
               : ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
-                  itemCount: widget.table.rows.length,
+                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 120),
+                  itemCount: groups.length,
                   itemBuilder: (context, index) =>
-                      buildRowCard(widget.table.rows[index], index),
+                      _buildGridGroup(groups[index]),
                 ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: addRow,
