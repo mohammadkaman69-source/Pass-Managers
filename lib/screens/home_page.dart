@@ -169,7 +169,7 @@ class _HomePageState extends State<HomePage> {
 
       final target = <String, dynamic>{
         'id': null,
-        'name': 'Pass Managers',
+        'name': 'NexVault',
         'type': 'folder',
         'children': children,
       };
@@ -613,7 +613,7 @@ class _HomePageState extends State<HomePage> {
               children: [
                 AppLogo.small(height: 26),
                 SizedBox(width: 10),
-                Text('Pass Managers'),
+                Text('NexVault'),
               ],
             ),
             actions: [
