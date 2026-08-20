@@ -488,7 +488,7 @@ class _HomePageState extends State<HomePage> {
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            onPressed: () => {
+            onPressed: () {
               final value = controller.text.trim();
               if (value.isNotEmpty) {
                 Navigator.pop(dialogContext, value);
