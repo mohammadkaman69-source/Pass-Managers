@@ -32,7 +32,10 @@ dev_dependencies:
 
 flutter_launcher_icons:
   android: true
+  ios: true
   image_path: "assets/icon/app_icon.png"
+  adaptive_icon_foreground: "assets/icon/adaptive_foreground.png"
+  adaptive_icon_background: "assets/icon/adaptive_background.png"
   min_sdk_android: 21
 
 flutter:
@@ -41,3 +44,11 @@ flutter:
   assets:
     - assets/fonts/BNazanin.ttf
     - assets/icon/app_icon.png
+    - assets/icon/adaptive_foreground.png
+    - assets/icon/adaptive_background.png
+    - assets/icon/icon_small.png
+    - assets/logo/nexvault_logo.png
+    - assets/splash/splash_logo.png
+    - assets/splash/splash_background.png
+    - assets/web/favicon.png
+    - assets/animation/nexvault_logo_animation.mp4
