@@ -32,7 +32,7 @@ dev_dependencies:
 
 flutter_launcher_icons:
   android: true
-  ios: true
+  ios: false
   image_path: "assets/icon/app_icon.png"
   adaptive_icon_foreground: "assets/icon/adaptive_foreground.png"
   adaptive_icon_background: "assets/icon/adaptive_background.png"
