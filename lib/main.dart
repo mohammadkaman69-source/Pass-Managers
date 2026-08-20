@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'screens/home_page.dart';
 import 'screens/login_page.dart';
+import 'screens/splash_page.dart';
 import 'security/app_lifecycle_manager.dart';
 import 'services/app_navigator.dart';
 
@@ -96,12 +97,12 @@ class _PassManagersState
     return MaterialApp(
       navigatorKey: appNavigatorKey,
       debugShowCheckedModeBanner: false,
-      title: 'Pass Managers',
+      title: 'NexVault',
       theme: ThemeData(
         colorSchemeSeed: Colors.blue,
         useMaterial3: true,
       ),
-      home: LoginPage(
+      home: SplashPage(
         onLoginSuccess: _unlockApp,
       ),
     );
