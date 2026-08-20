@@ -859,11 +859,6 @@ class _TablePageState extends State<TablePage> {
     return width;
   }
 
-  double _measureHeight(String text) {
-    final lines = (text.trim().length / 18).ceil().clamp(1, 5);
-    return 36.0 + (lines - 1) * 16.0;
-  }
-
   String _displayValue(TableColumnDefinition column, String raw) {
     final isPassword = column.name.toLowerCase().contains('password') ||
         column.name.contains('رمز') ||
@@ -872,56 +867,13 @@ class _TablePageState extends State<TablePage> {
     return raw;
   }
 
-  Widget _valueCell({
-    required TableRowData row,
-    required int fieldIndex,
-    required double width,
-    required double height,
-  }) {
-    if (fieldIndex >= row.columns.length) {
-      return Container(
-        width: width,
-        height: height,
-        decoration: BoxDecoration(
-          border: Border.all(color: const Color(0xFFBDBDBD), width: 0.55),
-        ),
-      );
-    }
-    final col = row.columns[fieldIndex];
-    final fieldId = col.fieldId;
-    final raw = fieldId == null ? '' : (row.values[fieldId] ?? '');
-    final display = _displayValue(col, raw);
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () => editCell(row, col),
-        onLongPress: () => editRow(row),
-        child: Container(
-          width: width,
-          height: height,
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-          decoration: BoxDecoration(
-            border: Border.all(color: const Color(0xFFBDBDBD), width: 0.55),
-          ),
-          alignment: Alignment.centerRight,
-          child: Text(
-            display,
-            textAlign: TextAlign.right,
-            maxLines: 4,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 13),
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _buildSideBySideGroup(List<TableRowData> group) {
     if (group.isEmpty) return const SizedBox.shrink();
 
     final sample = group.first;
     final fieldCount = sample.columns.length;
 
+    // محاسبه عرض هدرها
     var headerWidth = 88.0;
     for (final col in sample.columns) {
       final w = _measureWidth(col.name);
@@ -929,6 +881,7 @@ class _TablePageState extends State<TablePage> {
     }
     if (headerWidth > 160) headerWidth = 160;
 
+    // محاسبه عرض هر ردیف
     final recordWidths = <double>[];
     for (final row in group) {
       var maxW = 80.0;
@@ -945,58 +898,44 @@ class _TablePageState extends State<TablePage> {
       recordWidths.add(maxW);
     }
 
-    final rowHeights = <double>[];
-    for (var i = 0; i < fieldCount; i++) {
-      var h = _measureHeight(sample.columns[i].name);
-      for (final row in group) {
-        if (i >= row.columns.length) continue;
-        final col = row.columns[i];
-        final fieldId = col.fieldId;
-        final raw = fieldId == null ? '' : (row.values[fieldId] ?? '');
-        final display = _displayValue(col, raw);
-        final cellH = _measureHeight(display.isEmpty ? ' ' : display);
-        if (cellH > h) h = cellH;
-      }
-      rowHeights.add(h);
-    }
-
-    const headerBg = Color(0xFFECECEC);
     const borderColor = Color(0xFFBDBDBD);
+    const headerBg = Color(0xFFECECEC);
     const actionH = 44.0;
 
-    Widget headerCell(int i) {
-      return Material(
-        color: headerBg,
-        child: InkWell(
-          onLongPress: () => showColumnMenuForGroup(group, i),
-          child: Container(
+    // ساخت هدرها (ستون عمودی)
+    Widget headerColumn = Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (var i = 0; i < fieldCount; i++)
+          Container(
             width: headerWidth,
-            height: rowHeights[i],
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
             decoration: BoxDecoration(
               color: headerBg,
               border: Border.all(color: borderColor, width: 0.55),
             ),
-            alignment: Alignment.centerRight,
-            child: Text(
-              sample.columns[i].name,
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 13,
+            child: IntrinsicHeight(
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onLongPress: () => showColumnMenuForGroup(group, i),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                    alignment: Alignment.centerRight,
+                    child: Text(
+                      sample.columns[i].name,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
+                      textAlign: TextAlign.right,
+                      softWrap: true,
+                      maxLines: null,
+                    ),
+                  ),
+                ),
               ),
-              textAlign: TextAlign.right,
-              maxLines: 4,
-              overflow: TextOverflow.ellipsis,
             ),
           ),
-        ),
-      );
-    }
-
-    final headerColumn = Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        for (var i = 0; i < fieldCount; i++) headerCell(i),
         Container(
           width: headerWidth,
           height: actionH,
@@ -1008,6 +947,7 @@ class _TablePageState extends State<TablePage> {
       ],
     );
 
+    // ساخت ردیف‌ها
     final recordStrips = <Widget>[];
     for (var r = 0; r < group.length; r++) {
       final row = group[r];
@@ -1018,11 +958,34 @@ class _TablePageState extends State<TablePage> {
           mainAxisSize: MainAxisSize.min,
           children: [
             for (var i = 0; i < fieldCount; i++)
-              _valueCell(
-                row: row,
-                fieldIndex: i,
+              Container(
                 width: w,
-                height: rowHeights[i],
+                decoration: BoxDecoration(
+                  border: Border.all(color: borderColor, width: 0.55),
+                ),
+                child: IntrinsicHeight(
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: () => editCell(row, row.columns[i]),
+                      onLongPress: () => editRow(row),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                        alignment: Alignment.centerRight,
+                        child: Text(
+                          _displayValue(
+                            row.columns[i],
+                            row.values[row.columns[i].fieldId] ?? '',
+                          ),
+                          textAlign: TextAlign.right,
+                          softWrap: true,
+                          maxLines: null,
+                          style: const TextStyle(fontSize: 13),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               ),
             Container(
               width: w,
@@ -1035,16 +998,14 @@ class _TablePageState extends State<TablePage> {
                 children: [
                   IconButton(
                     padding: EdgeInsets.zero,
-                    constraints:
-                        const BoxConstraints(minWidth: 36, minHeight: 36),
+                    constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
                     icon: const Icon(Icons.edit, size: 18),
                     tooltip: 'ویرایش',
                     onPressed: () => editRow(row),
                   ),
                   IconButton(
                     padding: EdgeInsets.zero,
-                    constraints:
-                        const BoxConstraints(minWidth: 36, minHeight: 36),
+                    constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
                     icon: const Icon(Icons.delete_outline, size: 16),
                     tooltip: 'حذف',
                     onPressed: () => deleteRowObject(row),
