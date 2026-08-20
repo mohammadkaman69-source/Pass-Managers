@@ -80,7 +80,7 @@ class _TablePageState extends State<TablePage> {
     } catch (error) {
       if (!mounted) return;
       setState(() => _isLoading = false);
-      _showError('Failed to load table: $error');
+      _showError('بارگذاری جدول ناموفق بود: $error');
     }
   }
 
@@ -91,7 +91,7 @@ class _TablePageState extends State<TablePage> {
     final result = await showDialog<Map<String, int>>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Add Record'),
+        title: const Text('افزودن رکورد'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -100,8 +100,8 @@ class _TablePageState extends State<TablePage> {
               autofocus: true,
               keyboardType: TextInputType.number,
               decoration: const InputDecoration(
-                labelText: 'Number of columns',
-                hintText: 'Example: 5',
+                labelText: 'تعداد ستون',
+                hintText: 'مثال: ۵',
                 border: OutlineInputBorder(),
               ),
             ),
@@ -110,8 +110,8 @@ class _TablePageState extends State<TablePage> {
               controller: rowsController,
               keyboardType: TextInputType.number,
               decoration: const InputDecoration(
-                labelText: 'Number of rows',
-                hintText: 'Example: 3',
+                labelText: 'تعداد سطر',
+                hintText: 'مثال: ۳',
                 border: OutlineInputBorder(),
               ),
             ),
@@ -120,7 +120,7 @@ class _TablePageState extends State<TablePage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Cancel'),
+            child: const Text('انصراف'),
           ),
           ElevatedButton(
             onPressed: () {
@@ -136,7 +136,7 @@ class _TablePageState extends State<TablePage> {
                 });
               }
             },
-            child: const Text('Continue'),
+            child: const Text('ادامه'),
           ),
         ],
       ),
@@ -155,13 +155,13 @@ class _TablePageState extends State<TablePage> {
       final name = await showDialog<String>(
         context: context,
         builder: (dialogContext) => AlertDialog(
-          title: Text('Column ${i + 1} of $count'),
+          title: Text('نام ستون ${i + 1} از $count'),
           content: TextField(
             controller: controller,
             autofocus: true,
             textInputAction: TextInputAction.done,
             decoration: const InputDecoration(
-              labelText: 'Header name',
+              labelText: 'نام فیلد / هدر',
               border: OutlineInputBorder(),
             ),
             onSubmitted: (value) {
@@ -173,14 +173,14 @@ class _TablePageState extends State<TablePage> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Cancel'),
+              child: const Text('انصراف'),
             ),
             ElevatedButton(
               onPressed: () {
                 final value = controller.text.trim();
                 if (value.isNotEmpty) Navigator.pop(dialogContext, value);
               },
-              child: const Text('Next'),
+              child: const Text('بعدی'),
             ),
           ],
         ),
@@ -233,7 +233,7 @@ class _TablePageState extends State<TablePage> {
         _rowIds.addAll(createdIds);
       });
     } catch (error) {
-      _showError('Failed to add records: $error');
+      _showError('افزودن رکورد ناموفق بود: $error');
     }
   }
 
@@ -246,14 +246,16 @@ class _TablePageState extends State<TablePage> {
       if (fieldId == null) continue;
       controllers[fieldId] =
           TextEditingController(text: row.values[fieldId] ?? '');
-      obscure[fieldId] = column.name.toLowerCase().contains('password');
+      obscure[fieldId] = column.name.toLowerCase().contains('password') ||
+          column.name.contains('رمز') ||
+          column.name.contains('پسورد');
     }
 
     final result = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Edit Record'),
+          title: const Text('ویرایش رکورد'),
           content: SizedBox(
             width: 500,
             child: SingleChildScrollView(
@@ -262,7 +264,9 @@ class _TablePageState extends State<TablePage> {
                   final fieldId = column.fieldId;
                   if (fieldId == null) return const SizedBox.shrink();
                   final isPassword =
-                      column.name.toLowerCase().contains('password');
+                      column.name.toLowerCase().contains('password') ||
+                          column.name.contains('رمز') ||
+                          column.name.contains('پسورد');
                   final isObscured = obscure[fieldId] ?? true;
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 14),
@@ -296,7 +300,7 @@ class _TablePageState extends State<TablePage> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text('Cancel'),
+              child: const Text('انصراف'),
             ),
             ElevatedButton(
               onPressed: () {
@@ -307,7 +311,7 @@ class _TablePageState extends State<TablePage> {
                 }
                 Navigator.pop(dialogContext, true);
               },
-              child: const Text('Save'),
+              child: const Text('ذخیره'),
             ),
           ],
         ),
@@ -330,7 +334,7 @@ class _TablePageState extends State<TablePage> {
       }
       if (mounted) setState(() {});
     } catch (error) {
-      _showError('Failed to save record: $error');
+      _showError('ذخیره رکورد ناموفق بود: $error');
     }
   }
 
@@ -342,7 +346,9 @@ class _TablePageState extends State<TablePage> {
     if (fieldId == null) return;
 
     final controller = TextEditingController(text: row.values[fieldId] ?? '');
-    final isPassword = column.name.toLowerCase().contains('password');
+    final isPassword = column.name.toLowerCase().contains('password') ||
+        column.name.contains('رمز') ||
+        column.name.contains('پسورد');
     var obscure = isPassword;
 
     final result = await showDialog<bool>(
@@ -374,11 +380,11 @@ class _TablePageState extends State<TablePage> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text('Cancel'),
+              child: const Text('انصراف'),
             ),
             ElevatedButton(
               onPressed: () => Navigator.pop(dialogContext, true),
-              child: const Text('Save'),
+              child: const Text('ذخیره'),
             ),
           ],
         ),
@@ -394,7 +400,7 @@ class _TablePageState extends State<TablePage> {
       await _repository.updateFieldValue(fieldId: fieldId, value: newValue);
       if (mounted) setState(() {});
     } catch (error) {
-      _showError('Failed to save cell: $error');
+      _showError('ذخیره مقدار ناموفق بود: $error');
     }
   }
 
@@ -403,16 +409,16 @@ class _TablePageState extends State<TablePage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Delete Record'),
-        content: const Text('Are you sure you want to delete this record?'),
+        title: const Text('حذف رکورد'),
+        content: const Text('آیا از حذف این رکورد مطمئن هستید؟'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Cancel'),
+            child: const Text('انصراف'),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Delete'),
+            child: const Text('حذف'),
           ),
         ],
       ),
@@ -422,7 +428,7 @@ class _TablePageState extends State<TablePage> {
     final row = widget.table.rows[index];
     final rowId = _rowIds[row];
     if (rowId == null) {
-      _showError('Row ID was not found.');
+      _showError('شناسه رکورد پیدا نشد.');
       return;
     }
 
@@ -434,7 +440,7 @@ class _TablePageState extends State<TablePage> {
         _rowIds.remove(row);
       });
     } catch (error) {
-      _showError('Failed to delete record: $error');
+      _showError('حذف رکورد ناموفق بود: $error');
     }
   }
 
@@ -450,26 +456,26 @@ class _TablePageState extends State<TablePage> {
     final name = await showDialog<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Add Field'),
+        title: const Text('افزودن فیلد'),
         content: TextField(
           controller: controller,
           autofocus: true,
           decoration: const InputDecoration(
-            labelText: 'Field name',
+            labelText: 'نام فیلد',
             border: OutlineInputBorder(),
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Cancel'),
+            child: const Text('انصراف'),
           ),
           ElevatedButton(
             onPressed: () {
               final value = controller.text.trim();
               if (value.isNotEmpty) Navigator.pop(dialogContext, value);
             },
-            child: const Text('Add Field'),
+            child: const Text('افزودن'),
           ),
         ],
       ),
@@ -492,7 +498,7 @@ class _TablePageState extends State<TablePage> {
       }
       if (mounted) setState(() {});
     } catch (error) {
-      _showError('Failed to add field: $error');
+      _showError('افزودن فیلد ناموفق بود: $error');
     }
   }
 
@@ -509,26 +515,26 @@ class _TablePageState extends State<TablePage> {
     final newName = await showDialog<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Rename Field'),
+        title: const Text('تغییر نام فیلد'),
         content: TextField(
           controller: controller,
           autofocus: true,
           decoration: const InputDecoration(
-            labelText: 'Field name',
+            labelText: 'نام فیلد',
             border: OutlineInputBorder(),
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Cancel'),
+            child: const Text('انصراف'),
           ),
           ElevatedButton(
             onPressed: () {
               final value = controller.text.trim();
               if (value.isNotEmpty) Navigator.pop(dialogContext, value);
             },
-            child: const Text('Save'),
+            child: const Text('ذخیره'),
           ),
         ],
       ),
@@ -547,7 +553,7 @@ class _TablePageState extends State<TablePage> {
       }
       if (mounted) setState(() {});
     } catch (error) {
-      _showError('Failed to rename field: $error');
+      _showError('تغییر نام فیلد ناموفق بود: $error');
     }
   }
 
@@ -559,7 +565,7 @@ class _TablePageState extends State<TablePage> {
     final sample = group.first;
     if (columnIndex < 0 || columnIndex >= sample.columns.length) return;
     if (sample.columns.length <= 1) {
-      _showError('At least one field must remain in this record.');
+      _showError('حداقل یک فیلد باید در رکورد باقی بماند.');
       return;
     }
 
@@ -567,16 +573,16 @@ class _TablePageState extends State<TablePage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Delete Field'),
-        content: Text('Delete field "$name" from all rows in this group?'),
+        title: const Text('حذف فیلد'),
+        content: Text('فیلد «$name» از همه سطرهای این گروه حذف شود؟'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Cancel'),
+            child: const Text('انصراف'),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Delete'),
+            child: const Text('حذف'),
           ),
         ],
       ),
@@ -595,7 +601,7 @@ class _TablePageState extends State<TablePage> {
       }
       if (mounted) setState(() {});
     } catch (error) {
-      _showError('Failed to delete field: $error');
+      _showError('حذف فیلد ناموفق بود: $error');
     }
   }
 
@@ -630,7 +636,7 @@ class _TablePageState extends State<TablePage> {
       }
       if (mounted) setState(() {});
     } catch (error) {
-      _showError('Failed to move field: $error');
+      _showError('جابه‌جایی فیلد ناموفق بود: $error');
     }
   }
 
@@ -649,7 +655,7 @@ class _TablePageState extends State<TablePage> {
           children: [
             ListTile(
               leading: const Icon(Icons.edit),
-              title: const Text('Rename Field'),
+              title: const Text('تغییر نام فیلد'),
               onTap: () {
                 Navigator.pop(sheetContext);
                 renameColumnInGroup(group, columnIndex);
@@ -658,7 +664,7 @@ class _TablePageState extends State<TablePage> {
             ListTile(
               leading: const Icon(Icons.arrow_upward),
               enabled: columnIndex > 0,
-              title: const Text('Move Up'),
+              title: const Text('انتقال به بالا'),
               onTap: columnIndex > 0
                   ? () {
                       Navigator.pop(sheetContext);
@@ -669,7 +675,7 @@ class _TablePageState extends State<TablePage> {
             ListTile(
               leading: const Icon(Icons.arrow_downward),
               enabled: columnIndex < sample.columns.length - 1,
-              title: const Text('Move Down'),
+              title: const Text('انتقال به پایین'),
               onTap: columnIndex < sample.columns.length - 1
                   ? () {
                       Navigator.pop(sheetContext);
@@ -679,7 +685,7 @@ class _TablePageState extends State<TablePage> {
             ),
             ListTile(
               leading: const Icon(Icons.delete_outline),
-              title: const Text('Delete Field'),
+              title: const Text('حذف فیلد'),
               onTap: () {
                 Navigator.pop(sheetContext);
                 deleteColumnInGroup(group, columnIndex);
@@ -697,26 +703,26 @@ class _TablePageState extends State<TablePage> {
     final name = await showDialog<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Rename Table'),
+        title: const Text('تغییر نام جدول'),
         content: TextField(
           controller: controller,
           autofocus: true,
           decoration: const InputDecoration(
-            labelText: 'Table name',
+            labelText: 'نام جدول',
             border: OutlineInputBorder(),
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Cancel'),
+            child: const Text('انصراف'),
           ),
           ElevatedButton(
             onPressed: () {
               final value = controller.text.trim();
               if (value.isNotEmpty) Navigator.pop(dialogContext, value);
             },
-            child: const Text('Save'),
+            child: const Text('ذخیره'),
           ),
         ],
       ),
@@ -729,7 +735,7 @@ class _TablePageState extends State<TablePage> {
       if (!mounted) return;
       setState(() => widget.table.name = name);
     } catch (error) {
-      _showError('Failed to rename table: $error');
+      _showError('تغییر نام جدول ناموفق بود: $error');
     }
   }
 
@@ -737,16 +743,16 @@ class _TablePageState extends State<TablePage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Delete Table'),
-        content: Text('Delete "${widget.table.name}" and all its records?'),
+        title: const Text('حذف جدول'),
+        content: Text('جدول «${widget.table.name}» و همه رکوردهایش حذف شود؟'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Cancel'),
+            child: const Text('انصراف'),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Delete'),
+            child: const Text('حذف'),
           ),
         ],
       ),
@@ -759,7 +765,7 @@ class _TablePageState extends State<TablePage> {
       widget.onDelete?.call();
       Navigator.pop(context);
     } catch (error) {
-      _showError('Failed to delete table: $error');
+      _showError('حذف جدول ناموفق بود: $error');
     }
   }
 
@@ -799,7 +805,9 @@ class _TablePageState extends State<TablePage> {
   }
 
   String _displayValue(TableColumnDefinition column, String raw) {
-    final isPassword = column.name.toLowerCase().contains('password');
+    final isPassword = column.name.toLowerCase().contains('password') ||
+        column.name.contains('رمز') ||
+        column.name.contains('پسورد');
     if (isPassword && raw.isNotEmpty) return '••••••••';
     return raw;
   }
@@ -863,7 +871,7 @@ class _TablePageState extends State<TablePage> {
 
     final recordWidths = <double>[];
     for (final row in group) {
-      var maxW = 72.0;
+      var maxW = 80.0;
       for (var i = 0; i < fieldCount; i++) {
         if (i >= row.columns.length) continue;
         final col = row.columns[i];
@@ -873,6 +881,7 @@ class _TablePageState extends State<TablePage> {
         final w = _measureWidth(display.isEmpty ? ' ' : display);
         if (w > maxW) maxW = w;
       }
+      if (maxW < 88) maxW = 88;
       recordWidths.add(maxW);
     }
 
@@ -893,46 +902,22 @@ class _TablePageState extends State<TablePage> {
 
     const headerBg = Color(0xFFECECEC);
     const borderColor = Color(0xFFBDBDBD);
+    const actionH = 44.0;
 
-    Widget cell({
-      required double width,
-      required double height,
-      required Widget child,
-      Color? color,
-      VoidCallback? onTap,
-      VoidCallback? onLongPress,
-    }) {
-      final box = Container(
-        width: width,
-        height: height,
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-        decoration: BoxDecoration(
-          color: color,
-          border: Border.all(color: borderColor, width: 0.55),
-        ),
-        alignment: Alignment.centerRight,
-        child: child,
-      );
-      if (onTap == null && onLongPress == null) return box;
+    Widget headerCell(int i) {
       return Material(
-        color: Colors.transparent,
+        color: headerBg,
         child: InkWell(
-          onTap: onTap,
-          onLongPress: onLongPress,
-          child: box,
-        ),
-      );
-    }
-
-    final headerStrip = Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        for (var i = 0; i < fieldCount; i++)
-          cell(
+          onLongPress: () => showColumnMenuForGroup(group, i),
+          child: Container(
             width: headerWidth,
             height: rowHeights[i],
-            color: headerBg,
-            onLongPress: () => showColumnMenuForGroup(group, i),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+            decoration: BoxDecoration(
+              color: headerBg,
+              border: Border.all(color: borderColor, width: 0.55),
+            ),
+            alignment: Alignment.centerRight,
             child: Text(
               sample.columns[i].name,
               style: const TextStyle(
@@ -944,11 +929,21 @@ class _TablePageState extends State<TablePage> {
               overflow: TextOverflow.ellipsis,
             ),
           ),
-        cell(
+        ),
+      );
+    }
+
+    final headerColumn = Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (var i = 0; i < fieldCount; i++) headerCell(i),
+        Container(
           width: headerWidth,
-          height: 40,
-          color: headerBg,
-          child: const SizedBox.shrink(),
+          height: actionH,
+          decoration: BoxDecoration(
+            color: headerBg,
+            border: Border.all(color: borderColor, width: 0.55),
+          ),
         ),
       ],
     );
@@ -969,26 +964,29 @@ class _TablePageState extends State<TablePage> {
                 width: w,
                 height: rowHeights[i],
               ),
-            cell(
+            Container(
               width: w,
-              height: 40,
+              height: actionH,
+              decoration: BoxDecoration(
+                border: Border.all(color: borderColor, width: 0.55),
+              ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   IconButton(
                     padding: EdgeInsets.zero,
                     constraints:
-                        const BoxConstraints(minWidth: 28, minHeight: 28),
-                    icon: const Icon(Icons.edit, size: 16),
-                    tooltip: 'Edit',
+                        const BoxConstraints(minWidth: 36, minHeight: 36),
+                    icon: const Icon(Icons.edit, size: 18),
+                    tooltip: 'ویرایش',
                     onPressed: () => editRow(row),
                   ),
                   IconButton(
                     padding: EdgeInsets.zero,
                     constraints:
-                        const BoxConstraints(minWidth: 28, minHeight: 28),
-                    icon: const Icon(Icons.delete_outline, size: 16),
-                    tooltip: 'Delete',
+                        const BoxConstraints(minWidth: 36, minHeight: 36),
+                    icon: const Icon(Icons.delete_outline, size: 18),
+                    tooltip: 'حذف',
                     onPressed: () => deleteRowObject(row),
                   ),
                 ],
@@ -1005,26 +1003,24 @@ class _TablePageState extends State<TablePage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Directionality(
-                  textDirection: TextDirection.rtl,
+          Padding(
+            padding: const EdgeInsets.fromLTRB(0, 10, 0, 4),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
                   child: SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.fromLTRB(0, 10, 0, 4),
+                    reverse: true,
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        headerStrip,
-                        ...recordStrips,
-                      ],
+                      children: recordStrips.reversed.toList(),
                     ),
                   ),
                 ),
-              ),
-            ],
+                headerColumn,
+              ],
+            ),
           ),
           const Divider(height: 1),
           Padding(
@@ -1035,7 +1031,7 @@ class _TablePageState extends State<TablePage> {
                 TextButton.icon(
                   onPressed: () => addColumnToGroup(group),
                   icon: const Icon(Icons.add_box_outlined, size: 18),
-                  label: const Text('Add Field'),
+                  label: const Text('افزودن فیلد'),
                 ),
               ],
             ),
@@ -1056,13 +1052,13 @@ class _TablePageState extends State<TablePage> {
           IconButton(
             onPressed: renameTable,
             icon: const Icon(Icons.edit),
-            tooltip: 'Rename Table',
+            tooltip: 'تغییر نام جدول',
           ),
           if (widget.onDelete != null)
             IconButton(
               onPressed: deleteTable,
               icon: const Icon(Icons.delete_outline),
-              tooltip: 'Delete Table',
+              tooltip: 'حذف جدول',
             ),
         ],
       ),
@@ -1077,13 +1073,13 @@ class _TablePageState extends State<TablePage> {
                       children: [
                         const Icon(Icons.table_chart_outlined, size: 80),
                         const SizedBox(height: 20),
-                        const Text('No records yet',
+                        const Text('هنوز رکوردی نیست',
                             style: TextStyle(fontSize: 18)),
                         const SizedBox(height: 20),
                         ElevatedButton.icon(
                           onPressed: addRow,
                           icon: const Icon(Icons.add),
-                          label: const Text('Add Record'),
+                          label: const Text('افزودن رکورد'),
                         ),
                       ],
                     ),
@@ -1098,7 +1094,7 @@ class _TablePageState extends State<TablePage> {
       floatingActionButton: FloatingActionButton.extended(
         onPressed: addRow,
         icon: const Icon(Icons.add),
-        label: const Text('Add Record'),
+        label: const Text('افزودن رکورد'),
       ),
     );
   }
