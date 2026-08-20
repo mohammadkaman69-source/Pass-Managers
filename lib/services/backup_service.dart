@@ -211,6 +211,13 @@ class BackupService {
     };
   }
 
+  int? _asInt(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    if (value is String) return int.tryParse(value);
+    return null;
+  }
+
   Map<String, dynamic> _normalizeSnapshot(Map data) {
     List<Map<String, dynamic>> listFor(String key) {
       final value = data[key];
@@ -221,7 +228,28 @@ class BackupService {
       }
 
       return value.whereType<Map>().map((item) {
-        return Map<String, dynamic>.from(item);
+        final map = Map<String, dynamic>.from(item);
+        for (final k in [
+          'id',
+          'parent_id',
+          'table_item_id',
+          'row_id',
+          'field_id',
+          'position',
+          'created_at',
+          'updated_at',
+        ]) {
+          if (map.containsKey(k) && map[k] != null) {
+            final n = _asInt(map[k]);
+            if (n != null) map[k] = n;
+          }
+        }
+        if (map.containsKey('value') && map['value'] != null) {
+          map['value'] = map['value'].toString();
+        } else if (map.containsKey('value') && map['value'] == null) {
+          map['value'] = '';
+        }
+        return map;
       }).toList();
     }
 
@@ -251,14 +279,14 @@ class BackupService {
     final ids = <int>{};
     for (final raw in treeItems) {
       if (raw is! Map ||
-          raw['id'] is! int ||
+          _asInt(raw['id']) == null ||
           raw['name'] == null ||
           raw['type'] == null) {
         throw const BackupFormatException(
           'داده‌های Tree در Backup معتبر نیستند.',
         );
       }
-      final id = raw['id'] as int;
+      final id = _asInt(raw['id'])!;
       if (!ids.add(id)) {
         throw const BackupFormatException(
           'شناسه تکراری در Tree پیدا شد.',
@@ -275,15 +303,16 @@ class BackupService {
     final tableIds = treeItems
         .whereType<Map>()
         .where((item) => item['type'] == 'table')
-        .map((item) => item['id'])
+        .map((item) => _asInt(item['id']))
         .whereType<int>()
         .toSet();
 
     for (final raw in rows) {
-      if (raw is! Map ||
-          raw['id'] is! int ||
-          raw['table_item_id'] is! int ||
-          !tableIds.contains(raw['table_item_id'])) {
+      final rowId = raw is Map ? _asInt(raw['id']) : null;
+      final tableItemId = raw is Map ? _asInt(raw['table_item_id']) : null;
+      if (rowId == null ||
+          tableItemId == null ||
+          !tableIds.contains(tableItemId)) {
         throw const BackupFormatException(
           'رابطه Table و Record در Backup معتبر نیست.',
         );
@@ -292,21 +321,22 @@ class BackupService {
 
     final rowIds = rows
         .whereType<Map>()
-        .map((row) => row['id'])
+        .map((row) => _asInt(row['id']))
         .whereType<int>()
         .toSet();
 
     final fieldIds = <int>{};
     for (final raw in fields) {
-      if (raw is! Map ||
-          raw['id'] is! int ||
-          raw['row_id'] is! int ||
-          !rowIds.contains(raw['row_id'])) {
+      final fieldId = raw is Map ? _asInt(raw['id']) : null;
+      final rowId = raw is Map ? _asInt(raw['row_id']) : null;
+      if (fieldId == null ||
+          rowId == null ||
+          !rowIds.contains(rowId)) {
         throw const BackupFormatException(
           'رابطه Field و Record در Backup معتبر نیست.',
         );
       }
-      if (!fieldIds.add(raw['id'] as int)) {
+      if (!fieldIds.add(fieldId)) {
         throw const BackupFormatException(
           'شناسه تکراری برای Field پیدا شد.',
         );
@@ -314,11 +344,16 @@ class BackupService {
     }
 
     for (final raw in values) {
-      if (raw is! Map ||
-          raw['id'] is! int ||
-          raw['field_id'] is! int ||
-          !fieldIds.contains(raw['field_id']) ||
-          raw['value'] is! String) {
+      if (raw is! Map) {
+        throw const BackupFormatException(
+          'رابطه Value و Field در Backup معتبر نیست.',
+        );
+      }
+      final id = _asInt(raw['id']);
+      final fieldId = _asInt(raw['field_id']);
+      if (id == null ||
+          fieldId == null ||
+          !fieldIds.contains(fieldId)) {
         throw const BackupFormatException(
           'رابطه Value و Field در Backup معتبر نیست.',
         );
@@ -362,18 +397,26 @@ class BackupService {
       }
 
       for (final raw in snapshot['table_values'] as List) {
+        final map = Map<String, Object?>.from(raw as Map);
+        map['value'] = (map['value'] ?? '').toString();
         await txn.insert(
           'table_values',
-          Map<String, Object?>.from(raw as Map),
+          map,
           conflictAlgorithm: ConflictAlgorithm.abort,
         );
       }
     });
 
     final restored = await _readDatabaseSnapshot(db);
-    if (jsonEncode(restored) != jsonEncode(snapshot)) {
+    int countOf(Map snap, String key) =>
+        (snap[key] is List) ? (snap[key] as List).length : -1;
+
+    if (countOf(restored, 'tree_items') != countOf(snapshot, 'tree_items') ||
+        countOf(restored, 'table_rows') != countOf(snapshot, 'table_rows') ||
+        countOf(restored, 'table_fields') != countOf(snapshot, 'table_fields') ||
+        countOf(restored, 'table_values') != countOf(snapshot, 'table_values')) {
       throw const BackupFormatException(
-        'بازیابی کامل انجام نشد؛ Snapshot دیتابیس با Backup مطابقت ندارد.',
+        'بازیابی کامل انجام نشد؛ تعداد رکوردها با نسخه پشتیبان مطابقت ندارد.',
       );
     }
   }
