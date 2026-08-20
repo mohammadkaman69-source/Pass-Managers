@@ -1,1 +1,484 @@
-PLACEHOLDER
+import 'package:flutter/material.dart';
+
+import '../models/tree_item.dart';
+import '../repositories/tree_repository.dart';
+import '../services/pdf_export_service.dart';
+import 'table_page.dart';
+
+class TreePage extends StatefulWidget {
+  final TreeItem item;
+  final int? itemId;
+  final VoidCallback? onDelete;
+
+  const TreePage({
+    super.key,
+    required this.item,
+    this.itemId,
+    this.onDelete,
+  });
+
+  @override
+  State<TreePage> createState() => _TreePageState();
+}
+
+class _TreePageState extends State<TreePage> {
+  final TreeRepository _repository = TreeRepository();
+  final PdfExportService _pdfExportService = PdfExportService();
+  final Map<TreeItem, int> _itemIds = {};
+  bool _isLoading = true;
+  bool _isExporting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadChildren();
+  }
+
+  Future<void> _loadChildren() async {
+    try {
+      final rows = await _repository.getItems(parentId: widget.itemId);
+      final loadedItems = <TreeItem>[];
+      final loadedIds = <TreeItem, int>{};
+
+      for (final row in rows) {
+        final id = row['id'] as int;
+        final name = row['name'] as String;
+        final type = row['type'] as String;
+        final item = type == 'table'
+            ? TreeItem.table(name, id: id, parentId: widget.itemId)
+            : TreeItem.folder(name, id: id, parentId: widget.itemId);
+        loadedItems.add(item);
+        loadedIds[item] = id;
+      }
+
+      if (!mounted) return;
+
+      setState(() {
+        widget.item.children
+          ..clear()
+          ..addAll(loadedItems);
+        _itemIds
+          ..clear()
+          ..addAll(loadedIds);
+        _isLoading = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('بارگذاری پوشه ناموفق بود: $error')),
+      );
+    }
+  }
+
+  void createItem() {
+    showModalBottomSheet(
+      context: context,
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.create_new_folder_outlined),
+                title: const Text('ساخت پوشه'),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  createFolder();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.table_chart_outlined),
+                title: const Text('ساخت جدول'),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  createTable();
+                },
+              ),
+              const SizedBox(height: 10),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void createFolder() {
+    final controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('ساخت پوشه'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            decoration: const InputDecoration(labelText: 'نام پوشه'),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('انصراف'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                final name = controller.text.trim();
+                if (name.isEmpty) return;
+                try {
+                  final id = await _repository.createFolder(
+                    parentId: widget.itemId,
+                    name: name,
+                  );
+                  if (!mounted) return;
+                  final item = TreeItem.folder(
+                    name,
+                    id: id,
+                    parentId: widget.itemId,
+                  );
+                  setState(() {
+                    widget.item.children.add(item);
+                    _itemIds[item] = id;
+                  });
+                  if (!dialogContext.mounted) return;
+                  Navigator.pop(dialogContext);
+                } catch (error) {
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('ساخت پوشه ناموفق بود: $error')),
+                  );
+                }
+              },
+              child: const Text('ساخت'),
+            ),
+          ],
+        );
+      },
+    ).then((_) => controller.dispose());
+  }
+
+  void createTable() {
+    final controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('ساخت جدول'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            decoration: const InputDecoration(labelText: 'نام جدول'),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('انصراف'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                final name = controller.text.trim();
+                if (name.isEmpty) return;
+                try {
+                  final id = await _repository.createTable(
+                    parentId: widget.itemId,
+                    name: name,
+                  );
+                  if (!mounted) return;
+                  final item = TreeItem.table(
+                    name,
+                    id: id,
+                    parentId: widget.itemId,
+                  );
+                  setState(() {
+                    widget.item.children.add(item);
+                    _itemIds[item] = id;
+                  });
+                  if (!dialogContext.mounted) return;
+                  Navigator.pop(dialogContext);
+                } catch (error) {
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('ساخت جدول ناموفق بود: $error')),
+                  );
+                }
+              },
+              child: const Text('ساخت'),
+            ),
+          ],
+        );
+      },
+    ).then((_) => controller.dispose());
+  }
+
+  void openItem(TreeItem item) {
+    final itemId = _itemIds[item];
+    if (itemId == null) return;
+    final index = widget.item.children.indexOf(item);
+
+    if (item.type == TreeItemType.table) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) {
+            return TablePage(
+              table: item,
+              tableId: itemId,
+              onDelete: () {
+                if (index >= 0 && index < widget.item.children.length) {
+                  widget.item.children.removeAt(index);
+                }
+                _itemIds.remove(item);
+              },
+            );
+          },
+        ),
+      ).then((_) async {
+        if (!mounted) return;
+        await _loadChildren();
+      });
+      return;
+    }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) {
+          return TreePage(
+            item: item,
+            itemId: itemId,
+            onDelete: () {
+              if (index >= 0 && index < widget.item.children.length) {
+                widget.item.children.removeAt(index);
+              }
+              _itemIds.remove(item);
+            },
+          );
+        },
+      ),
+    ).then((_) async {
+      if (!mounted) return;
+      await _loadChildren();
+    });
+  }
+
+  Future<void> renameItem() async {
+    final controller = TextEditingController(text: widget.item.name);
+    await showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('تغییر نام'),
+          content: TextField(controller: controller, autofocus: true),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('انصراف'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                final name = controller.text.trim();
+                if (name.isEmpty) return;
+                try {
+                  final id = widget.itemId;
+                  if (id != null) {
+                    await _repository.renameItem(id: id, name: name);
+                  }
+                  if (!mounted) return;
+                  setState(() => widget.item.name = name);
+                  if (!dialogContext.mounted) return;
+                  Navigator.pop(dialogContext);
+                } catch (error) {
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('تغییر نام ناموفق بود: $error')),
+                  );
+                }
+              },
+              child: const Text('ذخیره'),
+            ),
+          ],
+        );
+      },
+    );
+    controller.dispose();
+  }
+
+  Future<void> deleteFolder() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('حذف پوشه'),
+          content: Text(
+            'پوشه «${widget.item.name}» و همه محتوای داخل آن حذف شود؟',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('انصراف'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('حذف'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      final id = widget.itemId;
+      if (id != null) {
+        await _repository.deleteItem(id);
+      }
+      if (!mounted) return;
+      widget.onDelete?.call();
+      Navigator.pop(context);
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('حذف پوشه ناموفق بود: $error')),
+      );
+    }
+  }
+
+  Future<void> _exportPdf() async {
+    if (_isExporting) return;
+    setState(() => _isExporting = true);
+
+    try {
+      final target = widget.itemId == null
+          ? <String, dynamic>{
+              'id': null,
+              'name': widget.item.name,
+              'type': 'folder',
+              'children': await _repository.getCompleteTree(),
+            }
+          : await _repository.getCompleteTreeItem(widget.itemId!);
+
+      if (target == null) {
+        throw StateError('Export target was not found.');
+      }
+
+      final fileUri = await _pdfExportService.exportTree(root: target);
+
+      if (!mounted) return;
+
+      if (fileUri == null || fileUri.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('ذخیره PDF لغو شد.')),
+        );
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('PDF با موفقیت ذخیره شد.'),
+          duration: Duration(seconds: 4),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('خطا در ساخت PDF:\n$error'),
+          duration: const Duration(seconds: 5),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isExporting = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(widget.item.name),
+        actions: [
+          if (_isExporting)
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16),
+              child: Center(
+                child: SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+            )
+          else
+            IconButton(
+              onPressed: _exportPdf,
+              icon: const Icon(Icons.picture_as_pdf_outlined),
+              tooltip: 'خروجی PDF',
+            ),
+          IconButton(
+            onPressed: renameItem,
+            icon: const Icon(Icons.edit),
+            tooltip: 'تغییر نام',
+          ),
+          if (widget.onDelete != null)
+            IconButton(
+              onPressed: deleteFolder,
+              icon: const Icon(Icons.delete_outline),
+              tooltip: 'حذف پوشه',
+            ),
+        ],
+      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : widget.item.children.isEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.folder_open,
+                        size: 80,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                      const SizedBox(height: 20),
+                      const Text('پوشه خالی است', style: TextStyle(fontSize: 18)),
+                      const SizedBox(height: 20),
+                      ElevatedButton.icon(
+                        onPressed: createItem,
+                        icon: const Icon(Icons.add),
+                        label: const Text('ساخت'),
+                      ),
+                    ],
+                  ),
+                )
+              : ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: widget.item.children.length,
+                  itemBuilder: (context, index) {
+                    final child = widget.item.children[index];
+                    return Card(
+                      child: ListTile(
+                        leading: Icon(
+                          child.type == TreeItemType.folder
+                              ? Icons.folder
+                              : Icons.table_chart,
+                        ),
+                        title: Text(child.name),
+                        subtitle: child.type == TreeItemType.table
+                            ? Text(
+                                '${child.rows.length} rows • '
+                                '${child.columns.length} default columns',
+                              )
+                            : null,
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () => openItem(child),
+                      ),
+                    );
+                  },
+                ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: createItem,
+        child: const Icon(Icons.add),
+      ),
+    );
+  }
+}
