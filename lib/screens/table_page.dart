@@ -873,7 +873,6 @@ class _TablePageState extends State<TablePage> {
     final sample = group.first;
     final fieldCount = sample.columns.length;
 
-    // محاسبه عرض هدرها
     var headerWidth = 88.0;
     for (final col in sample.columns) {
       final w = _measureWidth(col.name);
@@ -881,7 +880,6 @@ class _TablePageState extends State<TablePage> {
     }
     if (headerWidth > 160) headerWidth = 160;
 
-    // محاسبه عرض هر ردیف
     final recordWidths = <double>[];
     for (final row in group) {
       var maxW = 80.0;
@@ -902,7 +900,6 @@ class _TablePageState extends State<TablePage> {
     const headerBg = Color(0xFFECECEC);
     const actionH = 44.0;
 
-    // ساخت هدرها (ستون عمودی)
     Widget headerColumn = Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -918,7 +915,7 @@ class _TablePageState extends State<TablePage> {
                 color: Colors.transparent,
                 child: InkWell(
                   onLongPress: () => showColumnMenuForGroup(group, i),
-                  child: Padding(
+                  child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                     alignment: Alignment.centerRight,
                     child: Text(
@@ -947,7 +944,6 @@ class _TablePageState extends State<TablePage> {
       ],
     );
 
-    // ساخت ردیف‌ها
     final recordStrips = <Widget>[];
     for (var r = 0; r < group.length; r++) {
       final row = group[r];
@@ -969,7 +965,7 @@ class _TablePageState extends State<TablePage> {
                     child: InkWell(
                       onTap: () => editCell(row, row.columns[i]),
                       onLongPress: () => editRow(row),
-                      child: Padding(
+                      child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                         alignment: Alignment.centerRight,
                         child: Text(
