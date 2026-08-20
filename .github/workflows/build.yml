@@ -1,4 +1,4 @@
-name: Pass Managers Build
+name: NexVault Build
 
 "on":
   workflow_dispatch:
@@ -149,7 +149,7 @@ jobs:
       - name: Upload Android APK
         uses: actions/upload-artifact@v4
         with:
-          name: Pass-Managers-Android-Release
+          name: NexVault-Android-Release
           path: build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
 
@@ -222,7 +222,7 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           $source = "build/windows/x64/runner/Release"
-          $destination = "build/Pass-Managers-Windows-Release.zip"
+          $destination = "build/NexVault-Windows-Release.zip"
           if (-not (Test-Path $source)) { throw "Windows Release directory does not exist." }
           if (Test-Path $destination) { Remove-Item $destination -Force }
           Compress-Archive -Path "$source/*" -DestinationPath $destination -Force
@@ -232,6 +232,6 @@ jobs:
       - name: Upload Windows Release
         uses: actions/upload-artifact@v4
         with:
-          name: Pass-Managers-Windows-Release
-          path: build/Pass-Managers-Windows-Release.zip
+          name: NexVault-Windows-Release
+          path: build/NexVault-Windows-Release.zip
           if-no-files-found: error
