@@ -259,6 +259,9 @@ class PdfExportService {
     }
   }
 
+  /// Each "Add Record" can create one or more rows that share the same
+  /// field names. Different Add Record actions may use completely different
+  /// headers. Those groups must stay independent tables in the PDF.
   void _appendTable(
     List<pw.Widget> widgets,
     TreeExportNode table,
@@ -288,27 +291,6 @@ class PdfExportService {
       ),
     );
 
-    final columns = _columnsForTable(table);
-    final pdfColumns = columns.reversed.toList();
-
-    if (columns.isEmpty) {
-      widgets.add(
-        pw.Padding(
-          padding: pw.EdgeInsets.only(right: indent + 22),
-          child: _richText(
-            'این جدول فیلدی ندارد.',
-            persianFont,
-            latinFallback,
-            latinBoldFallback,
-            fontSize: 10,
-            paragraphDirection: pw.TextDirection.rtl,
-            textAlign: pw.TextAlign.right,
-          ),
-        ),
-      );
-      return;
-    }
-
     if (table.rows.isEmpty) {
       widgets.add(
         pw.Padding(
@@ -326,6 +308,87 @@ class PdfExportService {
       );
       return;
     }
+
+    final groups = _groupIndependentRecords(table.rows);
+
+    for (final group in groups) {
+      _appendIndependentRecordGroup(
+        widgets,
+        group,
+        persianFont,
+        latinFallback,
+        latinBoldFallback,
+        indent: indent,
+      );
+    }
+  }
+
+  /// Groups consecutive rows that share the same ordered field-name signature.
+  /// Rows with different headers become separate PDF tables.
+  List<List<TreeExportRow>> _groupIndependentRecords(
+    List<TreeExportRow> rows,
+  ) {
+    final groups = <List<TreeExportRow>>[];
+    List<TreeExportRow>? current;
+    String? currentSignature;
+
+    for (final row in rows) {
+      final signature = _rowFieldSignature(row);
+
+      if (current == null || signature != currentSignature) {
+        current = <TreeExportRow>[row];
+        currentSignature = signature;
+        groups.add(current);
+      } else {
+        current.add(row);
+      }
+    }
+
+    return groups;
+  }
+
+  String _rowFieldSignature(TreeExportRow row) {
+    final fields = List<TreeExportColumn>.from(row.fields)
+      ..sort((a, b) => a.position.compareTo(b.position));
+
+    return fields
+        .map((f) => '${f.position}:${f.name.trim()}')
+        .join('|');
+  }
+
+  void _appendIndependentRecordGroup(
+    List<pw.Widget> widgets,
+    List<TreeExportRow> group,
+    pw.Font persianFont,
+    pw.Font latinFallback,
+    pw.Font latinBoldFallback, {
+    required double indent,
+  }) {
+    if (group.isEmpty) return;
+
+    // Column schema comes only from this group (independent of other records).
+    final columns = _columnsForGroup(group);
+
+    if (columns.isEmpty) {
+      widgets.add(
+        pw.Padding(
+          padding: pw.EdgeInsets.only(right: indent + 22, bottom: 6),
+          child: _richText(
+            'این رکورد فیلدی ندارد.',
+            persianFont,
+            latinFallback,
+            latinBoldFallback,
+            fontSize: 10,
+            paragraphDirection: pw.TextDirection.rtl,
+            textAlign: pw.TextAlign.right,
+          ),
+        ),
+      );
+      return;
+    }
+
+    // RTL table: reverse column order for visual right-to-left layout.
+    final pdfColumns = columns.reversed.toList();
 
     final headers = pdfColumns
         .map(
@@ -345,15 +408,15 @@ class PdfExportService {
         )
         .toList();
 
-    // A field id is unique per row, so it is used only to read that row's
-    // value. The exported column identity is its position, which keeps the
-    // table rectangular even when every row has its own field ids.
+    // Empty cells stay empty (no em-dash / placeholder).
     final data = <List<String>>[
-      for (final row in table.rows)
+      for (final row in group)
         pdfColumns.map((column) {
           final field = _fieldAtPosition(row, column.position);
-          if (field == null) return '—';
-          return row.values[field.id.toString()] ?? '—';
+          if (field == null) return '';
+          final raw = row.values[field.id.toString()];
+          if (raw == null) return '';
+          return raw;
         }).toList(),
     ];
 
@@ -364,7 +427,7 @@ class PdfExportService {
 
     widgets.add(
       pw.Padding(
-        padding: pw.EdgeInsets.only(right: indent),
+        padding: pw.EdgeInsets.only(right: indent, bottom: 10),
         child: pw.TableHelper.fromTextArray(
           data: data,
           headers: headers,
@@ -420,31 +483,13 @@ class PdfExportService {
         ),
       ),
     );
-
-    widgets.add(
-      pw.SizedBox(height: 7),
-    );
   }
 
-  List<TreeExportColumn> _columnsForTable(
-    TreeExportNode table,
-  ) {
-    // Field ids are unique to a row. They must never be used to deduplicate
-    // exported columns because fields at the same logical column position in
-    // different rows have different ids. Position is the column identity for
-    // the rectangular PDF table, while the field id is used for its value.
+  /// Builds columns strictly from the given independent group of rows.
+  List<TreeExportColumn> _columnsForGroup(List<TreeExportRow> group) {
     final byPosition = <int, TreeExportColumn>{};
 
-    for (final column in table.columns) {
-      if (column.name.trim().isEmpty) continue;
-
-      final existing = byPosition[column.position];
-      if (existing == null || column.id < existing.id) {
-        byPosition[column.position] = column;
-      }
-    }
-
-    for (final row in table.rows) {
+    for (final row in group) {
       for (final field in row.fields) {
         if (field.name.trim().isEmpty) continue;
 
