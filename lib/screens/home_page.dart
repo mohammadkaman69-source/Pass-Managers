@@ -12,6 +12,8 @@ import '../security/security_manager.dart';
 import '../services/backup_service.dart';
 import '../services/pdf_export_service.dart';
 import '../widgets/app_logo.dart';
+import '../widgets/app_search_bar.dart';
+import '../services/search_service.dart';
 import 'table_page.dart';
 import 'tree_page.dart';
 
@@ -556,6 +558,19 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
+  Future<void> _onSearchHit(SearchHit hit) async {
+    if (hit.kind == SearchHitKind.folder) {
+      final item = TreeItem.folder(hit.title, id: hit.itemId);
+      _itemIds[item] = hit.itemId;
+      openItem(item);
+      return;
+    }
+
+    final item = TreeItem.table(hit.title, id: hit.itemId);
+    _itemIds[item] = hit.itemId;
+    openItem(item);
+  }
+
   void openItem(TreeItem item) {
     final id = _itemIds[item];
 
@@ -632,48 +647,50 @@ class _HomePageState extends State<HomePage> {
               ),
             ],
           ),
-          body: _isLoading
-              ? const Center(
-                  child: CircularProgressIndicator(),
-                )
-              : items.isEmpty
-                  ? const Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          AppLogo(height: 72),
-                          SizedBox(height: 16),
-                          Text(
-                            'هنوز موردی ساخته نشده',
-                            style: TextStyle(
-                              fontSize: 16,
-                              color: Colors.grey,
+          body: Column(
+            children: [
+              AppSearchBar(onHitSelected: _onSearchHit),
+              Expanded(
+                child: _isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : items.isEmpty
+                        ? const Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                AppLogo(height: 72),
+                                SizedBox(height: 16),
+                                Text(
+                                  'هنوز موردی ساخته نشده',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    color: Colors.grey,
+                                  ),
+                                ),
+                              ],
                             ),
+                          )
+                        : ListView.builder(
+                            itemCount: items.length,
+                            itemBuilder: (context, index) {
+                              final item = items[index];
+                              return Card(
+                                child: ListTile(
+                                  title: Text(item.name),
+                                  leading: Icon(
+                                    item.type == TreeItemType.table
+                                        ? Icons.table_chart
+                                        : Icons.folder,
+                                  ),
+                                  trailing: const Icon(Icons.chevron_right),
+                                  onTap: () => openItem(item),
+                                ),
+                              );
+                            },
                           ),
-                        ],
-                      ),
-                    )
-                  : ListView.builder(
-                      itemCount: items.length,
-                      itemBuilder: (context, index) {
-                        final item = items[index];
-
-                        return Card(
-                          child: ListTile(
-                            title: Text(item.name),
-                            leading: Icon(
-                              item.type == TreeItemType.table
-                                  ? Icons.table_chart
-                                  : Icons.folder,
-                            ),
-                            trailing: const Icon(
-                              Icons.chevron_right,
-                            ),
-                            onTap: () => openItem(item),
-                          ),
-                        );
-                      },
-                    ),
+              ),
+            ],
+          ),
           floatingActionButton: FloatingActionButton(
             onPressed: createItem,
             child: const Icon(Icons.add),
