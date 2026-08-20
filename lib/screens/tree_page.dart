@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../models/tree_item.dart';
 import '../repositories/tree_repository.dart';
 import '../services/pdf_export_service.dart';
+import '../widgets/app_search_bar.dart';
+import '../services/search_service.dart';
 import 'table_page.dart';
 
 class TreePage extends StatefulWidget {
@@ -207,6 +209,20 @@ class _TreePageState extends State<TreePage> {
         );
       },
     ).then((_) => controller.dispose());
+  }
+
+  Future<void> _onSearchHit(SearchHit hit) async {
+    if (hit.kind == SearchHitKind.folder) {
+      final item =
+          TreeItem.folder(hit.title, id: hit.itemId, parentId: widget.itemId);
+      _itemIds[item] = hit.itemId;
+      openItem(item);
+      return;
+    }
+    final item =
+        TreeItem.table(hit.title, id: hit.itemId, parentId: widget.itemId);
+    _itemIds[item] = hit.itemId;
+    openItem(item);
   }
 
   void openItem(TreeItem item) {
@@ -427,54 +443,59 @@ class _TreePageState extends State<TreePage> {
             ),
         ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : widget.item.children.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.folder_open,
-                        size: 80,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                      const SizedBox(height: 20),
-                      const Text('پوشه خالی است', style: TextStyle(fontSize: 18)),
-                      const SizedBox(height: 20),
-                      ElevatedButton.icon(
-                        onPressed: createItem,
-                        icon: const Icon(Icons.add),
-                        label: const Text('ساخت'),
-                      ),
-                    ],
-                  ),
-                )
-              : ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: widget.item.children.length,
-                  itemBuilder: (context, index) {
-                    final child = widget.item.children[index];
-                    return Card(
-                      child: ListTile(
-                        leading: Icon(
-                          child.type == TreeItemType.folder
-                              ? Icons.folder
-                              : Icons.table_chart,
+      body: Column(
+        children: [
+          AppSearchBar(
+            folderId: widget.itemId,
+            onHitSelected: _onSearchHit,
+          ),
+          Expanded(
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : widget.item.children.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.folder_open,
+                              size: 80,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                            const SizedBox(height: 20),
+                            const Text('پوشه خالی است',
+                                style: TextStyle(fontSize: 18)),
+                            const SizedBox(height: 20),
+                            ElevatedButton.icon(
+                              onPressed: createItem,
+                              icon: const Icon(Icons.add),
+                              label: const Text('ساخت'),
+                            ),
+                          ],
                         ),
-                        title: Text(child.name),
-                        subtitle: child.type == TreeItemType.table
-                            ? Text(
-                                '${child.rows.length} rows • '
-                                '${child.columns.length} default columns',
-                              )
-                            : null,
-                        trailing: const Icon(Icons.chevron_right),
-                        onTap: () => openItem(child),
+                      )
+                    : ListView.builder(
+                        padding: const EdgeInsets.all(16),
+                        itemCount: widget.item.children.length,
+                        itemBuilder: (context, index) {
+                          final child = widget.item.children[index];
+                          return Card(
+                            child: ListTile(
+                              leading: Icon(
+                                child.type == TreeItemType.folder
+                                    ? Icons.folder
+                                    : Icons.table_chart,
+                              ),
+                              title: Text(child.name),
+                              trailing: const Icon(Icons.chevron_right),
+                              onTap: () => openItem(child),
+                            ),
+                          );
+                        },
                       ),
-                    );
-                  },
-                ),
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton(
         onPressed: createItem,
         child: const Icon(Icons.add),
