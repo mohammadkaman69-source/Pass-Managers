@@ -633,8 +633,19 @@ class _HomePageState extends State<HomePage> {
                 )
               : items.isEmpty
                   ? const Center(
-                      child: Text(
-                        'No items created yet',
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          AppLogo(height: 72),
+                          SizedBox(height: 16),
+                          Text(
+                            'No items created yet',
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: Colors.grey,
+                            ),
+                          ),
+                        ],
                       ),
                     )
                   : ListView.builder(
