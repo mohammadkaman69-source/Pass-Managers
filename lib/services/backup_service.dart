@@ -55,7 +55,7 @@ class BackupService {
       });
 
       final bytes = Uint8List.fromList(utf8.encode(backupText));
-      final fileName = 'Pass-Managers-Backup-${_timestamp()}.pmb';
+      final fileName = 'NexVault-Backup-${_timestamp()}.pmb';
 
       if (Platform.isAndroid) {
         final nativeBytes = Uint8List.fromList(bytes);
@@ -73,7 +73,7 @@ class BackupService {
       final pickerBytes = Uint8List.fromList(bytes);
       try {
         final path = await FilePicker.saveFile(
-          dialogTitle: 'ذخیره نسخه پشتیبان Pass Managers',
+          dialogTitle: 'ذخیره نسخه پشتیبان NexVault',
           fileName: fileName,
           type: FileType.custom,
           allowedExtensions: const ['pmb'],
@@ -92,7 +92,7 @@ class BackupService {
 
   Future<void> restoreBackup({required String masterPassword}) async {
     final sourceFile = await FilePicker.pickFile(
-      dialogTitle: 'انتخاب نسخه پشتیبان Pass Managers',
+      dialogTitle: 'انتخاب نسخه پشتیبان NexVault',
       type: FileType.custom,
       allowedExtensions: const ['pmb'],
     );
