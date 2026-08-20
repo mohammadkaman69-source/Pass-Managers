@@ -16,7 +16,7 @@ class AppLogo extends StatelessWidget {
     this.showShadow = false,
   });
 
-  /// Compact version for AppBars and lists.
+  /// Compact version for AppBars and lists (uses icon_small asset).
   const AppLogo.small({
     super.key,
     this.height = 28,
@@ -25,20 +25,34 @@ class AppLogo extends StatelessWidget {
     this.showShadow = false,
   });
 
+  String get _assetPath {
+    // Prefer the dedicated small icon for compact UI.
+    if (height <= 40) {
+      return 'assets/icon/icon_small.png';
+    }
+    return 'assets/logo/nexvault_logo.png';
+  }
+
   @override
   Widget build(BuildContext context) {
     final image = Image.asset(
-      'assets/logo/nexvault_logo.png',
+      _assetPath,
       height: height,
       width: width,
       fit: fit,
       filterQuality: FilterQuality.high,
       errorBuilder: (context, error, stackTrace) {
-        // Fallback so the app never crashes if the asset is missing.
-        return Icon(
-          Icons.lock_outline,
-          size: height * 0.7,
-          color: Theme.of(context).colorScheme.primary,
+        // Fallback chain so the app never crashes if an asset is missing.
+        return Image.asset(
+          'assets/logo/nexvault_logo.png',
+          height: height,
+          width: width,
+          fit: fit,
+          errorBuilder: (_, __, ___) => Icon(
+            Icons.lock_outline,
+            size: height * 0.7,
+            color: Theme.of(context).colorScheme.primary,
+          ),
         );
       },
     );
