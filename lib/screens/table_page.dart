@@ -450,6 +450,49 @@ class _TablePageState extends State<TablePage> {
     await deleteRow(index);
   }
 
+  Future<void> addRowToGroup(List<TableRowData> group) async {
+    if (group.isEmpty) return;
+    final sample = group.first;
+    if (sample.columns.isEmpty) {
+      _showError('این گروه فیلدی ندارد.');
+      return;
+    }
+
+    final names = sample.columns.map((c) => c.name).toList();
+
+    try {
+      final rowId = await _repository.createRow(tableId: widget.tableId);
+      final columns = <TableColumnDefinition>[];
+      final values = <int, String>{};
+
+      for (var i = 0; i < names.length; i++) {
+        final fieldId = await _repository.createField(
+          rowId: rowId,
+          name: names[i],
+          position: i,
+          value: '',
+        );
+        columns.add(TableColumnDefinition(names[i], fieldId: fieldId));
+        values[fieldId] = '';
+      }
+
+      final row = TableRowData(columns: columns, values: values);
+
+      final lastInGroup = group.last;
+      final insertAt = widget.table.rows.indexOf(lastInGroup);
+      if (insertAt < 0) {
+        widget.table.rows.add(row);
+      } else {
+        widget.table.rows.insert(insertAt + 1, row);
+      }
+      _rowIds[row] = rowId;
+
+      if (mounted) setState(() {});
+    } catch (error) {
+      _showError('افزودن سطر ناموفق بود: $error');
+    }
+  }
+
   Future<void> addColumnToGroup(List<TableRowData> group) async {
     if (group.isEmpty) return;
     final controller = TextEditingController();
@@ -985,7 +1028,7 @@ class _TablePageState extends State<TablePage> {
                     padding: EdgeInsets.zero,
                     constraints:
                         const BoxConstraints(minWidth: 36, minHeight: 36),
-                    icon: const Icon(Icons.delete_outline, size: 18),
+                    icon: const Icon(Icons.delete_outline, size: 16),
                     tooltip: 'حذف',
                     onPressed: () => deleteRowObject(row),
                   ),
@@ -1028,6 +1071,11 @@ class _TablePageState extends State<TablePage> {
             child: Wrap(
               alignment: WrapAlignment.end,
               children: [
+                TextButton.icon(
+                  onPressed: () => addRowToGroup(group),
+                  icon: const Icon(Icons.playlist_add, size: 18),
+                  label: const Text('افزودن سطر'),
+                ),
                 TextButton.icon(
                   onPressed: () => addColumnToGroup(group),
                   icon: const Icon(Icons.add_box_outlined, size: 18),
