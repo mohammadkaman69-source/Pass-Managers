@@ -1,12 +1,12 @@
 import 'dart:io';
 
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter/services.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
 import '../export/tree_export_model.dart';
+import 'app_storage_service.dart';
 
 class PdfExportService {
   static const MethodChannel _channel =
@@ -24,43 +24,24 @@ class PdfExportService {
     final pdfBytes = await document.save();
     final fileName = '${_sanitizeFileName(title)}.pdf';
 
-    if (Platform.isAndroid) {
-      try {
-        final result = await _channel.invokeMethod<String>(
-          'savePdf',
-          <String, dynamic>{
-            'fileName': fileName,
-            'bytes': pdfBytes,
-          },
-        );
-
-        if (result != null && result.trim().isNotEmpty) {
-          try {
-            await _channel.invokeMethod<bool>(
-              'openPdf',
-              <String, dynamic>{
-                'uri': result,
-              },
-            );
-          } catch (_) {}
-        }
-
-        return result;
-      } finally {
-        pdfBytes.fillRange(0, pdfBytes.length, 0);
-      }
-    }
-
     try {
-      final savedPath = await FilePicker.saveFile(
-        dialogTitle: 'ذخیره PDF NexVault',
-        fileName: fileName,
-        type: FileType.custom,
-        allowedExtensions: const ['pdf'],
-        bytes: pdfBytes,
+      final result = await AppStorageService.instance.savePdfBytes(
+        pdfBytes,
+        fileName,
       );
 
-      return savedPath?.toString();
+      if (Platform.isAndroid &&
+          result != null &&
+          result.trim().isNotEmpty) {
+        try {
+          await _channel.invokeMethod<bool>(
+            'openPdf',
+            <String, dynamic>{'uri': result},
+          );
+        } catch (_) {}
+      }
+
+      return result;
     } finally {
       pdfBytes.fillRange(0, pdfBytes.length, 0);
     }
