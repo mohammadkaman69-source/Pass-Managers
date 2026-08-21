@@ -1,14 +1,14 @@
 import 'dart:convert';
-import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:cryptography/cryptography.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:flutter/services.dart';
 import 'package:sqflite/sqflite.dart';
 
 import '../database/app_database.dart';
 import '../repositories/tree_repository.dart';
 import '../security/security_manager.dart';
+import 'app_storage_service.dart';
 
 class BackupService {
   BackupService({
@@ -18,8 +18,6 @@ class BackupService {
         _securityManager = securityManager ?? SecurityManager();
 
   static const int _formatVersion = 3;
-  static const MethodChannel _channel =
-      MethodChannel('pass_managers/file_saver');
 
   final TreeRepository _repository;
   final SecurityManager _securityManager;
@@ -66,32 +64,12 @@ class BackupService {
       final bytes = Uint8List.fromList(utf8.encode(backupText));
       final fileName = 'NexVault-Backup-${_timestamp()}.pmb';
 
-      if (Platform.isAndroid) {
-        final nativeBytes = Uint8List.fromList(bytes);
-        final path = await _channel.invokeMethod<String>(
-          'saveBackup',
-          <String, dynamic>{
-            'fileName': fileName,
-            'bytes': nativeBytes,
-          },
-        );
-        nativeBytes.fillRange(0, nativeBytes.length, 0);
-        return path != null && path.isNotEmpty;
-      }
-
-      final pickerBytes = Uint8List.fromList(bytes);
-      try {
-        final path = await FilePicker.saveFile(
-          dialogTitle: 'ذخیره نسخه پشتیبان NexVault',
-          fileName: fileName,
-          type: FileType.custom,
-          allowedExtensions: const ['pmb'],
-          bytes: pickerBytes,
-        );
-        return path != null && path.toString().isNotEmpty;
-      } finally {
-        pickerBytes.fillRange(0, pickerBytes.length, 0);
-      }
+      // ذخیره مستقیم در Documents/NexVault/backup (بدون FilePicker تا خطای read-only نیاید)
+      final savedPath = await AppStorageService.instance.saveBackupBytes(
+        bytes,
+        fileName,
+      );
+      return savedPath != null && savedPath.isNotEmpty;
     } finally {
       final keyBytes = List<int>.from(await key.extractBytes());
       keyBytes.fillRange(0, keyBytes.length, 0);
