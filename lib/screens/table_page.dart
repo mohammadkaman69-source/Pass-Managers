@@ -10,12 +10,14 @@ class TablePage extends StatefulWidget {
   final TreeItem table;
   final int tableId;
   final VoidCallback? onDelete;
+  final ValueChanged<String>? onRenamed;
 
   const TablePage({
     super.key,
     required this.table,
     required this.tableId,
     this.onDelete,
+    this.onRenamed,
   });
 
   @override
@@ -779,6 +781,7 @@ class _TablePageState extends State<TablePage> {
       await _repository.renameItem(id: widget.tableId, name: name);
       if (!mounted) return;
       setState(() => widget.table.name = name);
+      widget.onRenamed?.call(name);
     } catch (error) {
       _showError('تغییر نام جدول ناموفق بود: $error');
     }
@@ -852,11 +855,47 @@ class _TablePageState extends State<TablePage> {
   }
 
   double _measureWidth(String text) {
-    final len = text.trim().length;
-    final width = 24.0 + len * 9.0;
-    if (width < 72) return 72;
+    final content = text.isEmpty ? ' ' : text;
+    final painter = TextPainter(
+      text: TextSpan(
+        text: content,
+        style: const TextStyle(fontSize: 13),
+      ),
+      textDirection: TextDirection.rtl,
+      maxLines: 1,
+    )..layout();
+    final width = painter.width + 24;
+    if (width < 88) return 88;
     if (width > 260) return 260;
     return width;
+  }
+
+  /// ارتفاع واقعی متن با همان استایل رندر + padding عمودی
+  double _measureHeight(
+    String text,
+    double columnWidth, {
+    FontWeight weight = FontWeight.normal,
+  }) {
+    final content = text.isEmpty ? ' ' : text;
+    // padding افقی 8+8 و کمی حاشیه برای border
+    final maxW = (columnWidth - 18).clamp(20.0, 400.0);
+    final painter = TextPainter(
+      text: TextSpan(
+        text: content,
+        style: TextStyle(
+          fontSize: 13,
+          fontWeight: weight,
+          height: 1.25,
+        ),
+      ),
+      textDirection: TextDirection.rtl,
+      maxLines: null,
+      textWidthBasis: TextWidthBasis.parent,
+    )..layout(maxWidth: maxW);
+    // padding عمودی 6+6 + 2px حاشیه امن برای جلوگیری از برش
+    final h = painter.height + 14;
+    if (h < 36) return 36;
+    return h.ceilToDouble();
   }
 
   String _displayValue(TableColumnDefinition column, String raw) {
@@ -882,7 +921,7 @@ class _TablePageState extends State<TablePage> {
 
     final recordWidths = <double>[];
     for (final row in group) {
-      var maxW = 80.0;
+      var maxW = 88.0;
       for (var i = 0; i < fieldCount; i++) {
         if (i >= row.columns.length) continue;
         final col = row.columns[i];
@@ -892,8 +931,31 @@ class _TablePageState extends State<TablePage> {
         final w = _measureWidth(display.isEmpty ? ' ' : display);
         if (w > maxW) maxW = w;
       }
-      if (maxW < 88) maxW = 88;
       recordWidths.add(maxW);
+    }
+
+    // ارتفاع مشترک هر فیلد = max(هدر bold، همه سلول‌های داده همان فیلد)
+    final rowHeights = <double>[];
+    for (var i = 0; i < fieldCount; i++) {
+      var h = _measureHeight(
+        sample.columns[i].name,
+        headerWidth,
+        weight: FontWeight.bold,
+      );
+      for (var r = 0; r < group.length; r++) {
+        final row = group[r];
+        if (i >= row.columns.length) continue;
+        final col = row.columns[i];
+        final fieldId = col.fieldId;
+        final raw = fieldId == null ? '' : (row.values[fieldId] ?? '');
+        final display = _displayValue(col, raw);
+        final cellH = _measureHeight(
+          display.isEmpty ? ' ' : display,
+          recordWidths[r],
+        );
+        if (cellH > h) h = cellH;
+      }
+      rowHeights.add(h);
     }
 
     const borderColor = Color(0xFFBDBDBD);
@@ -906,23 +968,26 @@ class _TablePageState extends State<TablePage> {
         for (var i = 0; i < fieldCount; i++)
           Container(
             width: headerWidth,
+            height: rowHeights[i],
             decoration: BoxDecoration(
               color: headerBg,
               border: Border.all(color: borderColor, width: 0.55),
             ),
-            child: IntrinsicHeight(
-              child: Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  onLongPress: () => showColumnMenuForGroup(group, i),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onLongPress: () => showColumnMenuForGroup(group, i),
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  child: Align(
                     alignment: Alignment.centerRight,
                     child: Text(
                       sample.columns[i].name,
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 13,
+                        height: 1.25,
                       ),
                       textAlign: TextAlign.right,
                       softWrap: true,
@@ -956,17 +1021,19 @@ class _TablePageState extends State<TablePage> {
             for (var i = 0; i < fieldCount; i++)
               Container(
                 width: w,
+                height: rowHeights[i],
                 decoration: BoxDecoration(
                   border: Border.all(color: borderColor, width: 0.55),
                 ),
-                child: IntrinsicHeight(
-                  child: Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      onTap: () => editCell(row, row.columns[i]),
-                      onLongPress: () => editRow(row),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () => editCell(row, row.columns[i]),
+                    onLongPress: () => editRow(row),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 6),
+                      child: Align(
                         alignment: Alignment.centerRight,
                         child: Text(
                           _displayValue(
@@ -976,7 +1043,7 @@ class _TablePageState extends State<TablePage> {
                           textAlign: TextAlign.right,
                           softWrap: true,
                           maxLines: null,
-                          style: const TextStyle(fontSize: 13),
+                          style: const TextStyle(fontSize: 13, height: 1.25),
                         ),
                       ),
                     ),
@@ -994,14 +1061,16 @@ class _TablePageState extends State<TablePage> {
                 children: [
                   IconButton(
                     padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                    constraints:
+                        const BoxConstraints(minWidth: 36, minHeight: 36),
                     icon: const Icon(Icons.edit, size: 18),
                     tooltip: 'ویرایش',
                     onPressed: () => editRow(row),
                   ),
                   IconButton(
                     padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                    constraints:
+                        const BoxConstraints(minWidth: 36, minHeight: 36),
                     icon: const Icon(Icons.delete_outline, size: 16),
                     tooltip: 'حذف',
                     onPressed: () => deleteRowObject(row),
