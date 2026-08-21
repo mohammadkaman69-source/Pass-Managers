@@ -26,6 +26,8 @@ class MainActivity : FlutterFragmentActivity() {
         private const val METHOD_OPEN_PDF = "openPdf"
         private const val METHOD_ENSURE_FOLDERS = "ensureAppFolders"
         private const val METHOD_SAVE_TO_APP_FOLDER = "saveToAppFolder"
+        private const val METHOD_PICK_SAVE_BACKUP = "pickAndSaveBackup"
+        private const val METHOD_PICK_SAVE_PDF = "pickAndSavePdf"
 
         private const val REQUEST_CREATE_PDF = 9001
         private const val REQUEST_CREATE_BACKUP = 9002
@@ -71,6 +73,24 @@ class MainActivity : FlutterFragmentActivity() {
 
                 METHOD_SAVE_BACKUP -> {
                     saveDirect(call, result, "backup", "application/octet-stream")
+                }
+
+                METHOD_PICK_SAVE_BACKUP -> {
+                    createDocument(
+                        call = call,
+                        result = result,
+                        requestCode = REQUEST_CREATE_BACKUP,
+                        mimeType = "application/octet-stream"
+                    )
+                }
+
+                METHOD_PICK_SAVE_PDF -> {
+                    createDocument(
+                        call = call,
+                        result = result,
+                        requestCode = REQUEST_CREATE_PDF,
+                        mimeType = "application/pdf"
+                    )
                 }
 
                 METHOD_OPEN_PDF -> {
