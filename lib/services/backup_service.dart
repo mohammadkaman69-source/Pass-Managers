@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:cryptography/cryptography.dart';
+import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:sqflite/sqflite.dart';
 
@@ -22,7 +23,10 @@ class BackupService {
   final TreeRepository _repository;
   final SecurityManager _securityManager;
 
-  Future<bool> createBackup({required String masterPassword}) async {
+  Future<bool> createBackup({
+    required String masterPassword,
+    BuildContext? context,
+  }) async {
     if (!_securityManager.isUnlocked) {
       throw const BackupFormatException(
         'برای ساخت نسخه پشتیبان باید وارد حساب شده باشید.',
@@ -64,11 +68,19 @@ class BackupService {
       final bytes = Uint8List.fromList(utf8.encode(backupText));
       final fileName = 'NexVault-Backup-${_timestamp()}.pmb';
 
-      // ذخیره مستقیم در Documents/NexVault/backup (بدون FilePicker تا خطای read-only نیاید)
-      final savedPath = await AppStorageService.instance.saveBackupBytes(
-        bytes,
-        fileName,
-      );
+      final String? savedPath;
+      if (context != null && context.mounted) {
+        savedPath = await AppStorageService.instance.saveBackupWithDialog(
+          context: context,
+          bytes: bytes,
+          fileName: fileName,
+        );
+      } else {
+        savedPath = await AppStorageService.instance.saveBackupBytes(
+          bytes,
+          fileName,
+        );
+      }
       return savedPath != null && savedPath.isNotEmpty;
     } finally {
       final keyBytes = List<int>.from(await key.extractBytes());
