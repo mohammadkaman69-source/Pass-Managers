@@ -7,6 +7,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
+import android.provider.DocumentsContract
 import android.provider.MediaStore
 import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -254,10 +255,25 @@ class MainActivity : FlutterFragmentActivity() {
         pendingResult = result
         pendingRequestCode = requestCode
 
+        val subFolder = call.argument<String>("subFolder")
+            ?: if (requestCode == REQUEST_CREATE_PDF) "pdf" else "backup"
+
         val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
             addCategory(Intent.CATEGORY_OPENABLE)
             type = mimeType
             putExtra(Intent.EXTRA_TITLE, fileName)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                try {
+                    ensurePublicFolders()
+                    val docId = "primary:Documents/$APP_FOLDER/$subFolder"
+                    val initialUri = DocumentsContract.buildDocumentUri(
+                        "com.android.externalstorage.documents",
+                        docId
+                    )
+                    putExtra(DocumentsContract.EXTRA_INITIAL_URI, initialUri)
+                } catch (_: Exception) {
+                }
+            }
         }
 
         try {
