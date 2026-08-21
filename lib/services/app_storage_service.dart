@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -234,15 +233,16 @@ class AppStorageService {
           },
         );
       }
-      final path = await FilePicker.saveFile(
+      // file_picker 12: bytes الزامی است و خروجی Uri برمی‌گرداند
+      final uri = await FilePicker.saveFile(
         dialogTitle: 'ذخیره نسخه پشتیبان NexVault',
         fileName: fileName,
+        bytes: data,
         type: FileType.custom,
         allowedExtensions: const ['pmb'],
       );
-      if (path == null || path.isEmpty) return null;
-      await File(path).writeAsBytes(data, flush: true);
-      return path;
+      if (uri == null) return null;
+      return _uriToPath(uri);
     } finally {
       data.fillRange(0, data.length, 0);
     }
@@ -260,17 +260,25 @@ class AppStorageService {
           },
         );
       }
-      final path = await FilePicker.saveFile(
+      final uri = await FilePicker.saveFile(
         dialogTitle: 'ذخیره PDF NexVault',
         fileName: fileName,
+        bytes: data,
         type: FileType.custom,
         allowedExtensions: const ['pdf'],
       );
-      if (path == null || path.isEmpty) return null;
-      await File(path).writeAsBytes(data, flush: true);
-      return path;
+      if (uri == null) return null;
+      return _uriToPath(uri);
     } finally {
       data.fillRange(0, data.length, 0);
+    }
+  }
+
+  String _uriToPath(Uri uri) {
+    try {
+      return uri.toFilePath();
+    } catch (_) {
+      return uri.path;
     }
   }
 
