@@ -255,6 +255,8 @@ class _HomePageState extends State<HomePage> {
       return;
     }
 
+    if (!mounted) return;
+
     setState(() {
       _isBackupBusy = true;
     });
@@ -332,6 +334,7 @@ class _HomePageState extends State<HomePage> {
         'ورود بیومتریک را در صورت نیاز دوباره فعال کنید.',
       );
     } on BackupCancelledException {
+      // کاربر انتخاب فایل را لغو کرد
     } on BackupFormatException catch (error) {
       _showMessage('خطا در بازیابی: ${error.message}');
     } catch (error) {
