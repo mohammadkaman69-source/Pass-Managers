@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:cryptography/cryptography.dart';
-import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:sqflite/sqflite.dart';
 
@@ -25,7 +24,6 @@ class BackupService {
 
   Future<bool> createBackup({
     required String masterPassword,
-    BuildContext? context,
   }) async {
     if (!_securityManager.isUnlocked) {
       throw const BackupFormatException(
@@ -68,19 +66,10 @@ class BackupService {
       final bytes = Uint8List.fromList(utf8.encode(backupText));
       final fileName = 'NexVault-Backup-${_timestamp()}.pmb';
 
-      final String? savedPath;
-      if (context != null && context.mounted) {
-        savedPath = await AppStorageService.instance.saveBackupWithDialog(
-          context: context,
-          bytes: bytes,
-          fileName: fileName,
-        );
-      } else {
-        savedPath = await AppStorageService.instance.saveBackupBytes(
-          bytes,
-          fileName,
-        );
-      }
+      final savedPath = await AppStorageService.instance.saveBackupBytes(
+        bytes,
+        fileName,
+      );
       return savedPath != null && savedPath.isNotEmpty;
     } finally {
       final keyBytes = List<int>.from(await key.extractBytes());

@@ -264,7 +264,6 @@ class _HomePageState extends State<HomePage> {
     try {
       final saved = await _backupService.createBackup(
         masterPassword: password,
-        context: context,
       );
 
       if (!mounted) return;
