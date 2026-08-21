@@ -14,6 +14,7 @@ import '../services/pdf_export_service.dart';
 import '../widgets/app_logo.dart';
 import '../widgets/app_search_bar.dart';
 import '../services/search_service.dart';
+import 'backup_center_page.dart';
 import 'table_page.dart';
 import 'tree_page.dart';
 
@@ -273,6 +274,10 @@ class _HomePageState extends State<HomePage> {
             ? 'نسخه پشتیبان با موفقیت ذخیره شد.'
             : 'ذخیره نسخه پشتیبان لغو شد.',
       );
+
+      if (saved) {
+        await _showRecoveryKeyAfterBackup();
+      }
     } catch (error) {
       _showMessage('خطا در ایجاد نسخه پشتیبان: $error');
     } finally {
@@ -282,6 +287,42 @@ class _HomePageState extends State<HomePage> {
         });
       }
     }
+  }
+
+  Future<void> _showRecoveryKeyAfterBackup() async {
+    final key = _backupService.lastRecoveryKey;
+    if (key == null || key.isEmpty || !mounted) return;
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Recovery Key — حتماً ذخیره کنید'),
+        content: const SingleChildScrollView(
+          child: Text(
+            'این کلید برای بازیابی Backup در صورت تغییر یا از دست رفتن Master Password لازم است.\n\n'
+            'کلید داخل فایل Backup ذخیره نشده است. آن را در یک محل امن خارج از دستگاه نگهداری کنید.',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () async {
+              await Clipboard.setData(ClipboardData(text: key));
+              if (dialogContext.mounted) {
+                ScaffoldMessenger.of(dialogContext).showSnackBar(
+                  const SnackBar(content: Text('Recovery Key کپی شد.')),
+                );
+              }
+            },
+            child: const Text('کپی کلید'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('کلید را ذخیره کردم'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _restoreBackup() async {
@@ -345,6 +386,15 @@ class _HomePageState extends State<HomePage> {
         });
       }
     }
+  }
+
+  void _openBackupCenter() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => BackupCenterPage(backupService: _backupService),
+      ),
+    );
   }
 
   Future<void> _configureBiometric() async {
@@ -425,6 +475,23 @@ class _HomePageState extends State<HomePage> {
               onTap: () {
                 Navigator.pop(sheetContext);
                 _restoreBackup();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.verified_outlined),
+              title: const Text('بررسی سلامت Backup'),
+              subtitle: const Text('Verify بدون تغییر Vault فعلی'),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                _openBackupCenter();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.key_outlined),
+              title: const Text('Recovery Key آخرین Backup'),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                _openBackupCenter();
               },
             ),
             ListTile(
