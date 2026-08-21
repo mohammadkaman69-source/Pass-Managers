@@ -25,19 +25,10 @@ class PdfExportService {
     final fileName = '${_sanitizeFileName(title)}.pdf';
 
     try {
-      final String? result;
-      if (context != null && context.mounted) {
-        result = await AppStorageService.instance.savePdfWithDialog(
-          context: context,
-          bytes: pdfBytes,
-          fileName: fileName,
-        );
-      } else {
-        result = await AppStorageService.instance.savePdfBytes(
-          pdfBytes,
-          fileName,
-        );
-      }
+      final result = await AppStorageService.instance.savePdfBytes(
+        pdfBytes,
+        fileName,
+      );
 
       if (Platform.isAndroid &&
           result != null &&
