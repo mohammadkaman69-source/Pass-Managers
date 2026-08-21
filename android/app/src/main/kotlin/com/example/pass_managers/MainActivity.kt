@@ -238,11 +238,26 @@ class MainActivity : FlutterFragmentActivity() {
         }
 
         val fileName = call.argument<String>("fileName")
-        val bytes = call.argument<ByteArray>("bytes")
-
         if (fileName.isNullOrBlank()) {
             result.error("INVALID_FILE_NAME", "File name is empty.", null)
             return
+        }
+
+        val path = call.argument<String>("path")
+        val bytes: ByteArray? = when {
+            !path.isNullOrBlank() -> {
+                try {
+                    File(path).readBytes()
+                } catch (e: Exception) {
+                    result.error(
+                        "INVALID_DATA",
+                        e.message ?: "Could not read temp file.",
+                        null
+                    )
+                    return
+                }
+            }
+            else -> call.argument<ByteArray>("bytes")
         }
 
         if (bytes == null || bytes.isEmpty()) {
