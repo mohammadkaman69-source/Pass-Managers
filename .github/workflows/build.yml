@@ -2,6 +2,12 @@ name: NexVault Build
 
 "on":
   workflow_dispatch:
+  push:
+    branches:
+      - backup-v4-secure
+  pull_request:
+    branches:
+      - main
 
 permissions:
   contents: read
