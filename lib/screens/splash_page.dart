@@ -1,12 +1,11 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:video_player/video_player.dart';
 
 import 'login_page.dart';
 
-/// Cold-start splash. Uses splash_background, splash_logo, and optional
-/// logo animation. Pure UI — does not touch security or data layers.
+/// Cold-start splash — high-res logo with smooth scale/fade.
+/// Avoids low-bitrate MP4 which caused pixelated edges.
 class SplashPage extends StatefulWidget {
   final VoidCallback onLoginSuccess;
 
@@ -19,112 +18,131 @@ class SplashPage extends StatefulWidget {
   State<SplashPage> createState() => _SplashPageState();
 }
 
-class _SplashPageState extends State<SplashPage> {
-  VideoPlayerController? _videoController;
-  bool _videoReady = false;
+class _SplashPageState extends State<SplashPage>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _fade;
+  late final Animation<double> _scale;
   bool _navigated = false;
-  Timer? _fallbackTimer;
+  Timer? _exitTimer;
 
   @override
   void initState() {
     super.initState();
-    _initVideo();
-    // Always leave splash after a short delay so the app never sticks here.
-    _fallbackTimer = Timer(const Duration(milliseconds: 2800), _goToLogin);
-  }
 
-  Future<void> _initVideo() async {
-    try {
-      final controller = VideoPlayerController.asset(
-        'assets/animation/nexvault_logo_animation.mp4',
-      );
-      await controller.initialize();
-      if (!mounted) {
-        await controller.dispose();
-        return;
-      }
-      controller.setLooping(false);
-      controller.setVolume(0);
-      await controller.play();
-      setState(() {
-        _videoController = controller;
-        _videoReady = true;
-      });
-      controller.addListener(() {
-        final v = _videoController;
-        if (v != null &&
-            v.value.isInitialized &&
-            v.value.position >= v.value.duration &&
-            v.value.duration > Duration.zero) {
-          _goToLogin();
-        }
-      });
-    } catch (_) {
-      // Animation optional — static splash logo is enough.
-    }
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1400),
+    );
+
+    _fade = CurvedAnimation(
+      parent: _controller,
+      curve: const Interval(0.0, 0.55, curve: Curves.easeOut),
+    );
+
+    _scale = Tween<double>(begin: 0.82, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.0, 0.7, curve: Curves.easeOutCubic),
+      ),
+    );
+
+    _controller.forward();
+
+    // کوتاه بعد از انیمیشن به لاگین برو
+    _exitTimer = Timer(const Duration(milliseconds: 2200), _goToLogin);
   }
 
   void _goToLogin() {
     if (_navigated || !mounted) return;
     _navigated = true;
-    _fallbackTimer?.cancel();
+    _exitTimer?.cancel();
 
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute(
-        builder: (_) => LoginPage(
+      PageRouteBuilder(
+        transitionDuration: const Duration(milliseconds: 400),
+        pageBuilder: (_, __, ___) => LoginPage(
           onLoginSuccess: widget.onLoginSuccess,
         ),
+        transitionsBuilder: (_, animation, __, child) {
+          return FadeTransition(opacity: animation, child: child);
+        },
       ),
     );
   }
 
   @override
   void dispose() {
-    _fallbackTimer?.cancel();
-    _videoController?.dispose();
+    _exitTimer?.cancel();
+    _controller.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+    final logoHeight = (size.shortestSide * 0.28).clamp(120.0, 200.0);
+
     return Scaffold(
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          // Splash background
-          Image.asset(
-            'assets/splash/splash_background.png',
-            fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => Container(
-              color: const Color(0xFF0B1220),
-            ),
+      body: Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Color(0xFF0B1220),
+              Color(0xFF111827),
+              Color(0xFF0B1220),
+            ],
           ),
-          // Center: video if ready, else static splash logo
-          Center(
-            child: _videoReady && _videoController != null
-                ? AspectRatio(
-                    aspectRatio: _videoController!.value.aspectRatio == 0
-                        ? 1
-                        : _videoController!.value.aspectRatio,
-                    child: VideoPlayer(_videoController!),
-                  )
-                : Image.asset(
-                    'assets/splash/splash_logo.png',
-                    height: 160,
+        ),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            // پس‌زمینه اختیاری اگر موجود باشد
+            Image.asset(
+              'assets/splash/splash_background.png',
+              fit: BoxFit.cover,
+              opacity: const AlwaysStoppedAnimation(0.35),
+              errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+            ),
+            Center(
+              child: AnimatedBuilder(
+                animation: _controller,
+                builder: (context, child) {
+                  return Opacity(
+                    opacity: _fade.value,
+                    child: Transform.scale(
+                      scale: _scale.value,
+                      child: child,
+                    ),
+                  );
+                },
+                child: Image.asset(
+                  'assets/splash/splash_logo.png',
+                  height: logoHeight,
+                  fit: BoxFit.contain,
+                  filterQuality: FilterQuality.high,
+                  isAntiAlias: true,
+                  errorBuilder: (_, __, ___) => Image.asset(
+                    'assets/logo/nexvault_logo.png',
+                    height: logoHeight,
                     fit: BoxFit.contain,
-                    errorBuilder: (_, __, ___) => Image.asset(
-                      'assets/logo/nexvault_logo.png',
-                      height: 120,
-                      fit: BoxFit.contain,
-                      errorBuilder: (_, __, ___) => const Icon(
-                        Icons.lock_outline,
-                        size: 72,
-                        color: Colors.white70,
-                      ),
+                    filterQuality: FilterQuality.high,
+                    isAntiAlias: true,
+                    errorBuilder: (_, __, ___) => Icon(
+                      Icons.lock_outline_rounded,
+                      size: logoHeight * 0.55,
+                      color: Colors.white70,
                     ),
                   ),
-          ),
-        ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
