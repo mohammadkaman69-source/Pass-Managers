@@ -198,12 +198,28 @@ class BackupService {
     }
   }
 
+  /// کپی کاملاً mutable از ردیف‌های sqflite
+  /// (نتیجه query اغلب read-only است و نوشتن روی value خطا می‌دهد)
   Future<Map<String, dynamic>> _readDatabaseSnapshot(Database db) async {
+    List<Map<String, dynamic>> copyRows(List<Map<String, Object?>> rows) {
+      return rows
+          .map((row) => Map<String, dynamic>.from(row))
+          .toList(growable: true);
+    }
+
     return {
-      'tree_items': await db.query('tree_items', orderBy: 'id ASC'),
-      'table_rows': await db.query('table_rows', orderBy: 'id ASC'),
-      'table_fields': await db.query('table_fields', orderBy: 'id ASC'),
-      'table_values': await db.query('table_values', orderBy: 'id ASC'),
+      'tree_items': copyRows(
+        await db.query('tree_items', orderBy: 'id ASC'),
+      ),
+      'table_rows': copyRows(
+        await db.query('table_rows', orderBy: 'id ASC'),
+      ),
+      'table_fields': copyRows(
+        await db.query('table_fields', orderBy: 'id ASC'),
+      ),
+      'table_values': copyRows(
+        await db.query('table_values', orderBy: 'id ASC'),
+      ),
     };
   }
 
@@ -211,17 +227,22 @@ class BackupService {
     final values = snapshot['table_values'];
     if (values is! List) return;
 
-    for (final raw in values) {
+    for (var i = 0; i < values.length; i++) {
+      final raw = values[i];
       if (raw is! Map) continue;
-      final encrypted = (raw['value'] ?? '').toString();
+
+      final map = Map<String, dynamic>.from(raw);
+      values[i] = map;
+
+      final encrypted = (map['value'] ?? '').toString();
       if (encrypted.isEmpty) {
-        raw['value'] = '';
+        map['value'] = '';
         continue;
       }
       try {
-        raw['value'] = await _decryptWithSession(encrypted);
+        map['value'] = await _decryptWithSession(encrypted);
       } catch (_) {
-        raw['value'] = encrypted;
+        map['value'] = encrypted;
       }
     }
   }
@@ -230,10 +251,13 @@ class BackupService {
     final values = snapshot['table_values'];
     if (values is! List) return;
 
-    for (final raw in values) {
+    for (var i = 0; i < values.length; i++) {
+      final raw = values[i];
       if (raw is! Map) continue;
-      final plain = (raw['value'] ?? '').toString();
-      raw['value'] = await _encryptWithSession(plain);
+      final map = Map<String, dynamic>.from(raw);
+      values[i] = map;
+      final plain = (map['value'] ?? '').toString();
+      map['value'] = await _encryptWithSession(plain);
     }
   }
 
@@ -243,16 +267,19 @@ class BackupService {
     final values = snapshot['table_values'];
     if (values is! List) return;
 
-    for (final raw in values) {
+    for (var i = 0; i < values.length; i++) {
+      final raw = values[i];
       if (raw is! Map) continue;
-      final stored = (raw['value'] ?? '').toString();
+      final map = Map<String, dynamic>.from(raw);
+      values[i] = map;
+      final stored = (map['value'] ?? '').toString();
       if (stored.isEmpty) continue;
 
       try {
         final plain = await _decryptWithSession(stored);
-        raw['value'] = await _encryptWithSession(plain);
+        map['value'] = await _encryptWithSession(plain);
       } catch (_) {
-        raw['value'] = stored;
+        map['value'] = stored;
       }
     }
   }
@@ -326,7 +353,7 @@ class BackupService {
           map['value'] = (map['value'] ?? '').toString();
         }
         return map;
-      }).toList();
+      }).toList(growable: true);
     }
 
     return {
