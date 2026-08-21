@@ -5,9 +5,16 @@ import 'screens/login_page.dart';
 import 'screens/splash_page.dart';
 import 'security/app_lifecycle_manager.dart';
 import 'services/app_navigator.dart';
+import 'services/app_storage_service.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  try {
+    await AppStorageService.instance.ensureAllFolders();
+  } catch (_) {
+    // پوشه بعداً هنگام ذخیره ساخته می‌شود
+  }
 
   runApp(
     const PassManagers(),
@@ -55,10 +62,6 @@ class _PassManagersState
       return;
     }
 
-    // تمام صفحات قبلی را حذف می‌کنیم.
-    // یعنی HomePage / TreePage / TablePage
-    // دیگر روی Stack باقی نمی‌مانند.
-
     navigator.pushAndRemoveUntil(
       MaterialPageRoute(
         builder: (_) => LoginPage(
@@ -78,9 +81,6 @@ class _PassManagersState
     if (navigator == null) {
       return;
     }
-
-    // LoginPage فعلی کاملاً حذف می‌شود
-    // و HomePage از نو ساخته می‌شود.
 
     navigator.pushAndRemoveUntil(
       MaterialPageRoute(
