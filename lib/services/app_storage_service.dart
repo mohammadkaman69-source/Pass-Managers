@@ -1,11 +1,12 @@
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:file_picker/file_picker.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
-/// مسیرهای ذخیره‌سازی عمومی برنامه روی دستگاه:
 /// Documents/NexVault/backup و Documents/NexVault/pdf
 class AppStorageService {
   AppStorageService._();
@@ -22,15 +23,12 @@ class AppStorageService {
   Directory? _backup;
   Directory? _pdf;
 
-  /// در استارت برنامه پوشه‌ها را آماده می‌کند.
   Future<void> ensureAllFolders() async {
     if (Platform.isAndroid) {
       try {
         await _channel.invokeMethod<Map>('ensureAppFolders');
         return;
-      } catch (_) {
-        // ادامه با مسیر Dart
-      }
+      } catch (_) {}
     }
     await ensureBackupDir();
     await ensurePdfDir();
@@ -67,14 +65,6 @@ class AppStorageService {
           }
         } catch (_) {}
       }
-    }
-
-    if (candidate == null && Platform.isWindows) {
-      try {
-        final docs = await getApplicationDocumentsDirectory();
-        candidate = Directory(p.join(docs.path, appFolderName));
-        await candidate.create(recursive: true);
-      } catch (_) {}
     }
 
     if (candidate == null) {
@@ -127,21 +117,83 @@ class AppStorageService {
     return dir;
   }
 
-  /// ذخیره بک‌آپ — روی اندروید مستقیم در Documents/NexVault/backup
+  /// دیالوگ: مسیر پیش‌فرض NexVault یا انتخاب مسیر دیگر
+  Future<String?> saveBackupWithDialog({
+    required BuildContext context,
+    required List<int> bytes,
+    required String fileName,
+  }) async {
+    final choice = await _askSaveLocation(
+      context: context,
+      title: 'ذخیره نسخه پشتیبان',
+      defaultLabel: 'پوشه پیش‌فرض NexVault/backup',
+    );
+    if (choice == null) return null;
+    if (choice == 'default') {
+      return saveBackupBytes(bytes, fileName);
+    }
+    return pickAndSaveBackup(bytes, fileName);
+  }
+
+  Future<String?> savePdfWithDialog({
+    required BuildContext context,
+    required List<int> bytes,
+    required String fileName,
+  }) async {
+    final choice = await _askSaveLocation(
+      context: context,
+      title: 'ذخیره PDF',
+      defaultLabel: 'پوشه پیش‌فرض NexVault/pdf',
+    );
+    if (choice == null) return null;
+    if (choice == 'default') {
+      return savePdfBytes(bytes, fileName);
+    }
+    return pickAndSavePdf(bytes, fileName);
+  }
+
+  Future<String?> _askSaveLocation({
+    required BuildContext context,
+    required String title,
+    required String defaultLabel,
+  }) async {
+    return showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(title),
+        content: const Text('مسیر ذخیره را انتخاب کنید.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('انصراف'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, 'pick'),
+            child: const Text('انتخاب مسیر دیگر'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(dialogContext, 'default'),
+            child: Text(defaultLabel),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<String?> saveBackupBytes(List<int> bytes, String fileName) async {
     final data = Uint8List.fromList(List<int>.from(bytes));
     try {
       if (Platform.isAndroid) {
-        final path = await _channel.invokeMethod<String>(
-          'saveBackup',
+        return await _channel.invokeMethod<String>(
+          'saveToAppFolder',
           <String, dynamic>{
             'fileName': fileName,
             'bytes': data,
+            'subFolder': backupFolderName,
+            'mimeType': 'application/octet-stream',
           },
         );
-        return path;
       }
-
       final file = await _writeLocal(await ensureBackupDir(), fileName, data);
       return file.path;
     } finally {
@@ -149,23 +201,74 @@ class AppStorageService {
     }
   }
 
-  /// ذخیره PDF — روی اندروید مستقیم در Documents/NexVault/pdf
   Future<String?> savePdfBytes(List<int> bytes, String fileName) async {
     final data = Uint8List.fromList(List<int>.from(bytes));
     try {
       if (Platform.isAndroid) {
-        final path = await _channel.invokeMethod<String>(
-          'savePdf',
+        return await _channel.invokeMethod<String>(
+          'saveToAppFolder',
+          <String, dynamic>{
+            'fileName': fileName,
+            'bytes': data,
+            'subFolder': pdfFolderName,
+            'mimeType': 'application/pdf',
+          },
+        );
+      }
+      final file = await _writeLocal(await ensurePdfDir(), fileName, data);
+      return file.path;
+    } finally {
+      data.fillRange(0, data.length, 0);
+    }
+  }
+
+  Future<String?> pickAndSaveBackup(List<int> bytes, String fileName) async {
+    final data = Uint8List.fromList(List<int>.from(bytes));
+    try {
+      if (Platform.isAndroid) {
+        return await _channel.invokeMethod<String>(
+          'pickAndSaveBackup',
           <String, dynamic>{
             'fileName': fileName,
             'bytes': data,
           },
         );
-        return path;
       }
+      final path = await FilePicker.saveFile(
+        dialogTitle: 'ذخیره نسخه پشتیبان NexVault',
+        fileName: fileName,
+        type: FileType.custom,
+        allowedExtensions: const ['pmb'],
+      );
+      if (path == null || path.isEmpty) return null;
+      await File(path).writeAsBytes(data, flush: true);
+      return path;
+    } finally {
+      data.fillRange(0, data.length, 0);
+    }
+  }
 
-      final file = await _writeLocal(await ensurePdfDir(), fileName, data);
-      return file.path;
+  Future<String?> pickAndSavePdf(List<int> bytes, String fileName) async {
+    final data = Uint8List.fromList(List<int>.from(bytes));
+    try {
+      if (Platform.isAndroid) {
+        return await _channel.invokeMethod<String>(
+          'pickAndSavePdf',
+          <String, dynamic>{
+            'fileName': fileName,
+            'bytes': data,
+          },
+        );
+      }
+      final path = await FilePicker.saveFile(
+        dialogTitle: 'ذخیره PDF NexVault',
+        fileName: fileName,
+        type: FileType.custom,
+        allowedExtensions: const ['pdf'],
+      );
+      if (path == null || path.isEmpty) return null;
+      await File(path).writeAsBytes(data, flush: true);
+      return path;
     } finally {
       data.fillRange(0, data.length, 0);
     }
