@@ -262,6 +262,7 @@ class _HomePageState extends State<HomePage> {
     try {
       final saved = await _backupService.createBackup(
         masterPassword: password,
+        context: context,
       );
 
       if (!mounted) return;
@@ -331,7 +332,6 @@ class _HomePageState extends State<HomePage> {
         'ورود بیومتریک را در صورت نیاز دوباره فعال کنید.',
       );
     } on BackupCancelledException {
-      // کاربر فایل را انتخاب نکرد
     } on BackupFormatException catch (error) {
       _showMessage('خطا در بازیابی: ${error.message}');
     } catch (error) {
