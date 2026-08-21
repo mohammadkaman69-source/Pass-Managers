@@ -19,6 +19,22 @@ class AppLifecycleManager
 
   bool _lockedForBackground = false;
 
+  /// وقتی انتخابگر فایل سیستم باز است، قفل پس‌زمینه موقتاً خاموش می‌شود.
+  static int _suppressBackgroundLock = 0;
+
+  static void beginExternalUi() {
+    _suppressBackgroundLock++;
+  }
+
+  static void endExternalUi() {
+    if (_suppressBackgroundLock > 0) {
+      _suppressBackgroundLock--;
+    }
+  }
+
+  static bool get isExternalUiActive =>
+      _suppressBackgroundLock > 0;
+
   void start() {
     if (_isRegistered) {
       return;
@@ -51,18 +67,21 @@ class AppLifecycleManager
   }
 
   void _lockForBackground() {
+    if (_suppressBackgroundLock > 0) {
+      // انتخابگر فایل / ذخیره سیستم — قفل نکن
+      return;
+    }
+
     if (_lockedForBackground) {
       return;
     }
 
     _lockedForBackground = true;
 
-    // پاک کردن کلید رمزنگاری از حافظه
     if (_securitySession.isUnlocked) {
       _securitySession.lock();
     }
 
-    // درخواست بازگشت کامل برنامه به Login
     onLock();
   }
 

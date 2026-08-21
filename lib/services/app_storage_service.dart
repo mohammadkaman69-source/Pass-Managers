@@ -5,6 +5,8 @@ import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
+import '../security/app_lifecycle_manager.dart';
+
 /// Documents/NexVault/backup و Documents/NexVault/pdf
 class AppStorageService {
   AppStorageService._();
@@ -115,27 +117,24 @@ class AppStorageService {
     return dir;
   }
 
-  /// انتخابگر سیستم — نام قابل تغییر، مسیر پیش‌فرض NexVault/backup
   Future<String?> saveBackupBytes(List<int> bytes, String fileName) async {
     return pickAndSaveBackup(bytes, fileName);
   }
 
-  /// انتخابگر سیستم — نام قابل تغییر، مسیر پیش‌فرض NexVault/pdf
   Future<String?> savePdfBytes(List<int> bytes, String fileName) async {
     return pickAndSavePdf(bytes, fileName);
   }
 
   Future<String?> pickAndSaveBackup(List<int> bytes, String fileName) async {
     final data = Uint8List.fromList(List<int>.from(bytes));
+    AppLifecycleManager.beginExternalUi();
     try {
       if (Platform.isAndroid) {
-        return await _channel.invokeMethod<String>(
-          'pickAndSaveBackup',
-          <String, dynamic>{
-            'fileName': fileName,
-            'bytes': data,
-            'subFolder': backupFolderName,
-          },
+        return await _saveViaAndroidPicker(
+          data: data,
+          fileName: fileName,
+          subFolder: backupFolderName,
+          method: 'pickAndSaveBackup',
         );
       }
 
@@ -151,21 +150,21 @@ class AppStorageService {
       if (uri == null) return null;
       return _uriToPath(uri);
     } finally {
+      AppLifecycleManager.endExternalUi();
       data.fillRange(0, data.length, 0);
     }
   }
 
   Future<String?> pickAndSavePdf(List<int> bytes, String fileName) async {
     final data = Uint8List.fromList(List<int>.from(bytes));
+    AppLifecycleManager.beginExternalUi();
     try {
       if (Platform.isAndroid) {
-        return await _channel.invokeMethod<String>(
-          'pickAndSavePdf',
-          <String, dynamic>{
-            'fileName': fileName,
-            'bytes': data,
-            'subFolder': pdfFolderName,
-          },
+        return await _saveViaAndroidPicker(
+          data: data,
+          fileName: fileName,
+          subFolder: pdfFolderName,
+          method: 'pickAndSavePdf',
         );
       }
 
@@ -181,7 +180,41 @@ class AppStorageService {
       if (uri == null) return null;
       return _uriToPath(uri);
     } finally {
+      AppLifecycleManager.endExternalUi();
       data.fillRange(0, data.length, 0);
+    }
+  }
+
+  /// فایل موقت → فقط مسیر به نیتیو (جلوگیری از محدودیت اندازه Binder)
+  Future<String?> _saveViaAndroidPicker({
+    required Uint8List data,
+    required String fileName,
+    required String subFolder,
+    required String method,
+  }) async {
+    final tempDir = await getTemporaryDirectory();
+    final temp = File(
+      p.join(
+        tempDir.path,
+        'nv_save_${DateTime.now().millisecondsSinceEpoch}_$fileName',
+      ),
+    );
+    await temp.writeAsBytes(data, flush: true);
+    try {
+      return await _channel.invokeMethod<String>(
+        method,
+        <String, dynamic>{
+          'fileName': fileName,
+          'path': temp.path,
+          'subFolder': subFolder,
+        },
+      );
+    } finally {
+      try {
+        if (await temp.exists()) {
+          await temp.delete();
+        }
+      } catch (_) {}
     }
   }
 
