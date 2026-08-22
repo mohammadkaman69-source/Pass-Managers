@@ -271,7 +271,7 @@ class _HomePageState extends State<HomePage> {
 
       _showMessage(
         saved
-            ? 'نسخه پشتیبان با موفقیت ذخیره شد.'
+            ? 'نسخه پشتیبان با موفقیت ذخیره شد. Recovery Key را حتماً یادداشت کنید.'
             : 'ذخیره نسخه پشتیبان لغو شد.',
       );
 
@@ -290,24 +290,40 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _showRecoveryKeyAfterBackup() async {
-    final key = _backupService.lastRecoveryKey;
-    if (key == null || key.isEmpty || !mounted) return;
+    final recoveryKey = _backupService.lastRecoveryKey;
+    if (recoveryKey == null || recoveryKey.isEmpty || !mounted) return;
 
     await showDialog<void>(
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Recovery Key — حتماً ذخیره کنید'),
-        content: const SingleChildScrollView(
-          child: Text(
-            'این کلید برای بازیابی Backup در صورت تغییر یا از دست رفتن Master Password لازم است.\n\n'
-            'کلید داخل فایل Backup ذخیره نشده است. آن را در یک محل امن خارج از دستگاه نگهداری کنید.',
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'این کلید برای بازیابی Backup در صورت از دست رفتن رمز اصلی لازم است.\n'
+                'کلید داخل فایل Backup نیست؛ آن را در محل امن خارج از دستگاه نگه دارید.',
+              ),
+              const SizedBox(height: 16),
+              SelectableText(
+                recoveryKey,
+                textDirection: TextDirection.ltr,
+                style: const TextStyle(
+                  fontFamily: 'monospace',
+                  fontSize: 15,
+                  letterSpacing: 0.8,
+                ),
+              ),
+            ],
           ),
         ),
         actions: [
           TextButton(
             onPressed: () async {
-              await Clipboard.setData(ClipboardData(text: key));
+              await Clipboard.setData(ClipboardData(text: recoveryKey));
               if (dialogContext.mounted) {
                 ScaffoldMessenger.of(dialogContext).showSnackBar(
                   const SnackBar(content: Text('Recovery Key کپی شد.')),
@@ -361,7 +377,7 @@ class _HomePageState extends State<HomePage> {
     });
 
     try {
-      await _backupService.restoreBackup(
+      final result = await _backupService.restoreBackup(
         masterPassword: password,
       );
 
@@ -370,11 +386,14 @@ class _HomePageState extends State<HomePage> {
       if (!mounted) return;
 
       _showMessage(
-        'نسخه پشتیبان با موفقیت بازیابی شد. '
-        'ورود بیومتریک را در صورت نیاز دوباره فعال کنید.',
+        'بازیابی موفق: '
+        '${result.treeItemCount} مورد، '
+        '${result.rowCount} رکورد، '
+        '${result.valueCount} مقدار. '
+        'در صورت نیاز بیومتریک را دوباره فعال کنید.',
       );
     } on BackupCancelledException {
-      // کاربر انتخاب فایل را لغو کرد
+      _showMessage('انتخاب فایل پشتیبان لغو شد.');
     } on BackupFormatException catch (error) {
       _showMessage('خطا در بازیابی: ${error.message}');
     } catch (error) {
@@ -395,6 +414,34 @@ class _HomePageState extends State<HomePage> {
         builder: (_) => BackupCenterPage(backupService: _backupService),
       ),
     );
+  }
+
+
+  Future<void> _showRecoveryKeyFromMenu() async {
+    final recoveryKey = _backupService.lastRecoveryKey;
+    if (recoveryKey == null || recoveryKey.isEmpty) {
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Recovery Key'),
+          content: const Text(
+            'Recovery Key فعالی در این نشست نیست.\n\n'
+            'این کلید فقط هنگام ساخت موفق Backup جدید تولید می‌شود '
+            'و بعد از بستن برنامه از حافظه پاک می‌شود. '
+            'اگر کلید را ذخیره نکرده‌اید، یک Backup جدید بگیرید.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('بستن'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+    await _showRecoveryKeyAfterBackup();
   }
 
   Future<void> _configureBiometric() async {
@@ -491,7 +538,7 @@ class _HomePageState extends State<HomePage> {
               title: const Text('Recovery Key آخرین Backup'),
               onTap: () {
                 Navigator.pop(sheetContext);
-                _openBackupCenter();
+                _showRecoveryKeyFromMenu();
               },
             ),
             ListTile(
@@ -658,9 +705,16 @@ class _HomePageState extends State<HomePage> {
                 _itemIds.remove(item);
               });
             },
+            onRenamed: (name) {
+              setState(() {
+                item.name = name;
+              });
+            },
           ),
         ),
-      );
+      ).then((_) async {
+        if (mounted) await _loadItems();
+      });
 
       return;
     }
@@ -769,3 +823,4 @@ class _HomePageState extends State<HomePage> {
     );
   }
 }
+
