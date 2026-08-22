@@ -9,6 +9,7 @@ import 'package:sqflite/sqflite.dart';
 
 import '../database/app_database.dart';
 import '../security/security_manager.dart';
+import 'app_lifecycle_manager.dart';
 import 'app_storage_service.dart';
 
 class BackupService {
@@ -181,37 +182,42 @@ class BackupService {
   }
 
   Future<List<int>> _pickBackupBytes(String title) async {
-    final file = await FilePicker.pickFile(
-      dialogTitle: title,
-      type: FileType.custom,
-      allowedExtensions: const ['pmb'],
-    );
-    if (file == null) throw const BackupCancelledException();
-
+    AppLifecycleManager.beginExternalUi();
     try {
-      try {
-        final bytes = await file.readAsBytes();
-        if (bytes.isNotEmpty) return List<int>.from(bytes);
-      } catch (_) {}
+      final file = await FilePicker.pickFile(
+        dialogTitle: title,
+        type: FileType.custom,
+        allowedExtensions: const ['pmb'],
+      );
+      if (file == null) throw const BackupCancelledException();
 
-      final path = file.path;
-      if (path != null && path.isNotEmpty) {
-        final f = File(path);
-        if (await f.exists()) {
-          final bytes = await f.readAsBytes();
+      try {
+        try {
+          final bytes = await file.readAsBytes();
           if (bytes.isNotEmpty) return List<int>.from(bytes);
+        } catch (_) {}
+
+        final path = file.path;
+        if (path != null && path.isNotEmpty) {
+          final f = File(path);
+          if (await f.exists()) {
+            final bytes = await f.readAsBytes();
+            if (bytes.isNotEmpty) return List<int>.from(bytes);
+          }
         }
+
+        try {
+          final bytes = await file.xFile.readAsBytes();
+          if (bytes.isNotEmpty) return List<int>.from(bytes);
+        } catch (_) {}
+
+        throw const BackupFormatException('فایل Backup خالی است یا قابل خواندن نیست.');
+      } catch (e) {
+        if (e is BackupFormatException || e is BackupCancelledException) rethrow;
+        throw BackupFormatException('خواندن فایل Backup ناموفق بود: $e');
       }
-
-      try {
-        final bytes = await file.xFile.readAsBytes();
-        if (bytes.isNotEmpty) return List<int>.from(bytes);
-      } catch (_) {}
-
-      throw const BackupFormatException('فایل Backup خالی است یا قابل خواندن نیست.');
-    } catch (e) {
-      if (e is BackupFormatException || e is BackupCancelledException) rethrow;
-      throw BackupFormatException('خواندن فایل Backup ناموفق بود: $e');
+    } finally {
+      AppLifecycleManager.endExternalUi();
     }
   }
 
@@ -612,12 +618,6 @@ class BackupService {
   }
 
   Future<Map<String, dynamic>> _manifest(Map<String, dynamic> snapshot) async {
-    // The old implementation hashed jsonEncode(snapshot) directly. That is
-    // order-sensitive: JSON decoded from a backup preserves its original map
-    // order, while sqflite returns columns in schema order. The same data could
-    // therefore produce different hashes after Restore, causing every valid
-    // Restore to fail its final verification and rollback. Canonical JSON makes
-    // integrity independent of map insertion order.
     final canonical = _canonicalize(snapshot);
     final bytes = utf8.encode(jsonEncode(canonical));
     final hash = await Sha256().hash(bytes);
