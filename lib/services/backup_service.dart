@@ -12,11 +12,6 @@ import '../security/security_manager.dart';
 import 'app_storage_service.dart';
 
 /// بک‌آپ امن NexVault v4
-///
-/// - رمزنگاری AES-256-GCM با DEK تصادفی
-/// - DEK با Master Password و Recovery Key جداگانه wrap می‌شود
-/// - مقادیر سلول‌ها قبل از ذخیره plain می‌شوند و موقع restore دوباره با کلید نشست رمز می‌شوند
-/// - سازگاری با بک‌آپ‌های قدیمی pass_managers_encrypted_backup (v1–v3)
 class BackupService {
   BackupService({SecurityManager? securityManager})
       : _securityManager = securityManager ?? SecurityManager();
@@ -150,7 +145,6 @@ class BackupService {
       throw const BackupFormatException('رمز اصلی نمی‌تواند خالی باشد.');
     }
 
-    // جلسه را با همین رمز باز کن تا encrypt مقادیر با کلید فعلی ممکن باشد
     final unlocked = await _securityManager.unlock(password);
     if (!unlocked) {
       throw const BackupFormatException(
@@ -174,7 +168,7 @@ class BackupService {
     }
   }
 
-  /// خواندن مطمئن بایت‌های فایل .pmb روی Android/SAF و دسکتاپ
+  /// file_picker v12: PlatformFile has no .bytes — use readAsBytes / path / xFile
   Future<Uint8List> _pickBackupBytes({required String dialogTitle}) async {
     final sourceFile = await FilePicker.pickFile(
       dialogTitle: dialogTitle,
@@ -186,23 +180,13 @@ class BackupService {
     }
 
     try {
-      // 1) بایت‌های از پیش بارگذاری‌شده
-      final cached = sourceFile.bytes;
-      if (cached != null && cached.isNotEmpty) {
-        return Uint8List.fromList(cached);
-      }
-
-      // 2) readAsBytes (API رسمی file_picker v12)
       try {
         final loaded = await sourceFile.readAsBytes();
         if (loaded.isNotEmpty) {
           return Uint8List.fromList(loaded);
         }
-      } catch (_) {
-        // ادامه با مسیر فایل
-      }
+      } catch (_) {}
 
-      // 3) مسیر فایل محلی (Android/Desktop)
       final path = sourceFile.path;
       if (path != null && path.isNotEmpty) {
         final file = File(path);
@@ -213,6 +197,13 @@ class BackupService {
           }
         }
       }
+
+      try {
+        final xf = await sourceFile.xFile.readAsBytes();
+        if (xf.isNotEmpty) {
+          return Uint8List.fromList(xf);
+        }
+      } catch (_) {}
 
       throw const BackupFormatException(
         'فایل Backup خالی است یا قابل خواندن نیست. '
@@ -291,7 +282,6 @@ class BackupService {
 
     Uint8List? dekBytes;
     try {
-      // اول Master Password، بعد Recovery Key
       try {
         final masterKeyBytes = await _deriveBackupKey(credential, masterSalt);
         try {
@@ -330,14 +320,11 @@ class BackupService {
       }
       final snapshot = _normalizeSnapshot(data);
 
-      // Manifest اختیاری — فقط اگر بود چک می‌شود
       final manifest = decoded['manifest'];
       if (manifest is Map) {
         try {
           await _verifyManifest(manifest, snapshot);
-        } catch (_) {
-          // با soft mode ادامه می‌دهیم؛ mismatch فقط لاگ
-        }
+        } catch (_) {}
       }
       return snapshot;
     } catch (error) {
@@ -401,7 +388,6 @@ class BackupService {
       final snapshot = _normalizeSnapshot(data);
       final valuesPlain = decoded['values_plain'] == true || version >= 3;
       if (!valuesPlain) {
-        // سعی در decrypt با کلید نشست؛ اگر نشد plain نگه دار
         await _tryDecryptLegacyValues(snapshot);
       }
       return snapshot;
@@ -425,7 +411,6 @@ class BackupService {
       try {
         map['value'] = await _decryptWithSession(stored);
       } catch (_) {
-        // ciphertext قدیمی غیرقابل بازیابی → خالی
         if (_looksLikeEncryptedBlob(stored)) {
           map['value'] = '';
         }
@@ -561,7 +546,6 @@ class BackupService {
     };
   }
 
-  /// strict=false: رکوردهای خراب را حذف می‌کند به‌جای fail کامل
   void _validateSnapshot(
     Map<String, dynamic> snapshot, {
     required bool strict,
@@ -617,7 +601,6 @@ class BackupService {
       if (type == 'table') tableIds.add(id);
     }
 
-    // parent_id باید موجود باشد یا null
     for (final raw in List.from(treeItems)) {
       if (raw is! Map) continue;
       final parent = raw['parent_id'];
@@ -705,7 +688,6 @@ class BackupService {
       coveredFields.add(fieldId);
     }
 
-    // فیلد بدون value → value خالی اضافه کن (نه fail)
     var nextValueId = valueIds.isEmpty
         ? 1
         : (valueIds.reduce((a, b) => a > b ? a : b) + 1);
@@ -762,7 +744,6 @@ class BackupService {
     _requireUnlocked();
     _validateSnapshot(snapshot, strict: false);
 
-    // ترتیب والد → فرزند
     final treeItems = List<Map<String, dynamic>>.from(
       (snapshot['tree_items'] as List).whereType<Map>().map(
             (e) => Map<String, dynamic>.from(e),
