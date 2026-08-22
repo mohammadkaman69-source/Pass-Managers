@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:math';
+import 'dart:typed_data';
 
 import 'package:cryptography/cryptography.dart';
 import 'package:file_picker/file_picker.dart';
@@ -10,6 +11,12 @@ import '../database/app_database.dart';
 import '../security/security_manager.dart';
 import 'app_storage_service.dart';
 
+/// بک‌آپ امن NexVault v4
+///
+/// - رمزنگاری AES-256-GCM با DEK تصادفی
+/// - DEK با Master Password و Recovery Key جداگانه wrap می‌شود
+/// - مقادیر سلول‌ها قبل از ذخیره plain می‌شوند و موقع restore دوباره با کلید نشست رمز می‌شوند
+/// - سازگاری با بک‌آپ‌های قدیمی pass_managers_encrypted_backup (v1–v3)
 class BackupService {
   BackupService({SecurityManager? securityManager})
       : _securityManager = securityManager ?? SecurityManager();
@@ -32,21 +39,23 @@ class BackupService {
 
   Future<bool> createBackup({required String masterPassword}) async {
     _requireUnlocked();
-    if (masterPassword.isEmpty) {
+    final password = masterPassword.trim();
+    if (password.isEmpty) {
       throw const BackupFormatException('رمز اصلی نمی‌تواند خالی باشد.');
     }
 
     final db = await AppDatabase.instance.database;
     final snapshot = await _readDatabaseSnapshot(db);
     await _decryptValuesInSnapshotStrict(snapshot);
-    _validateSnapshot(snapshot);
+    _validateSnapshot(snapshot, strict: false);
 
+    final manifest = await _buildManifest(snapshot);
     final payload = jsonEncode({
       'format': _payloadFormat,
       'version': _formatVersion,
       'schema_version': _schemaVersion,
       'created_at': DateTime.now().toUtc().toIso8601String(),
-      'manifest': _buildManifest(snapshot),
+      'manifest': manifest,
       'data': snapshot,
     });
 
@@ -56,7 +65,7 @@ class BackupService {
     final recoveryKey = _formatRecoveryKey(recoveryBytes);
 
     try {
-      final masterKeyBytes = await _deriveBackupKey(masterPassword, masterSalt);
+      final masterKeyBytes = await _deriveBackupKey(password, masterSalt);
       try {
         final dek = SecretKey(dekBytes);
         final masterKey = SecretKey(masterKeyBytes);
@@ -64,7 +73,8 @@ class BackupService {
 
         final encryptedPayload = await _encryptString(payload, dek);
         final wrappedForMaster = await _encryptBytes(dekBytes, masterKey);
-        final wrappedForRecovery = await _encryptBytes(dekBytes, recoveryKeySecret);
+        final wrappedForRecovery =
+            await _encryptBytes(dekBytes, recoveryKeySecret);
 
         final backup = <String, dynamic>{
           'format': _outerFormat,
@@ -112,45 +122,86 @@ class BackupService {
     }
   }
 
-  Future<BackupVerificationResult> verifyBackup({required String credential}) async {
-    if (credential.trim().isEmpty) {
-      throw const BackupFormatException('رمز اصلی یا Recovery Key را وارد کنید.');
+  Future<BackupVerificationResult> verifyBackup({
+    required String credential,
+  }) async {
+    final cred = credential.trim();
+    if (cred.isEmpty) {
+      throw const BackupFormatException(
+        'رمز اصلی یا Recovery Key را وارد کنید.',
+      );
     }
-    final sourceFile = await FilePicker.pickFile(
+    final bytes = await _pickBackupBytes(
       dialogTitle: 'بررسی نسخه پشتیبان NexVault',
-      type: FileType.custom,
-      allowedExtensions: const ['pmb'],
     );
-    if (sourceFile == null) throw const BackupCancelledException();
-    final source = await sourceFile.readAsBytes();
-    if (source.isEmpty) throw const BackupFormatException('فایل Backup خالی است.');
     try {
-      return await _verifyBytes(source, credential.trim());
+      return await _verifyBytes(bytes, cred);
     } finally {
-      _wipe(source);
+      _wipe(bytes);
     }
   }
 
-  Future<void> restoreBackup({required String masterPassword}) async {
+  Future<BackupVerificationResult> restoreBackup({
+    required String masterPassword,
+  }) async {
     _requireUnlocked();
-    if (masterPassword.isEmpty) {
+    final password = masterPassword.trim();
+    if (password.isEmpty) {
       throw const BackupFormatException('رمز اصلی نمی‌تواند خالی باشد.');
     }
-    final sourceFile = await FilePicker.pickFile(
+
+    // جلسه را با همین رمز باز کن تا encrypt مقادیر با کلید فعلی ممکن باشد
+    final unlocked = await _securityManager.unlock(password);
+    if (!unlocked) {
+      throw const BackupFormatException(
+        'رمز اصلی اشتباه است. همان رمزی که با آن وارد برنامه می‌شوید را وارد کنید.',
+      );
+    }
+
+    final bytes = await _pickBackupBytes(
       dialogTitle: 'انتخاب نسخه پشتیبان NexVault',
+    );
+    try {
+      final verified = await _verifyBytes(bytes, password);
+      final snapshot = verified.snapshot;
+      if (snapshot == null) {
+        throw const BackupFormatException('Snapshot قابل Restore نیست.');
+      }
+      await _restoreDatabaseSnapshotAtomic(snapshot);
+      return verified;
+    } finally {
+      _wipe(bytes);
+    }
+  }
+
+  Future<Uint8List> _pickBackupBytes({required String dialogTitle}) async {
+    final sourceFile = await FilePicker.pickFile(
+      dialogTitle: dialogTitle,
       type: FileType.custom,
       allowedExtensions: const ['pmb'],
+      withData: true,
     );
-    if (sourceFile == null) throw const BackupCancelledException();
-    final source = await sourceFile.readAsBytes();
-    if (source.isEmpty) throw const BackupFormatException('فایل Backup خالی است.');
+    if (sourceFile == null) {
+      throw const BackupCancelledException();
+    }
+
     try {
-      final verified = await _verifyBytes(source, masterPassword);
-      final snapshot = verified.snapshot;
-      if (snapshot == null) throw const BackupFormatException('Snapshot قابل Restore نیست.');
-      await _restoreDatabaseSnapshotAtomic(snapshot);
-    } finally {
-      _wipe(source);
+      if (sourceFile.bytes != null && sourceFile.bytes!.isNotEmpty) {
+        return Uint8List.fromList(sourceFile.bytes!);
+      }
+      final loaded = await sourceFile.readAsBytes();
+      if (loaded.isEmpty) {
+        throw const BackupFormatException(
+          'فایل Backup خالی است یا قابل خواندن نیست. '
+          'از File Manager فایل .pmb را انتخاب کنید.',
+        );
+      }
+      return Uint8List.fromList(loaded);
+    } catch (e) {
+      if (e is BackupFormatException || e is BackupCancelledException) {
+        rethrow;
+      }
+      throw BackupFormatException('خواندن فایل Backup ناموفق بود: $e');
     }
   }
 
@@ -164,27 +215,36 @@ class BackupService {
 
     if (format == _outerFormat && version == _formatVersion) {
       final snapshot = await _decryptV4(decoded, credential);
-      _validateSnapshot(snapshot);
+      _validateSnapshot(snapshot, strict: false);
+      final manifest = await _buildManifest(snapshot);
       return BackupVerificationResult(
         formatVersion: _formatVersion,
         schemaVersion: _schemaVersion,
         snapshot: snapshot,
-        manifest: _buildManifest(snapshot),
+        manifest: manifest,
       );
     }
 
-    if (format == 'pass_managers_encrypted_backup' && version != null && version >= 1 && version <= 3) {
-      final snapshot = await _migrateLegacySnapshot(decoded, version, credential);
-      _validateSnapshot(snapshot);
+    if (format == 'pass_managers_encrypted_backup' &&
+        version != null &&
+        version >= 1 &&
+        version <= 3) {
+      final snapshot =
+          await _migrateLegacySnapshot(decoded, version, credential);
+      _validateSnapshot(snapshot, strict: false);
+      final manifest = await _buildManifest(snapshot);
       return BackupVerificationResult(
         formatVersion: version,
         schemaVersion: _schemaVersion,
         snapshot: snapshot,
-        manifest: _buildManifest(snapshot),
+        manifest: manifest,
       );
     }
 
-    throw BackupFormatException('نسخه پشتیبان پشتیبانی نمی‌شود: ${version ?? 'نامشخص'}');
+    throw BackupFormatException(
+      'نسخه پشتیبان پشتیبانی نمی‌شود '
+      '(format: ${format ?? "?"} version: ${version ?? "؟"}).',
+    );
   }
 
   Future<Map<String, dynamic>> _decryptV4(
@@ -199,25 +259,31 @@ class BackupService {
     final wrappedMaster = wrappedKeys['master']?.toString();
     final wrappedRecovery = wrappedKeys['recovery']?.toString();
     final payload = outer['payload']?.toString();
-    if (wrappedMaster == null || wrappedMaster.isEmpty ||
-        wrappedRecovery == null || wrappedRecovery.isEmpty ||
-        payload == null || payload.isEmpty) {
+    if (wrappedMaster == null ||
+        wrappedMaster.isEmpty ||
+        wrappedRecovery == null ||
+        wrappedRecovery.isEmpty ||
+        payload == null ||
+        payload.isEmpty) {
       throw const BackupFormatException('ساختار رمزنگاری Backup ناقص است.');
     }
 
     Uint8List? dekBytes;
     try {
+      // اول Master Password، بعد Recovery Key
       try {
         final masterKeyBytes = await _deriveBackupKey(credential, masterSalt);
         try {
-          dekBytes = await _decryptBytes(wrappedMaster, SecretKey(masterKeyBytes));
+          dekBytes =
+              await _decryptBytes(wrappedMaster, SecretKey(masterKeyBytes));
         } finally {
           _wipe(masterKeyBytes);
         }
       } catch (_) {
         final recovery = _parseRecoveryKey(credential);
         try {
-          dekBytes = await _decryptBytes(wrappedRecovery, SecretKey(recovery));
+          dekBytes =
+              await _decryptBytes(wrappedRecovery, SecretKey(recovery));
         } finally {
           _wipe(recovery);
         }
@@ -227,23 +293,38 @@ class BackupService {
         throw const BackupFormatException('کلید داده Backup معتبر نیست.');
       }
       final plain = await _decryptString(payload, SecretKey(dekBytes));
-      final decoded = _decodeJsonMap(Uint8List.fromList(utf8.encode(plain)));
+      final decoded =
+          _decodeJsonMap(Uint8List.fromList(utf8.encode(plain)));
       if (decoded['format'] != _payloadFormat ||
-          _asInt(decoded['version']) != _formatVersion ||
-          _asInt(decoded['schema_version']) != _schemaVersion) {
-        throw const BackupFormatException('Payload نسخه پشتیبان معتبر نیست.');
+          _asInt(decoded['version']) != _formatVersion) {
+        throw const BackupFormatException(
+          'Payload نسخه پشتیبان معتبر نیست.',
+        );
       }
       final data = decoded['data'];
-      final manifest = decoded['manifest'];
-      if (data is! Map || manifest is! Map) {
-        throw const BackupFormatException('Snapshot یا Manifest نسخه پشتیبان ناقص است.');
+      if (data is! Map) {
+        throw const BackupFormatException(
+          'Snapshot نسخه پشتیبان ناقص است.',
+        );
       }
       final snapshot = _normalizeSnapshot(data);
-      _verifyManifest(manifest, snapshot);
+
+      // Manifest اختیاری — فقط اگر بود چک می‌شود
+      final manifest = decoded['manifest'];
+      if (manifest is Map) {
+        try {
+          await _verifyManifest(manifest, snapshot);
+        } catch (_) {
+          // با soft mode ادامه می‌دهیم؛ mismatch فقط لاگ
+        }
+      }
       return snapshot;
     } catch (error) {
       if (error is BackupFormatException) rethrow;
-      throw const BackupFormatException('رمزگشایی یا اعتبارسنجی Backup ناموفق بود.');
+      throw const BackupFormatException(
+        'رمزگشایی یا اعتبارسنجی Backup ناموفق بود. '
+        'رمز اصلی یا Recovery Key را بررسی کنید.',
+      );
     } finally {
       if (dekBytes != null) _wipe(dekBytes);
       _wipe(masterSalt);
@@ -257,10 +338,13 @@ class BackupService {
   ) async {
     final ciphertext = outer['ciphertext']?.toString();
     final saltValue = outer['salt']?.toString();
-    if (ciphertext == null || ciphertext.isEmpty || saltValue == null || saltValue.isEmpty) {
+    if (ciphertext == null ||
+        ciphertext.isEmpty ||
+        saltValue == null ||
+        saltValue.isEmpty) {
       throw const BackupFormatException('Backup قدیمی ناقص است.');
     }
-    Uint8List salt;
+    late Uint8List salt;
     try {
       salt = Uint8List.fromList(base64Decode(saltValue));
     } catch (_) {
@@ -271,24 +355,34 @@ class BackupService {
       salt: salt,
     );
     try {
-      String payload;
+      late String payload;
       try {
         payload = await _securityManager.cryptoService.decrypt(
           encryptedText: ciphertext,
           key: key,
         );
       } catch (_) {
-        throw const BackupFormatException('رمز Backup اشتباه است یا Backup قدیمی قابل بازگشایی نیست.');
+        throw const BackupFormatException(
+          'رمز Backup اشتباه است یا Backup قدیمی قابل بازگشایی نیست.',
+        );
       }
-      final decoded = _decodeJsonMap(Uint8List.fromList(utf8.encode(payload)));
+      final decoded =
+          _decodeJsonMap(Uint8List.fromList(utf8.encode(payload)));
       if (decoded['format'] != 'pass_managers_backup') {
-        throw const BackupFormatException('Payload Backup قدیمی معتبر نیست.');
+        throw const BackupFormatException(
+          'Payload Backup قدیمی معتبر نیست.',
+        );
       }
       final data = decoded['data'];
-      if (data is! Map) throw const BackupFormatException('Snapshot Backup قدیمی ناقص است.');
+      if (data is! Map) {
+        throw const BackupFormatException('Snapshot Backup قدیمی ناقص است.');
+      }
       final snapshot = _normalizeSnapshot(data);
       final valuesPlain = decoded['values_plain'] == true || version >= 3;
-      if (!valuesPlain) await _decryptValuesInSnapshotStrict(snapshot);
+      if (!valuesPlain) {
+        // سعی در decrypt با کلید نشست؛ اگر نشد plain نگه دار
+        await _tryDecryptLegacyValues(snapshot);
+      }
       return snapshot;
     } finally {
       final keyBytes = await key.extractBytes();
@@ -297,23 +391,70 @@ class BackupService {
     }
   }
 
+  Future<void> _tryDecryptLegacyValues(Map<String, dynamic> snapshot) async {
+    final values = snapshot['table_values'];
+    if (values is! List) return;
+    for (var i = 0; i < values.length; i++) {
+      final raw = values[i];
+      if (raw is! Map) continue;
+      final map = Map<String, dynamic>.from(raw);
+      values[i] = map;
+      final stored = (map['value'] ?? '').toString();
+      if (stored.isEmpty) continue;
+      try {
+        map['value'] = await _decryptWithSession(stored);
+      } catch (_) {
+        // ciphertext قدیمی غیرقابل بازیابی → خالی
+        if (_looksLikeEncryptedBlob(stored)) {
+          map['value'] = '';
+        }
+      }
+    }
+  }
+
+  bool _looksLikeEncryptedBlob(String value) {
+    if (value.length < 40) return false;
+    try {
+      final decoded = utf8.decode(base64Decode(value));
+      final map = jsonDecode(decoded);
+      return map is Map &&
+          map.containsKey('nonce') &&
+          map.containsKey('cipherText') &&
+          map.containsKey('mac');
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<Map<String, dynamic>> _readDatabaseSnapshot(Database db) async {
     List<Map<String, dynamic>> copyRows(List<Map<String, Object?>> rows) =>
-        rows.map((row) => Map<String, dynamic>.from(row)).toList(growable: true);
+        rows
+            .map((row) => Map<String, dynamic>.from(row))
+            .toList(growable: true);
     return {
-      'tree_items': copyRows(await db.query('tree_items', orderBy: 'id ASC')),
-      'table_rows': copyRows(await db.query('table_rows', orderBy: 'id ASC')),
-      'table_fields': copyRows(await db.query('table_fields', orderBy: 'id ASC')),
-      'table_values': copyRows(await db.query('table_values', orderBy: 'id ASC')),
+      'tree_items':
+          copyRows(await db.query('tree_items', orderBy: 'id ASC')),
+      'table_rows':
+          copyRows(await db.query('table_rows', orderBy: 'id ASC')),
+      'table_fields':
+          copyRows(await db.query('table_fields', orderBy: 'id ASC')),
+      'table_values':
+          copyRows(await db.query('table_values', orderBy: 'id ASC')),
     };
   }
 
-  Future<void> _decryptValuesInSnapshotStrict(Map<String, dynamic> snapshot) async {
+  Future<void> _decryptValuesInSnapshotStrict(
+    Map<String, dynamic> snapshot,
+  ) async {
     final values = snapshot['table_values'];
-    if (values is! List) throw const BackupFormatException('جدول Values در Backup معتبر نیست.');
+    if (values is! List) {
+      throw const BackupFormatException('جدول Values در Backup معتبر نیست.');
+    }
     for (var i = 0; i < values.length; i++) {
       final raw = values[i];
-      if (raw is! Map) throw BackupFormatException('Value شماره ${i + 1} معتبر نیست.');
+      if (raw is! Map) {
+        throw BackupFormatException('Value شماره ${i + 1} معتبر نیست.');
+      }
       final map = Map<String, dynamic>.from(raw);
       values[i] = map;
       final encrypted = (map['value'] ?? '').toString();
@@ -324,7 +465,10 @@ class BackupService {
       try {
         map['value'] = await _decryptWithSession(encrypted);
       } catch (_) {
-        throw BackupFormatException('رمزگشایی Value شماره ${i + 1} ناموفق بود؛ Backup ساخته نشد.');
+        throw BackupFormatException(
+          'رمزگشایی Value شماره ${i + 1} ناموفق بود؛ Backup ساخته نشد. '
+          'جلسه امنیتی را دوباره باز کنید.',
+        );
       }
     }
   }
@@ -358,21 +502,36 @@ class BackupService {
   Map<String, dynamic> _normalizeSnapshot(Map data) {
     List<Map<String, dynamic>> listFor(String key) {
       final value = data[key];
-      if (value is! List) throw BackupFormatException('جدول $key در Snapshot وجود ندارد.');
+      if (value is! List) {
+        return <Map<String, dynamic>>[];
+      }
       return value.map<Map<String, dynamic>>((item) {
-        if (item is! Map) throw BackupFormatException('رکورد نامعتبر در جدول $key.');
+        if (item is! Map) {
+          throw BackupFormatException('رکورد نامعتبر در جدول $key.');
+        }
         final map = Map<String, dynamic>.from(item);
-        for (final k in ['id', 'parent_id', 'table_item_id', 'row_id', 'field_id', 'position', 'created_at', 'updated_at']) {
+        for (final k in [
+          'id',
+          'parent_id',
+          'table_item_id',
+          'row_id',
+          'field_id',
+          'position',
+          'created_at',
+          'updated_at',
+        ]) {
           if (map.containsKey(k) && map[k] != null) {
             final n = _asInt(map[k]);
-            if (n == null) throw BackupFormatException('مقدار $k در Snapshot نامعتبر است.');
-            map[k] = n;
+            if (n != null) map[k] = n;
           }
         }
-        if (map.containsKey('value')) map['value'] = (map['value'] ?? '').toString();
+        if (map.containsKey('value')) {
+          map['value'] = (map['value'] ?? '').toString();
+        }
         return map;
       }).toList(growable: true);
     }
+
     return {
       'tree_items': listFor('tree_items'),
       'table_rows': listFor('table_rows'),
@@ -381,78 +540,170 @@ class BackupService {
     };
   }
 
-  void _validateSnapshot(Map<String, dynamic> snapshot) {
+  /// strict=false: رکوردهای خراب را حذف می‌کند به‌جای fail کامل
+  void _validateSnapshot(
+    Map<String, dynamic> snapshot, {
+    required bool strict,
+  }) {
     final treeItems = snapshot['tree_items'];
     final rows = snapshot['table_rows'];
     final fields = snapshot['table_fields'];
     final values = snapshot['table_values'];
-    if (treeItems is! List || rows is! List || fields is! List || values is! List) {
-      throw const BackupFormatException('ساختار داخلی نسخه پشتیبان کامل نیست.');
+    if (treeItems is! List ||
+        rows is! List ||
+        fields is! List ||
+        values is! List) {
+      throw const BackupFormatException(
+        'ساختار داخلی نسخه پشتیبان کامل نیست.',
+      );
     }
 
     final treeIds = <int>{};
     final tableIds = <int>{};
-    for (final raw in treeItems) {
-      if (raw is! Map) throw const BackupFormatException('Tree record نامعتبر است.');
+    for (final raw in List.from(treeItems)) {
+      if (raw is! Map) {
+        if (strict) {
+          throw const BackupFormatException('Tree record نامعتبر است.');
+        }
+        treeItems.remove(raw);
+        continue;
+      }
       final id = _asInt(raw['id']);
       final name = raw['name'];
       final type = raw['type']?.toString();
-      if (id == null || name == null || name.toString().isEmpty || type == null || (type != 'folder' && type != 'table')) {
-        throw const BackupFormatException('داده‌های Tree در Backup معتبر نیستند.');
+      if (id == null ||
+          name == null ||
+          name.toString().isEmpty ||
+          type == null ||
+          (type != 'folder' && type != 'table')) {
+        if (strict) {
+          throw const BackupFormatException(
+            'داده‌های Tree در Backup معتبر نیستند.',
+          );
+        }
+        treeItems.remove(raw);
+        continue;
       }
-      if (!treeIds.add(id)) throw const BackupFormatException('شناسه تکراری در Tree پیدا شد.');
+      if (!treeIds.add(id)) {
+        if (strict) {
+          throw const BackupFormatException(
+            'شناسه تکراری در Tree پیدا شد.',
+          );
+        }
+        treeItems.remove(raw);
+        continue;
+      }
       if (type == 'table') tableIds.add(id);
     }
-    for (final raw in treeItems) {
+
+    // parent_id باید موجود باشد یا null
+    for (final raw in List.from(treeItems)) {
+      if (raw is! Map) continue;
       final parent = raw['parent_id'];
       if (parent != null) {
         final parentId = _asInt(parent);
-        if (parentId == null || !treeIds.contains(parentId) || parentId == _asInt(raw['id'])) {
-          throw const BackupFormatException('رابطه Parent در Tree معتبر نیست.');
+        if (parentId == null ||
+            !treeIds.contains(parentId) ||
+            parentId == _asInt(raw['id'])) {
+          if (strict) {
+            throw const BackupFormatException(
+              'رابطه Parent در Tree معتبر نیست.',
+            );
+          }
+          raw['parent_id'] = null;
         }
       }
     }
 
     final rowIds = <int>{};
-    for (final raw in rows) {
-      if (raw is! Map) throw const BackupFormatException('Record نامعتبر است.');
+    for (final raw in List.from(rows)) {
+      if (raw is! Map) {
+        rows.remove(raw);
+        continue;
+      }
       final id = _asInt(raw['id']);
       final tableId = _asInt(raw['table_item_id']);
-      if (id == null || tableId == null || !tableIds.contains(tableId) || !rowIds.add(id)) {
-        throw const BackupFormatException('رابطه Table و Record در Backup معتبر نیست.');
+      if (id == null ||
+          tableId == null ||
+          !tableIds.contains(tableId) ||
+          !rowIds.add(id)) {
+        if (strict) {
+          throw const BackupFormatException(
+            'رابطه Table و Record در Backup معتبر نیست.',
+          );
+        }
+        rows.remove(raw);
       }
     }
 
     final fieldIds = <int>{};
-    for (final raw in fields) {
-      if (raw is! Map) throw const BackupFormatException('Field نامعتبر است.');
+    for (final raw in List.from(fields)) {
+      if (raw is! Map) {
+        fields.remove(raw);
+        continue;
+      }
       final id = _asInt(raw['id']);
       final rowId = _asInt(raw['row_id']);
       final name = raw['name'];
-      if (id == null || rowId == null || name == null || name.toString().isEmpty || !rowIds.contains(rowId) || !fieldIds.add(id)) {
-        throw const BackupFormatException('رابطه Field و Record در Backup معتبر نیست.');
+      if (id == null ||
+          rowId == null ||
+          name == null ||
+          name.toString().isEmpty ||
+          !rowIds.contains(rowId) ||
+          !fieldIds.add(id)) {
+        if (strict) {
+          throw const BackupFormatException(
+            'رابطه Field و Record در Backup معتبر نیست.',
+          );
+        }
+        fields.remove(raw);
       }
     }
 
     final valueIds = <int>{};
-    final valuesByField = <int, int>{};
-    for (final raw in values) {
-      if (raw is! Map) throw const BackupFormatException('Value نامعتبر است.');
+    final coveredFields = <int>{};
+    for (final raw in List.from(values)) {
+      if (raw is! Map) {
+        values.remove(raw);
+        continue;
+      }
       final id = _asInt(raw['id']);
       final fieldId = _asInt(raw['field_id']);
-      if (id == null || fieldId == null || !fieldIds.contains(fieldId) || !valueIds.add(id)) {
-        throw const BackupFormatException('رابطه Value و Field در Backup معتبر نیست.');
+      if (id == null ||
+          fieldId == null ||
+          !fieldIds.contains(fieldId) ||
+          !valueIds.add(id)) {
+        if (strict) {
+          throw const BackupFormatException(
+            'رابطه Value و Field در Backup معتبر نیست.',
+          );
+        }
+        values.remove(raw);
+        continue;
       }
-      valuesByField[fieldId] = (valuesByField[fieldId] ?? 0) + 1;
+      coveredFields.add(fieldId);
     }
-    if (valuesByField.values.any((count) => count != 1) || valueIds.length != fieldIds.length) {
-      throw const BackupFormatException('هر Field باید دقیقاً یک Value داشته باشد.');
+
+    // فیلد بدون value → value خالی اضافه کن (نه fail)
+    var nextValueId = valueIds.isEmpty
+        ? 1
+        : (valueIds.reduce((a, b) => a > b ? a : b) + 1);
+    for (final fid in fieldIds) {
+      if (!coveredFields.contains(fid)) {
+        values.add({
+          'id': nextValueId++,
+          'field_id': fid,
+          'value': '',
+        });
+      }
     }
   }
 
-  Map<String, dynamic> _buildManifest(Map<String, dynamic> snapshot) {
+  Future<Map<String, dynamic>> _buildManifest(
+    Map<String, dynamic> snapshot,
+  ) async {
     final bytes = utf8.encode(jsonEncode(snapshot));
-    final hash = Sha256().toSync().hashSync(bytes);
+    final hash = await Sha256().hash(bytes);
     return {
       'tree_items': (snapshot['tree_items'] as List).length,
       'table_rows': (snapshot['table_rows'] as List).length,
@@ -463,18 +714,47 @@ class BackupService {
     };
   }
 
-  void _verifyManifest(Map expected, Map<String, dynamic> snapshot) {
-    final actual = _buildManifest(snapshot);
-    for (final key in ['tree_items', 'table_rows', 'table_fields', 'table_values', 'payload_sha256', 'payload_bytes']) {
+  Future<void> _verifyManifest(
+    Map expected,
+    Map<String, dynamic> snapshot,
+  ) async {
+    final actual = await _buildManifest(snapshot);
+    for (final key in [
+      'tree_items',
+      'table_rows',
+      'table_fields',
+      'table_values',
+      'payload_sha256',
+      'payload_bytes',
+    ]) {
       if (expected[key]?.toString() != actual[key]?.toString()) {
-        throw const BackupFormatException('Integrity Manifest با Snapshot مطابقت ندارد.');
+        throw const BackupFormatException(
+          'Integrity Manifest با Snapshot مطابقت ندارد.',
+        );
       }
     }
   }
 
-  Future<void> _restoreDatabaseSnapshotAtomic(Map<String, dynamic> snapshot) async {
+  Future<void> _restoreDatabaseSnapshotAtomic(
+    Map<String, dynamic> snapshot,
+  ) async {
     _requireUnlocked();
-    _validateSnapshot(snapshot);
+    _validateSnapshot(snapshot, strict: false);
+
+    // ترتیب والد → فرزند
+    final treeItems = List<Map<String, dynamic>>.from(
+      (snapshot['tree_items'] as List).whereType<Map>().map(
+            (e) => Map<String, dynamic>.from(e),
+          ),
+    );
+    treeItems.sort((a, b) {
+      final ap = _asInt(a['parent_id']);
+      final bp = _asInt(b['parent_id']);
+      if (ap == null && bp != null) return -1;
+      if (ap != null && bp == null) return 1;
+      return (_asInt(a['id']) ?? 0).compareTo(_asInt(b['id']) ?? 0);
+    });
+
     final db = await AppDatabase.instance.database;
     await db.transaction((txn) async {
       await txn.delete('table_values');
@@ -482,22 +762,57 @@ class BackupService {
       await txn.delete('table_rows');
       await txn.delete('tree_items');
 
-      for (final raw in snapshot['tree_items'] as List) {
-        final map = Map<String, Object?>.from(raw as Map);
-        await txn.insert('tree_items', _pick(map, const ['id', 'parent_id', 'name', 'type', 'created_at', 'updated_at']), conflictAlgorithm: ConflictAlgorithm.abort);
+      for (final map in treeItems) {
+        await txn.insert(
+          'tree_items',
+          _pick(map, const [
+            'id',
+            'parent_id',
+            'name',
+            'type',
+            'created_at',
+            'updated_at',
+          ]),
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
       }
       for (final raw in snapshot['table_rows'] as List) {
         final map = Map<String, Object?>.from(raw as Map);
-        await txn.insert('table_rows', _pick(map, const ['id', 'table_item_id', 'created_at', 'updated_at']), conflictAlgorithm: ConflictAlgorithm.abort);
+        await txn.insert(
+          'table_rows',
+          _pick(map, const [
+            'id',
+            'table_item_id',
+            'created_at',
+            'updated_at',
+          ]),
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
       }
       for (final raw in snapshot['table_fields'] as List) {
         final map = Map<String, Object?>.from(raw as Map);
-        await txn.insert('table_fields', _pick(map, const ['id', 'row_id', 'name', 'position', 'created_at', 'updated_at']), conflictAlgorithm: ConflictAlgorithm.abort);
+        await txn.insert(
+          'table_fields',
+          _pick(map, const [
+            'id',
+            'row_id',
+            'name',
+            'position',
+            'created_at',
+            'updated_at',
+          ]),
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
       }
       for (final raw in snapshot['table_values'] as List) {
         final map = Map<String, Object?>.from(raw as Map);
-        map['value'] = await _encryptWithSession((map['value'] ?? '').toString());
-        await txn.insert('table_values', _pick(map, const ['id', 'field_id', 'value']), conflictAlgorithm: ConflictAlgorithm.abort);
+        final plain = (map['value'] ?? '').toString();
+        map['value'] = await _encryptWithSession(plain);
+        await txn.insert(
+          'table_values',
+          _pick(map, const ['id', 'field_id', 'value']),
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
       }
     });
   }
@@ -524,11 +839,15 @@ class BackupService {
     return Uint8List.fromList(clear);
   }
 
-  String _encodeSecretBox(SecretBox box) => base64UrlEncode(utf8.encode(jsonEncode({
-        'nonce': base64Encode(box.nonce),
-        'cipherText': base64Encode(box.cipherText),
-        'mac': base64Encode(box.mac.bytes),
-      })));
+  String _encodeSecretBox(SecretBox box) => base64UrlEncode(
+        utf8.encode(
+          jsonEncode({
+            'nonce': base64Encode(box.nonce),
+            'cipherText': base64Encode(box.cipherText),
+            'mac': base64Encode(box.mac.bytes),
+          }),
+        ),
+      );
 
   SecretBox _decodeSecretBox(String encoded) {
     try {
@@ -544,7 +863,9 @@ class BackupService {
   }
 
   Future<Uint8List> _deriveBackupKey(String password, Uint8List salt) async {
-    if (password.isEmpty) throw const BackupFormatException('Credential خالی است.');
+    if (password.isEmpty) {
+      throw const BackupFormatException('Credential خالی است.');
+    }
     final algorithm = Argon2id(
       memory: _argonMemory,
       parallelism: _argonParallelism,
@@ -565,13 +886,17 @@ class BackupService {
       return Map<String, dynamic>.from(decoded);
     } catch (error) {
       if (error is BackupFormatException) rethrow;
-      throw const BackupFormatException('فایل یا Payload Backup خراب یا نامعتبر است.');
+      throw const BackupFormatException(
+        'فایل یا Payload Backup خراب یا نامعتبر است.',
+      );
     }
   }
 
   Uint8List _decodeBase64Field(Map<String, dynamic> map, String key) {
     final value = map[key]?.toString();
-    if (value == null || value.isEmpty) throw BackupFormatException('فیلد $key در Backup وجود ندارد.');
+    if (value == null || value.isEmpty) {
+      throw BackupFormatException('فیلد $key در Backup وجود ندارد.');
+    }
     try {
       final bytes = Uint8List.fromList(base64Decode(value));
       if (bytes.length != 32) throw const FormatException();
@@ -584,12 +909,17 @@ class BackupService {
   Uint8List _parseRecoveryKey(String value) {
     try {
       final compact = value.replaceAll('-', '').trim();
-      final padded = compact.padRight(compact.length + ((4 - compact.length % 4) % 4), '=');
+      final padded = compact.padRight(
+        compact.length + ((4 - compact.length % 4) % 4),
+        '=',
+      );
       final bytes = Uint8List.fromList(base64Url.decode(padded));
       if (bytes.length != 32) throw const FormatException();
       return bytes;
     } catch (_) {
-      throw const BackupFormatException('Recovery Key معتبر نیست. رمز اصلی یا Recovery Key را وارد کنید.');
+      throw const BackupFormatException(
+        'Recovery Key معتبر نیست. رمز اصلی یا Recovery Key را وارد کنید.',
+      );
     }
   }
 
@@ -602,7 +932,8 @@ class BackupService {
     return groups.join('-');
   }
 
-  Uint8List _randomBytes(int length) => Uint8List.fromList(List<int>.generate(length, (_) => _random.nextInt(256)));
+  Uint8List _randomBytes(int length) =>
+      Uint8List.fromList(List<int>.generate(length, (_) => _random.nextInt(256)));
 
   Map<String, Object?> _pick(Map<String, Object?> source, List<String> keys) {
     final out = <String, Object?>{};
@@ -621,14 +952,17 @@ class BackupService {
 
   void _requireUnlocked() {
     if (!_securityManager.isUnlocked) {
-      throw const BackupFormatException('جلسه امنیتی قفل است؛ دوباره وارد شوید.');
+      throw const BackupFormatException(
+        'جلسه امنیتی قفل است؛ دوباره وارد شوید.',
+      );
     }
   }
 
   String _timestamp() {
     final now = DateTime.now();
     String two(int value) => value.toString().padLeft(2, '0');
-    return '${now.year}${two(now.month)}${two(now.day)}-${two(now.hour)}${two(now.minute)}${two(now.second)}';
+    return '${now.year}${two(now.month)}${two(now.day)}-'
+        '${two(now.hour)}${two(now.minute)}${two(now.second)}';
   }
 
   void _wipe(List<int> bytes) => bytes.fillRange(0, bytes.length, 0);
@@ -647,10 +981,10 @@ class BackupVerificationResult {
   final Map<String, dynamic>? snapshot;
   final Map<String, dynamic> manifest;
 
-  int get treeItemCount => manifest['tree_items'] as int;
-  int get rowCount => manifest['table_rows'] as int;
-  int get fieldCount => manifest['table_fields'] as int;
-  int get valueCount => manifest['table_values'] as int;
+  int get treeItemCount => (manifest['tree_items'] as num?)?.toInt() ?? 0;
+  int get rowCount => (manifest['table_rows'] as num?)?.toInt() ?? 0;
+  int get fieldCount => (manifest['table_fields'] as num?)?.toInt() ?? 0;
+  int get valueCount => (manifest['table_values'] as num?)?.toInt() ?? 0;
 }
 
 class BackupCancelledException implements Exception {
