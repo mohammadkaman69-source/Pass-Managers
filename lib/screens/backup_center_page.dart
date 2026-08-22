@@ -60,8 +60,8 @@ class _BackupCenterPageState extends State<BackupCenterPage> {
   }
 
   Future<void> _showRecoveryKey() async {
-    final key = widget.backupService.lastRecoveryKey;
-    if (key == null || key.isEmpty) {
+    final recoveryKey = widget.backupService.lastRecoveryKey;
+    if (recoveryKey == null || recoveryKey.isEmpty) {
       await showDialog<void>(
         context: context,
         builder: (context) => AlertDialog(
@@ -86,7 +86,7 @@ class _BackupCenterPageState extends State<BackupCenterPage> {
       builder: (context) => AlertDialog(
         title: const Text('Recovery Key'),
         content: SelectableText(
-          key,
+          recoveryKey,
           textDirection: TextDirection.ltr,
           style: const TextStyle(
             fontFamily: 'monospace',
@@ -97,7 +97,7 @@ class _BackupCenterPageState extends State<BackupCenterPage> {
         actions: [
           TextButton(
             onPressed: () async {
-              await Clipboard.setData(ClipboardData(text: key));
+              await Clipboard.setData(ClipboardData(text: recoveryKey));
               if (context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('Recovery Key کپی شد.')),
