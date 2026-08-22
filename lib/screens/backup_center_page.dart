@@ -47,7 +47,9 @@ class _BackupCenterPageState extends State<BackupCenterPage> {
       if (!mounted) return;
       setState(() => _result = result);
     } on BackupCancelledException {
-      // User cancelled file selection.
+      if (mounted) {
+        setState(() => _error = 'انتخاب فایل لغو شد.');
+      }
     } on BackupFormatException catch (error) {
       if (mounted) setState(() => _error = error.message);
     } catch (error) {
