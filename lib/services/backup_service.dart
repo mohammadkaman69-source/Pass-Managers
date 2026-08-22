@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:math';
-import 'dart:typed_data';
 
 import 'package:cryptography/cryptography.dart';
 import 'package:file_picker/file_picker.dart';
@@ -224,7 +223,7 @@ class BackupService {
         }
       }
 
-      if (dekBytes == null || dekBytes.length != _keyLength) {
+      if (dekBytes.length != _keyLength) {
         throw const BackupFormatException('کلید داده Backup معتبر نیست.');
       }
       final plain = await _decryptString(payload, SecretKey(dekBytes));
