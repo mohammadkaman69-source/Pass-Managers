@@ -59,6 +59,102 @@ class _BackupCenterPageState extends State<BackupCenterPage> {
     }
   }
 
+  Future<void> _restore() async {
+    final credential = _credentialController.text.trim();
+    if (credential.isEmpty) {
+      setState(() {
+        _error = 'برای Restore رمز اصلی یا Recovery Key را وارد کنید.';
+        _result = null;
+      });
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Restore واقعی Vault'),
+        content: const Text(
+          'این عملیات اطلاعات فعلی Vault را با Backup انتخاب‌شده جایگزین می‌کند. '
+          'اگر هر مرحله اعتبارسنجی شکست بخورد، Restore متوقف می‌شود و Vault فعلی حفظ می‌شود. ادامه می‌دهید؟',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('لغو'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Restore'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    setState(() {
+      _busy = true;
+      _error = null;
+      _result = null;
+    });
+
+    try {
+      final result = await widget.backupService.restoreBackup(
+        masterPassword: credential,
+      );
+      if (!mounted) return;
+
+      setState(() => _result = result);
+
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Restore با موفقیت تأیید شد'),
+          content: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Backup رمزگشایی، اعتبارسنجی، جایگزینی و پس از Restore دوباره بررسی شد.',
+                ),
+                const SizedBox(height: 16),
+                Text('Tree Items: ${result.treeItemCount}'),
+                Text('Records: ${result.rowCount}'),
+                Text('Fields: ${result.fieldCount}'),
+                Text('Values: ${result.valueCount}'),
+                const SizedBox(height: 12),
+                const Text('Integrity: PASS'),
+              ],
+            ),
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('تأیید'),
+            ),
+          ],
+        ),
+      );
+    } on BackupCancelledException {
+      if (mounted) setState(() => _error = 'انتخاب فایل Backup لغو شد.');
+    } on BackupFormatException catch (error) {
+      if (mounted) {
+        setState(() {
+          _error = 'Restore انجام نشد:\n${error.message}';
+        });
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _error = 'Restore انجام نشد:\n$error';
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   Future<void> _showRecoveryKey() async {
     final recoveryKey = widget.backupService.lastRecoveryKey;
     if (recoveryKey == null || recoveryKey.isEmpty) {
@@ -129,12 +225,12 @@ class _BackupCenterPageState extends State<BackupCenterPage> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   const Text(
-                    'Verify Backup',
+                    'Backup / Restore Center',
                     style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
                   const Text(
-                    'یک فایل Backup را انتخاب کنید. بررسی فقط فایل را اعتبارسنجی می‌کند و دیتابیس فعلی را تغییر نمی‌دهد.',
+                    'همین صفحه برای Verify و Restore استفاده می‌شود. Restore فقط پس از احراز هویت، اعتبارسنجی کامل و بررسی نهایی دیتابیس موفق اعلام می‌شود.',
                   ),
                   const SizedBox(height: 16),
                   TextField(
@@ -147,22 +243,40 @@ class _BackupCenterPageState extends State<BackupCenterPage> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  ElevatedButton.icon(
-                    onPressed: _busy ? null : _verify,
-                    icon: _busy
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.verified_outlined),
-                    label: const Text('انتخاب و بررسی Backup'),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: _busy ? null : _verify,
+                          icon: const Icon(Icons.verified_outlined),
+                          label: const Text('Verify'),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: _busy ? null : _restore,
+                          icon: _busy
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(Icons.restore_outlined),
+                          label: const Text('Restore'),
+                        ),
+                      ),
+                    ],
                   ),
                   if (_error != null) ...[
                     const SizedBox(height: 12),
                     Text(
                       _error!,
-                      style: TextStyle(color: Theme.of(context).colorScheme.error),
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
                     ),
                   ],
                   if (_result != null) ...[
@@ -181,7 +295,7 @@ class _BackupCenterPageState extends State<BackupCenterPage> {
                     Text('Fields: ${_result!.fieldCount}'),
                     Text('Values: ${_result!.valueCount}'),
                     const SizedBox(height: 8),
-                    const Text('این بررسی هیچ تغییری در Vault فعلی ایجاد نکرد.'),
+                    const Text('Integrity verification completed.'),
                   ],
                 ],
               ),
