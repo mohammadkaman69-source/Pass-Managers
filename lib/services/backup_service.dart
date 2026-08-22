@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:math';
 
 import 'package:cryptography/cryptography.dart';
@@ -173,8 +174,8 @@ class BackupService {
     }
   }
 
+  /// خواندن مطمئن بایت‌های فایل .pmb روی Android/SAF و دسکتاپ
   Future<Uint8List> _pickBackupBytes({required String dialogTitle}) async {
-    // file_picker v12: pickFile (no withData). bytes via PlatformFile.readAsBytes()
     final sourceFile = await FilePicker.pickFile(
       dialogTitle: dialogTitle,
       type: FileType.custom,
@@ -185,14 +186,38 @@ class BackupService {
     }
 
     try {
-      final loaded = await sourceFile.readAsBytes();
-      if (loaded.isEmpty) {
-        throw const BackupFormatException(
-          'فایل Backup خالی است یا قابل خواندن نیست. '
-          'از File Manager فایل .pmb را انتخاب کنید.',
-        );
+      // 1) بایت‌های از پیش بارگذاری‌شده
+      final cached = sourceFile.bytes;
+      if (cached != null && cached.isNotEmpty) {
+        return Uint8List.fromList(cached);
       }
-      return Uint8List.fromList(loaded);
+
+      // 2) readAsBytes (API رسمی file_picker v12)
+      try {
+        final loaded = await sourceFile.readAsBytes();
+        if (loaded.isNotEmpty) {
+          return Uint8List.fromList(loaded);
+        }
+      } catch (_) {
+        // ادامه با مسیر فایل
+      }
+
+      // 3) مسیر فایل محلی (Android/Desktop)
+      final path = sourceFile.path;
+      if (path != null && path.isNotEmpty) {
+        final file = File(path);
+        if (await file.exists()) {
+          final disk = await file.readAsBytes();
+          if (disk.isNotEmpty) {
+            return Uint8List.fromList(disk);
+          }
+        }
+      }
+
+      throw const BackupFormatException(
+        'فایل Backup خالی است یا قابل خواندن نیست. '
+        'از File Manager فایل .pmb را انتخاب کنید.',
+      );
     } catch (e) {
       if (e is BackupFormatException || e is BackupCancelledException) {
         rethrow;
