@@ -25,7 +25,9 @@ class AppStorageService {
       try {
         await _channel.invokeMethod<Map>('ensureAppFolders');
         return;
-      } catch (_) {}
+      } catch (error) {
+        throw StateError('Unable to prepare the public NexVault folder: $error');
+      }
     }
     await ensureRoot();
   }
@@ -33,41 +35,29 @@ class AppStorageService {
   Future<Directory> ensureRoot() async {
     if (_root != null && await _root!.exists()) return _root!;
 
-    Directory? candidate;
-
     if (Platform.isAndroid) {
-      final dir = Directory('/storage/emulated/0/$appFolderName');
-      if (await _canWrite(dir)) {
-        candidate = dir;
+      final root = Directory('/storage/emulated/0/$appFolderName');
+      try {
+        if (!await root.exists()) {
+          await root.create(recursive: true);
+        }
+      } catch (error) {
+        throw StateError(
+          'Unable to create the public NexVault folder at ${root.path}: $error',
+        );
       }
-    }
-
-    if (candidate == null) {
-      final docs = await getApplicationDocumentsDirectory();
-      candidate = Directory(p.join(docs.path, appFolderName));
-      await candidate.create(recursive: true);
-    }
-
-    if (!await candidate.exists()) {
-      await candidate.create(recursive: true);
-    }
-
-    _root = candidate;
-    return _root!;
-  }
-
-  Future<bool> _canWrite(Directory dir) async {
-    try {
-      if (!await dir.exists()) {
-        await dir.create(recursive: true);
+      if (!await root.exists()) {
+        throw StateError('The public NexVault folder is unavailable: ${root.path}');
       }
-      final probe = File(p.join(dir.path, '.write_test'));
-      await probe.writeAsString('ok', flush: true);
-      await probe.delete();
-      return true;
-    } catch (_) {
-      return false;
+      _root = root;
+      return root;
     }
+
+    final docs = await getApplicationDocumentsDirectory();
+    final root = Directory(p.join(docs.path, appFolderName));
+    await root.create(recursive: true);
+    _root = root;
+    return root;
   }
 
   Future<String?> saveBackupBytes(List<int> bytes, String fileName) async {
