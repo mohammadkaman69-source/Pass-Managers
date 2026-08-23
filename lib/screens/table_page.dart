@@ -33,12 +33,13 @@ class _TablePageState extends State<TablePage> {
   // استایل مشترک اندازه‌گیری و رندر — باید یکی باشد تا خط آخر بریده نشود
   static const double _fontSize = 13;
   static const double _lineHeight = 1.25;
-  static const double _padH = 8;
-  static const double _padV = 8; // کمی بیشتر از قبل تا خط آخر زیر سلول بعدی نرود
-  static const double _minCellW = 88;
-  static const double _maxCellW = 260;
+  static const double _padH = 10;
+  static const double _padV = 8;
+  static const double _minCellW = 96;
+  static const double _maxCellW = 320;
   static const double _minCellH = 40;
   static const double _actionH = 44;
+  static const double _widthSafety = 16; // حاشیه امن تا کلمه/عدد وسط نشکند
   static const Color _borderColor = Color(0xFFBDBDBD);
   static const Color _headerBg = Color(0xFFECECEC);
 
@@ -874,36 +875,42 @@ class _TablePageState extends State<TablePage> {
     );
   }
 
-  /// عرض سلول بر اساس طولانی‌ترین خط متن (مثل سلول‌های داده)
-  double _measureWidth(String text, {FontWeight weight = FontWeight.normal}) {
+  /// عرض ترجیحی یک‌خطی: متن تا حد ممکن در یک خط بماند (کلمه/عدد نشکند)
+  double _measureWidth(
+    String text, {
+    FontWeight weight = FontWeight.normal,
+    TextScaler scaler = TextScaler.noScaling,
+  }) {
     final content = text.isEmpty ? ' ' : text;
     final painter = TextPainter(
       text: TextSpan(text: content, style: _cellStyle(weight: weight)),
       textDirection: TextDirection.rtl,
+      textScaler: scaler,
       maxLines: 1,
+      textWidthBasis: TextWidthBasis.longestLine,
     )..layout();
-    final width = painter.width + (_padH * 2) + 4;
+    final width = painter.width + (_padH * 2) + _widthSafety;
     if (width < _minCellW) return _minCellW;
     if (width > _maxCellW) return _maxCellW;
     return width.ceilToDouble();
   }
 
-  /// ارتفاع واقعی متن با همان استایل رندر + padding؛ حاشیه امن برای جلوگیری از برش خط آخر
+  /// ارتفاع با همان textScaler و استایل رندر
   double _measureHeight(
     String text,
     double columnWidth, {
     FontWeight weight = FontWeight.normal,
+    TextScaler scaler = TextScaler.noScaling,
   }) {
     final content = text.isEmpty ? ' ' : text;
-    // عرض قابل نوشتن = عرض سلول − padding افقی − کمی برای border
-    final maxW = (columnWidth - (_padH * 2) - 2).clamp(20.0, 400.0);
+    final maxW = (columnWidth - (_padH * 2) - 2).clamp(20.0, 500.0);
     final painter = TextPainter(
       text: TextSpan(text: content, style: _cellStyle(weight: weight)),
       textDirection: TextDirection.rtl,
+      textScaler: scaler,
       maxLines: null,
       textWidthBasis: TextWidthBasis.parent,
     )..layout(maxWidth: maxW);
-    // padding عمودی + حاشیه امن (descent فونت فارسی گاهی از height محاسبه بیشتر است)
     final h = painter.height + (_padV * 2) + 6;
     if (h < _minCellH) return _minCellH;
     return h.ceilToDouble();
@@ -966,15 +973,20 @@ class _TablePageState extends State<TablePage> {
 
     final sample = group.first;
     final fieldCount = sample.columns.length;
+    final scaler = MediaQuery.textScalerOf(context);
 
-    // عرض هدر: بر اساس متن خود هدر (مثل سلول داده)، bold
+    // عرض هدر: ترجیح یک‌خطی بر اساس متن خود هدر (bold)
     var headerWidth = _minCellW;
     for (final col in sample.columns) {
-      final w = _measureWidth(col.name, weight: FontWeight.bold);
+      final w = _measureWidth(
+        col.name,
+        weight: FontWeight.bold,
+        scaler: scaler,
+      );
       if (w > headerWidth) headerWidth = w;
     }
 
-    // عرض هر ستون رکورد: بر اساس بیشترین متن سلول‌های همان رکورد
+    // عرض هر ستون رکورد: max عرض یک‌خطی سلول‌های همان رکورد
     final recordWidths = <double>[];
     for (final row in group) {
       var maxW = _minCellW;
@@ -984,19 +996,23 @@ class _TablePageState extends State<TablePage> {
         final fieldId = col.fieldId;
         final raw = fieldId == null ? '' : (row.values[fieldId] ?? '');
         final display = _displayValue(col, raw);
-        final w = _measureWidth(display.isEmpty ? ' ' : display);
+        final w = _measureWidth(
+          display.isEmpty ? ' ' : display,
+          scaler: scaler,
+        );
         if (w > maxW) maxW = w;
       }
       recordWidths.add(maxW);
     }
 
-    // ارتفاع هر فیلد = max(ارتفاع هدر با متن خودش، ارتفاع همه سلول‌های داده همان فیلد)
+    // ارتفاع هر فیلد = max(هدر، سلول‌های داده همان فیلد)
     final rowHeights = <double>[];
     for (var i = 0; i < fieldCount; i++) {
       var h = _measureHeight(
         sample.columns[i].name,
         headerWidth,
         weight: FontWeight.bold,
+        scaler: scaler,
       );
       for (var r = 0; r < group.length; r++) {
         final row = group[r];
@@ -1008,6 +1024,7 @@ class _TablePageState extends State<TablePage> {
         final cellH = _measureHeight(
           display.isEmpty ? ' ' : display,
           recordWidths[r],
+          scaler: scaler,
         );
         if (cellH > h) h = cellH;
       }
@@ -1212,3 +1229,4 @@ class _TablePageState extends State<TablePage> {
     );
   }
 }
+
