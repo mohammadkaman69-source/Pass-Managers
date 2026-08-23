@@ -72,7 +72,7 @@ class _BackupCenterPageState extends State<BackupCenterPage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Restore واقعی Vault'),
+        title: const Text('بازیابی واقعی Vault'),
         content: const Text(
           'این عملیات اطلاعات فعلی Vault را با Backup انتخاب‌شده جایگزین می‌کند. '
           'اگر هر مرحله اعتبارسنجی شکست بخورد، Restore متوقف می‌شود و Vault فعلی حفظ می‌شود. ادامه می‌دهید؟',
@@ -84,7 +84,7 @@ class _BackupCenterPageState extends State<BackupCenterPage> {
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Restore'),
+            child: const Text('بازیابی'),
           ),
         ],
       ),
@@ -109,7 +109,7 @@ class _BackupCenterPageState extends State<BackupCenterPage> {
       await showDialog<void>(
         context: context,
         builder: (dialogContext) => AlertDialog(
-          title: const Text('Restore با موفقیت تأیید شد'),
+          title: const Text('بازیابی با موفقیت تأیید شد'),
           content: SingleChildScrollView(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -119,12 +119,12 @@ class _BackupCenterPageState extends State<BackupCenterPage> {
                   'Backup رمزگشایی، اعتبارسنجی، جایگزینی و پس از Restore دوباره بررسی شد.',
                 ),
                 const SizedBox(height: 16),
-                Text('Tree Items: ${result.treeItemCount}'),
-                Text('Records: ${result.rowCount}'),
-                Text('Fields: ${result.fieldCount}'),
-                Text('Values: ${result.valueCount}'),
+                Text('آیتم‌های درخت: ${result.treeItemCount}'),
+                Text('رکوردها: ${result.rowCount}'),
+                Text('فیلدها: ${result.fieldCount}'),
+                Text('مقادیر: ${result.valueCount}'),
                 const SizedBox(height: 12),
-                const Text('Integrity: PASS'),
+                const Text('یکپارچگی: موفق'),
               ],
             ),
           ),
@@ -141,13 +141,13 @@ class _BackupCenterPageState extends State<BackupCenterPage> {
     } on BackupFormatException catch (error) {
       if (mounted) {
         setState(() {
-          _error = 'Restore انجام نشد:\n${error.message}';
+          _error = 'بازیابی انجام نشد:\n${error.message}';
         });
       }
     } catch (error) {
       if (mounted) {
         setState(() {
-          _error = 'Restore انجام نشد:\n$error';
+          _error = 'بازیابی انجام نشد:\n$error';
         });
       }
     } finally {
@@ -225,12 +225,13 @@ class _BackupCenterPageState extends State<BackupCenterPage> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   const Text(
-                    'Backup / Restore Center',
+                    'مرکز Backup / Restore',
                     style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
                   const Text(
-                    'همین صفحه برای Verify و Restore استفاده می‌شود. Restore فقط پس از احراز هویت، اعتبارسنجی کامل و بررسی نهایی دیتابیس موفق اعلام می‌شود.',
+                    'همین صفحه برای بررسی و بازیابی استفاده می‌شود. '
+                    'بازیابی فقط پس از احراز هویت، اعتبارسنجی کامل و بررسی نهایی دیتابیس موفق اعلام می‌شود.',
                   ),
                   const SizedBox(height: 16),
                   TextField(
@@ -238,7 +239,7 @@ class _BackupCenterPageState extends State<BackupCenterPage> {
                     obscureText: true,
                     textDirection: TextDirection.ltr,
                     decoration: const InputDecoration(
-                      labelText: 'Master Password یا Recovery Key',
+                      labelText: 'رمز اصلی یا Recovery Key',
                       border: OutlineInputBorder(),
                     ),
                   ),
@@ -249,7 +250,7 @@ class _BackupCenterPageState extends State<BackupCenterPage> {
                         child: OutlinedButton.icon(
                           onPressed: _busy ? null : _verify,
                           icon: const Icon(Icons.verified_outlined),
-                          label: const Text('Verify'),
+                          label: const Text('بررسی'),
                         ),
                       ),
                       const SizedBox(width: 10),
@@ -265,7 +266,7 @@ class _BackupCenterPageState extends State<BackupCenterPage> {
                                   ),
                                 )
                               : const Icon(Icons.restore_outlined),
-                          label: const Text('Restore'),
+                          label: const Text('بازیابی'),
                         ),
                       ),
                     ],
@@ -288,14 +289,14 @@ class _BackupCenterPageState extends State<BackupCenterPage> {
                       style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 8),
-                    Text('Format: v${_result!.formatVersion}'),
-                    Text('Schema: v${_result!.schemaVersion}'),
-                    Text('Tree Items: ${_result!.treeItemCount}'),
-                    Text('Records: ${_result!.rowCount}'),
-                    Text('Fields: ${_result!.fieldCount}'),
-                    Text('Values: ${_result!.valueCount}'),
+                    Text('فرمت: v${_result!.formatVersion}'),
+                    Text('اسکیما: v${_result!.schemaVersion}'),
+                    Text('آیتم‌های درخت: ${_result!.treeItemCount}'),
+                    Text('رکوردها: ${_result!.rowCount}'),
+                    Text('فیلدها: ${_result!.fieldCount}'),
+                    Text('مقادیر: ${_result!.valueCount}'),
                     const SizedBox(height: 8),
-                    const Text('Integrity verification completed.'),
+                    const Text('اعتبارسنجی یکپارچگی انجام شد.'),
                   ],
                 ],
               ),
