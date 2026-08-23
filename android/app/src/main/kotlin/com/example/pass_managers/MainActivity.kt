@@ -53,12 +53,11 @@ class MainActivity : FlutterFragmentActivity() {
 
                 METHOD_ENSURE_FOLDERS -> {
                     try {
-                        val paths = ensurePublicFolders()
-                        result.success(paths)
+                        result.success(ensurePublicFolders())
                     } catch (e: Exception) {
                         result.error(
                             "FOLDER_FAILED",
-                            e.message ?: "Could not create NexVault folders.",
+                            e.message ?: "Could not create NexVault folder.",
                             null
                         )
                     }
@@ -69,11 +68,11 @@ class MainActivity : FlutterFragmentActivity() {
                 }
 
                 METHOD_SAVE_PDF -> {
-                    saveDirect(call, result, "pdf", "application/pdf")
+                    saveDirect(call, result, "application/pdf")
                 }
 
                 METHOD_SAVE_BACKUP -> {
-                    saveDirect(call, result, "backup", "application/octet-stream")
+                    saveDirect(call, result, "application/octet-stream")
                 }
 
                 METHOD_PICK_SAVE_BACKUP -> {
@@ -103,26 +102,26 @@ class MainActivity : FlutterFragmentActivity() {
         }
     }
 
+    /**
+     * Creates only the single public NexVault directory.
+     * Backup and PDF files are stored directly in this directory.
+     */
     private fun ensurePublicFolders(): Map<String, String> {
         val root = publicAppRoot()
-        val backup = File(root, "backup")
-        val pdf = File(root, "pdf")
-        if (!backup.exists()) backup.mkdirs()
-        if (!pdf.exists()) pdf.mkdirs()
-        return mapOf(
-            "root" to root.absolutePath,
-            "backup" to backup.absolutePath,
-            "pdf" to pdf.absolutePath
-        )
+        return mapOf("root" to root.absolutePath)
     }
 
+    /**
+     * Public root of the device's primary shared storage:
+     * /storage/emulated/0/NexVault
+     */
     private fun publicAppRoot(): File {
-        val docs = Environment.getExternalStoragePublicDirectory(
-            Environment.DIRECTORY_DOCUMENTS
+        val root = File(
+            Environment.getExternalStorageDirectory(),
+            APP_FOLDER
         )
-        val root = File(docs, APP_FOLDER)
-        if (!root.exists()) {
-            root.mkdirs()
+        if (!root.exists() && !root.mkdirs() && !root.exists()) {
+            throw IOException("Could not create NexVault folder at ${root.absolutePath}")
         }
         return root
     }
@@ -130,7 +129,6 @@ class MainActivity : FlutterFragmentActivity() {
     private fun saveDirect(
         call: MethodCall,
         result: MethodChannel.Result,
-        subFolder: String,
         mimeType: String
     ) {
         val fileName = call.argument<String>("fileName")
@@ -146,14 +144,13 @@ class MainActivity : FlutterFragmentActivity() {
         }
 
         try {
-            val path = writeToAppFolder(subFolder, fileName, bytes, mimeType)
+            val path = writeToAppFolder(fileName, bytes, mimeType)
             result.success(path)
         } catch (e: Exception) {
-            createDocument(
-                call = call,
-                result = result,
-                requestCode = if (subFolder == "pdf") REQUEST_CREATE_PDF else REQUEST_CREATE_BACKUP,
-                mimeType = mimeType
+            result.error(
+                "SAVE_FAILED",
+                e.message ?: "Failed to save into NexVault folder.",
+                null
             )
         }
     }
@@ -164,7 +161,6 @@ class MainActivity : FlutterFragmentActivity() {
     ) {
         val fileName = call.argument<String>("fileName")
         val bytes = call.argument<ByteArray>("bytes")
-        val subFolder = call.argument<String>("subFolder") ?: "backup"
         val mimeType = call.argument<String>("mimeType") ?: "application/octet-stream"
 
         if (fileName.isNullOrBlank()) {
@@ -177,7 +173,7 @@ class MainActivity : FlutterFragmentActivity() {
         }
 
         try {
-            val path = writeToAppFolder(subFolder, fileName, bytes, mimeType)
+            val path = writeToAppFolder(fileName, bytes, mimeType)
             result.success(path)
         } catch (e: Exception) {
             result.error(
@@ -189,13 +185,14 @@ class MainActivity : FlutterFragmentActivity() {
     }
 
     private fun writeToAppFolder(
-        subFolder: String,
         fileName: String,
         bytes: ByteArray,
         mimeType: String
     ): String {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            val relative = "Documents/$APP_FOLDER/$subFolder"
+            // MediaStore RELATIVE_PATH is relative to primary shared storage.
+            // Deliberately no Documents/backup/pdf components are used.
+            val relative = APP_FOLDER
             val values = ContentValues().apply {
                 put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
                 put(MediaStore.MediaColumns.MIME_TYPE, mimeType)
@@ -212,9 +209,7 @@ class MainActivity : FlutterFragmentActivity() {
         }
 
         val root = publicAppRoot()
-        val dir = File(root, subFolder)
-        if (!dir.exists()) dir.mkdirs()
-        val file = File(dir, fileName)
+        val file = File(root, fileName)
         FileOutputStream(file).use { out ->
             out.write(bytes)
             out.flush()
@@ -270,9 +265,6 @@ class MainActivity : FlutterFragmentActivity() {
         pendingResult = result
         pendingRequestCode = requestCode
 
-        val subFolder = call.argument<String>("subFolder")
-            ?: if (requestCode == REQUEST_CREATE_PDF) "pdf" else "backup"
-
         val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
             addCategory(Intent.CATEGORY_OPENABLE)
             type = mimeType
@@ -280,7 +272,7 @@ class MainActivity : FlutterFragmentActivity() {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 try {
                     ensurePublicFolders()
-                    val docId = "primary:Documents/$APP_FOLDER/$subFolder"
+                    val docId = "primary:$APP_FOLDER"
                     val initialUri = DocumentsContract.buildDocumentUri(
                         "com.android.externalstorage.documents",
                         docId
