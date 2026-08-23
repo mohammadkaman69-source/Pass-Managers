@@ -1,6 +1,5 @@
 package com.example.pass_managers
 
-import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.content.ContentValues
 import android.content.Intent
@@ -56,9 +55,6 @@ class MainActivity : FlutterFragmentActivity() {
                 METHOD_SAVE_PDF -> saveDirect(call, result, "application/pdf")
                 METHOD_SAVE_BACKUP -> saveDirect(call, result, "application/octet-stream")
 
-                // These method names are retained for Flutter compatibility.
-                // They no longer open ACTION_CREATE_DOCUMENT: Backup and PDF
-                // are always written directly into the single NexVault root.
                 METHOD_PICK_SAVE_BACKUP -> saveFromTempPath(
                     call,
                     result,
@@ -76,13 +72,17 @@ class MainActivity : FlutterFragmentActivity() {
         }
     }
 
-    /** Creates only the single public NexVault directory. */
+    /** Creates only the single public NexVault directory when possible. */
     private fun ensurePublicFolders(): Map<String, String> {
-        val root = publicAppRoot()
-        return mapOf("root" to root.absolutePath)
+        return try {
+            val root = publicAppRoot()
+            mapOf("root" to root.absolutePath)
+        } catch (_: Exception) {
+            mapOf("root" to "Download/$APP_FOLDER")
+        }
     }
 
-    /** Primary shared storage root: /storage/emulated/0/NexVault */
+    /** Preferred shared storage root: /storage/emulated/0/NexVault */
     private fun publicAppRoot(): File {
         val root = File(Environment.getExternalStorageDirectory(), APP_FOLDER)
         if (!root.exists() && !root.mkdirs() && !root.exists()) {
@@ -147,11 +147,6 @@ class MainActivity : FlutterFragmentActivity() {
         }
     }
 
-    /**
-     * Reads the temporary file created by Flutter and writes it directly into
-     * the single NexVault root. No Android document picker is opened and no
-     * Documents/Download/backup/pdf subdirectory is involved.
-     */
     private fun saveFromTempPath(
         call: MethodCall,
         result: MethodChannel.Result,
@@ -188,18 +183,36 @@ class MainActivity : FlutterFragmentActivity() {
         }
     }
 
+    /**
+     * 1) Prefer /storage/emulated/0/NexVault (root)
+     * 2) MediaStore only allows Download or Documents as primary dirs,
+     *    so fallback is Download/NexVault (still a NexVault folder).
+     */
     private fun writeToAppFolder(
         fileName: String,
         bytes: ByteArray,
         mimeType: String
     ): String {
+        try {
+            val root = publicAppRoot()
+            val file = File(root, fileName)
+            FileOutputStream(file).use { out ->
+                out.write(bytes)
+                out.flush()
+            }
+            if (file.exists() && file.length() > 0L) {
+                return file.absolutePath
+            }
+        } catch (_: Exception) {
+            // Fall through to MediaStore.
+        }
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val relativePath = "Download/$APP_FOLDER"
             val values = ContentValues().apply {
                 put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
                 put(MediaStore.MediaColumns.MIME_TYPE, mimeType)
-                // This is deliberately only the app folder name. It is relative
-                // to primary shared storage, so the result is /NexVault/file.
-                put(MediaStore.MediaColumns.RELATIVE_PATH, APP_FOLDER)
+                put(MediaStore.MediaColumns.RELATIVE_PATH, relativePath)
                 put(MediaStore.MediaColumns.IS_PENDING, 1)
             }
 
@@ -219,18 +232,17 @@ class MainActivity : FlutterFragmentActivity() {
                 contentResolver.update(uri, complete, null, null)
                 return uri.toString()
             } catch (e: Exception) {
-                contentResolver.delete(uri, null, null)
+                try {
+                    contentResolver.delete(uri, null, null)
+                } catch (_: Exception) {
+                }
                 throw e
             }
         }
 
-        val root = publicAppRoot()
-        val file = File(root, fileName)
-        FileOutputStream(file).use { out ->
-            out.write(bytes)
-            out.flush()
-        }
-        return file.absolutePath
+        throw IOException(
+            "Could not write into NexVault. Grant storage / all-files access."
+        )
     }
 
     private fun openPdf(
