@@ -7,7 +7,6 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
-import android.provider.DocumentsContract
 import android.provider.MediaStore
 import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -30,16 +29,8 @@ class MainActivity : FlutterFragmentActivity() {
         private const val METHOD_PICK_SAVE_BACKUP = "pickAndSaveBackup"
         private const val METHOD_PICK_SAVE_PDF = "pickAndSavePdf"
 
-        private const val REQUEST_CREATE_PDF = 9001
-        private const val REQUEST_CREATE_BACKUP = 9002
-
         private const val APP_FOLDER = "NexVault"
     }
-
-    private var pendingBytes: ByteArray? = null
-    private var pendingFileName: String? = null
-    private var pendingResult: MethodChannel.Result? = null
-    private var pendingRequestCode: Int? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -48,9 +39,7 @@ class MainActivity : FlutterFragmentActivity() {
             flutterEngine.dartExecutor.binaryMessenger,
             CHANNEL
         ).setMethodCallHandler { call, result ->
-
             when (call.method) {
-
                 METHOD_ENSURE_FOLDERS -> {
                     try {
                         result.success(ensurePublicFolders())
@@ -63,63 +52,39 @@ class MainActivity : FlutterFragmentActivity() {
                     }
                 }
 
-                METHOD_SAVE_TO_APP_FOLDER -> {
-                    saveToAppFolder(call, result)
-                }
+                METHOD_SAVE_TO_APP_FOLDER -> saveToAppFolder(call, result)
+                METHOD_SAVE_PDF -> saveDirect(call, result, "application/pdf")
+                METHOD_SAVE_BACKUP -> saveDirect(call, result, "application/octet-stream")
 
-                METHOD_SAVE_PDF -> {
-                    saveDirect(call, result, "application/pdf")
-                }
+                // These method names are retained for Flutter compatibility.
+                // They no longer open ACTION_CREATE_DOCUMENT: Backup and PDF
+                // are always written directly into the single NexVault root.
+                METHOD_PICK_SAVE_BACKUP -> saveFromTempPath(
+                    call,
+                    result,
+                    "application/octet-stream"
+                )
+                METHOD_PICK_SAVE_PDF -> saveFromTempPath(
+                    call,
+                    result,
+                    "application/pdf"
+                )
 
-                METHOD_SAVE_BACKUP -> {
-                    saveDirect(call, result, "application/octet-stream")
-                }
-
-                METHOD_PICK_SAVE_BACKUP -> {
-                    createDocument(
-                        call = call,
-                        result = result,
-                        requestCode = REQUEST_CREATE_BACKUP,
-                        mimeType = "application/octet-stream"
-                    )
-                }
-
-                METHOD_PICK_SAVE_PDF -> {
-                    createDocument(
-                        call = call,
-                        result = result,
-                        requestCode = REQUEST_CREATE_PDF,
-                        mimeType = "application/pdf"
-                    )
-                }
-
-                METHOD_OPEN_PDF -> {
-                    openPdf(call, result)
-                }
-
+                METHOD_OPEN_PDF -> openPdf(call, result)
                 else -> result.notImplemented()
             }
         }
     }
 
-    /**
-     * Creates only the single public NexVault directory.
-     * Backup and PDF files are stored directly in this directory.
-     */
+    /** Creates only the single public NexVault directory. */
     private fun ensurePublicFolders(): Map<String, String> {
         val root = publicAppRoot()
         return mapOf("root" to root.absolutePath)
     }
 
-    /**
-     * Public root of the device's primary shared storage:
-     * /storage/emulated/0/NexVault
-     */
+    /** Primary shared storage root: /storage/emulated/0/NexVault */
     private fun publicAppRoot(): File {
-        val root = File(
-            Environment.getExternalStorageDirectory(),
-            APP_FOLDER
-        )
+        val root = File(Environment.getExternalStorageDirectory(), APP_FOLDER)
         if (!root.exists() && !root.mkdirs() && !root.exists()) {
             throw IOException("Could not create NexVault folder at ${root.absolutePath}")
         }
@@ -144,8 +109,7 @@ class MainActivity : FlutterFragmentActivity() {
         }
 
         try {
-            val path = writeToAppFolder(fileName, bytes, mimeType)
-            result.success(path)
+            result.success(writeToAppFolder(fileName, bytes, mimeType))
         } catch (e: Exception) {
             result.error(
                 "SAVE_FAILED",
@@ -173,8 +137,48 @@ class MainActivity : FlutterFragmentActivity() {
         }
 
         try {
-            val path = writeToAppFolder(fileName, bytes, mimeType)
-            result.success(path)
+            result.success(writeToAppFolder(fileName, bytes, mimeType))
+        } catch (e: Exception) {
+            result.error(
+                "SAVE_FAILED",
+                e.message ?: "Failed to save into NexVault folder.",
+                null
+            )
+        }
+    }
+
+    /**
+     * Reads the temporary file created by Flutter and writes it directly into
+     * the single NexVault root. No Android document picker is opened and no
+     * Documents/Download/backup/pdf subdirectory is involved.
+     */
+    private fun saveFromTempPath(
+        call: MethodCall,
+        result: MethodChannel.Result,
+        mimeType: String
+    ) {
+        val fileName = call.argument<String>("fileName")
+        val path = call.argument<String>("path")
+
+        if (fileName.isNullOrBlank()) {
+            result.error("INVALID_FILE_NAME", "File name is empty.", null)
+            return
+        }
+        if (path.isNullOrBlank()) {
+            result.error("INVALID_DATA", "Temporary file path is empty.", null)
+            return
+        }
+
+        try {
+            val temp = File(path)
+            if (!temp.exists() || !temp.isFile) {
+                throw IOException("Temporary file does not exist: $path")
+            }
+            val bytes = temp.readBytes()
+            if (bytes.isEmpty()) {
+                throw IOException("Temporary file is empty.")
+            }
+            result.success(writeToAppFolder(fileName, bytes, mimeType))
         } catch (e: Exception) {
             result.error(
                 "SAVE_FAILED",
@@ -190,22 +194,34 @@ class MainActivity : FlutterFragmentActivity() {
         mimeType: String
     ): String {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            // MediaStore RELATIVE_PATH is relative to primary shared storage.
-            // Deliberately no Documents/backup/pdf components are used.
-            val relative = APP_FOLDER
             val values = ContentValues().apply {
                 put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
                 put(MediaStore.MediaColumns.MIME_TYPE, mimeType)
-                put(MediaStore.MediaColumns.RELATIVE_PATH, relative)
+                // This is deliberately only the app folder name. It is relative
+                // to primary shared storage, so the result is /NexVault/file.
+                put(MediaStore.MediaColumns.RELATIVE_PATH, APP_FOLDER)
+                put(MediaStore.MediaColumns.IS_PENDING, 1)
             }
+
             val collection = MediaStore.Files.getContentUri("external")
             val uri = contentResolver.insert(collection, values)
                 ?: throw IOException("MediaStore insert failed.")
-            contentResolver.openOutputStream(uri)?.use { out ->
-                out.write(bytes)
-                out.flush()
-            } ?: throw IOException("Could not open MediaStore output stream.")
-            return uri.toString()
+
+            try {
+                contentResolver.openOutputStream(uri)?.use { out ->
+                    out.write(bytes)
+                    out.flush()
+                } ?: throw IOException("Could not open MediaStore output stream.")
+
+                val complete = ContentValues().apply {
+                    put(MediaStore.MediaColumns.IS_PENDING, 0)
+                }
+                contentResolver.update(uri, complete, null, null)
+                return uri.toString()
+            } catch (e: Exception) {
+                contentResolver.delete(uri, null, null)
+                throw e
+            }
         }
 
         val root = publicAppRoot()
@@ -217,90 +233,11 @@ class MainActivity : FlutterFragmentActivity() {
         return file.absolutePath
     }
 
-    private fun createDocument(
-        call: MethodCall,
-        result: MethodChannel.Result,
-        requestCode: Int,
-        mimeType: String
-    ) {
-        if (pendingResult != null) {
-            result.error(
-                "SAVE_IN_PROGRESS",
-                "Another file save operation is already in progress.",
-                null
-            )
-            return
-        }
-
-        val fileName = call.argument<String>("fileName")
-        if (fileName.isNullOrBlank()) {
-            result.error("INVALID_FILE_NAME", "File name is empty.", null)
-            return
-        }
-
-        val path = call.argument<String>("path")
-        val bytes: ByteArray? = when {
-            !path.isNullOrBlank() -> {
-                try {
-                    File(path).readBytes()
-                } catch (e: Exception) {
-                    result.error(
-                        "INVALID_DATA",
-                        e.message ?: "Could not read temp file.",
-                        null
-                    )
-                    return
-                }
-            }
-            else -> call.argument<ByteArray>("bytes")
-        }
-
-        if (bytes == null || bytes.isEmpty()) {
-            result.error("INVALID_DATA", "File data is empty.", null)
-            return
-        }
-
-        pendingBytes = bytes.copyOf()
-        pendingFileName = fileName
-        pendingResult = result
-        pendingRequestCode = requestCode
-
-        val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
-            addCategory(Intent.CATEGORY_OPENABLE)
-            type = mimeType
-            putExtra(Intent.EXTRA_TITLE, fileName)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                try {
-                    ensurePublicFolders()
-                    val docId = "primary:$APP_FOLDER"
-                    val initialUri = DocumentsContract.buildDocumentUri(
-                        "com.android.externalstorage.documents",
-                        docId
-                    )
-                    putExtra(DocumentsContract.EXTRA_INITIAL_URI, initialUri)
-                } catch (_: Exception) {
-                }
-            }
-        }
-
-        try {
-            startActivityForResult(intent, requestCode)
-        } catch (exception: Exception) {
-            clearPendingSave()
-            result.error(
-                "LAUNCH_FAILED",
-                exception.message ?: "Could not open the file picker.",
-                null
-            )
-        }
-    }
-
     private fun openPdf(
         call: MethodCall,
         result: MethodChannel.Result
     ) {
         val uriString = call.argument<String>("uri")
-
         if (uriString.isNullOrBlank()) {
             result.error("INVALID_URI", "PDF URI is empty.", null)
             return
@@ -340,90 +277,5 @@ class MainActivity : FlutterFragmentActivity() {
                 null
             )
         }
-    }
-
-    @Deprecated(
-        "Deprecated in Android SDK, but retained for Flutter compatibility."
-    )
-    override fun onActivityResult(
-        requestCode: Int,
-        resultCode: Int,
-        data: Intent?
-    ) {
-        super.onActivityResult(requestCode, resultCode, data)
-
-        if (requestCode != REQUEST_CREATE_PDF &&
-            requestCode != REQUEST_CREATE_BACKUP
-        ) {
-            return
-        }
-
-        val result = pendingResult
-        val bytes = pendingBytes
-
-        clearPendingSave()
-
-        if (result == null) {
-            return
-        }
-
-        if (resultCode != Activity.RESULT_OK) {
-            result.success(null)
-            return
-        }
-
-        val uri = data?.data
-
-        if (uri == null) {
-            result.error("NO_URI", "No destination file was selected.", null)
-            return
-        }
-
-        if (bytes == null || bytes.isEmpty()) {
-            result.error("NO_DATA", "File data is not available.", null)
-            return
-        }
-
-        try {
-            val outputStream =
-                contentResolver.openOutputStream(uri)
-                    ?: throw IOException("Could not open output stream.")
-
-            outputStream.use {
-                it.write(bytes)
-                it.flush()
-            }
-
-            result.success(uri.toString())
-        } catch (exception: Exception) {
-            result.error(
-                "SAVE_FAILED",
-                exception.message ?: "Failed to save file.",
-                null
-            )
-        }
-    }
-
-    private fun clearPendingSave() {
-        pendingBytes = null
-        pendingFileName = null
-        pendingResult = null
-        pendingRequestCode = null
-    }
-
-    override fun onDestroy() {
-        pendingResult?.let {
-            try {
-                it.error(
-                    "ACTIVITY_DESTROYED",
-                    "Android activity was destroyed before the file was saved.",
-                    null
-                )
-            } catch (_: Exception) {
-            }
-        }
-
-        clearPendingSave()
-        super.onDestroy()
     }
 }
