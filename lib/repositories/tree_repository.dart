@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:cryptography/cryptography.dart';
 
 import '../database/app_database.dart';
@@ -258,12 +259,15 @@ class TreeRepository {
 
     for (final record in records) {
       final encryptedValue =
-          record['value'] as String;
+          (record['value'] ?? '') as String;
 
-      final decryptedValue =
-          await _decryptValue(
-        encryptedValue,
-      );
+      String decryptedValue;
+      try {
+        decryptedValue = await _decryptValue(encryptedValue);
+      } catch (_) {
+        // یک فیلد خراب کل جدول را خالی نکند
+        decryptedValue = '';
+      }
 
       decryptedRecords.add({
         ...record,
@@ -579,29 +583,57 @@ class TreeRepository {
   Future<String> _decryptValue(
     String encryptedValue,
   ) async {
+    if (encryptedValue.isEmpty) {
+      return '';
+    }
+
+    // مقدار plain قدیمی (بدون ساختار SecretBox)
+    if (!_looksLikeEncryptedBlob(encryptedValue)) {
+      return encryptedValue;
+    }
+
     if (!_securityManager.isUnlocked) {
       throw StateError(
         'Security manager is locked.',
       );
     }
 
-    final key =
-        _securityManager.encryptionKey;
+    final key = _securityManager.encryptionKey;
 
     try {
-      final secretKey =
-          SecretKey(key);
-
+      final secretKey = SecretKey(key);
       return await _securityManager.cryptoService.decrypt(
         encryptedText: encryptedValue,
         key: secretKey,
       );
+    } catch (error) {
+      // کلید نشست با دادهٔ رمزشده جور نیست (بعد از نصب مجدد / تغییر رمز / بک‌آپ ناقص)
+      final msg = error.toString();
+      if (msg.contains('SecretBoxAuthenticationError') ||
+          msg.contains('wrong message authentication') ||
+          msg.contains('MAC')) {
+        throw StateError(
+          'رمزگشایی داده ناموفق بود. احتمالاً این داده با رمز دیگری ذخیره شده. '
+          'از بک‌آپ با همان رمز اصلی بازیابی کنید یا رکورد را دوباره وارد کنید.',
+        );
+      }
+      rethrow;
     } finally {
-      key.fillRange(
-        0,
-        key.length,
-        0,
-      );
+      key.fillRange(0, key.length, 0);
+    }
+  }
+
+  bool _looksLikeEncryptedBlob(String value) {
+    if (value.length < 40) return false;
+    try {
+      final decoded = utf8.decode(base64Decode(value));
+      final map = jsonDecode(decoded);
+      return map is Map &&
+          map.containsKey('nonce') &&
+          map.containsKey('cipherText') &&
+          map.containsKey('mac');
+    } catch (_) {
+      return false;
     }
   }
    /// Reads the complete tree recursively.
