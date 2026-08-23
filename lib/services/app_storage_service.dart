@@ -7,8 +7,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../security/app_lifecycle_manager.dart';
 
-/// Single public NexVault storage root. Backup and PDF files are stored
-/// directly in this folder; no backup/pdf subdirectories are created.
+/// ذخیره با دیالوگ سیستم (نام و مسیر قابل تغییر).
 class AppStorageService {
   AppStorageService._();
   static final AppStorageService instance = AppStorageService._();
@@ -25,9 +24,7 @@ class AppStorageService {
       try {
         await _channel.invokeMethod<Map>('ensureAppFolders');
         return;
-      } catch (error) {
-        throw StateError('Unable to prepare the public NexVault folder: $error');
-      }
+      } catch (_) {}
     }
     await ensureRoot();
   }
@@ -36,21 +33,24 @@ class AppStorageService {
     if (_root != null && await _root!.exists()) return _root!;
 
     if (Platform.isAndroid) {
-      final root = Directory('/storage/emulated/0/$appFolderName');
-      try {
-        if (!await root.exists()) {
-          await root.create(recursive: true);
+      for (final candidate in <String>[
+        '/storage/emulated/0/$appFolderName',
+        '/storage/emulated/0/Download/$appFolderName',
+      ]) {
+        final root = Directory(candidate);
+        try {
+          if (!await root.exists()) {
+            await root.create(recursive: true);
+          }
+          if (await root.exists()) {
+            _root = root;
+            return root;
+          }
+        } catch (_) {
+          continue;
         }
-      } catch (error) {
-        throw StateError(
-          'Unable to create the public NexVault folder at ${root.path}: $error',
-        );
       }
-      if (!await root.exists()) {
-        throw StateError('The public NexVault folder is unavailable: ${root.path}');
-      }
-      _root = root;
-      return root;
+      throw StateError('پوشهٔ عمومی NexVault در دسترس نیست.');
     }
 
     final docs = await getApplicationDocumentsDirectory();
@@ -58,6 +58,16 @@ class AppStorageService {
     await root.create(recursive: true);
     _root = root;
     return root;
+  }
+
+  Future<String> _defaultInitialDir() async {
+    try {
+      return (await ensureRoot()).path;
+    } catch (_) {
+      if (Platform.isAndroid) return '/storage/emulated/0/Download';
+      final docs = await getApplicationDocumentsDirectory();
+      return docs.path;
+    }
   }
 
   Future<String?> saveBackupBytes(List<int> bytes, String fileName) async {
@@ -68,19 +78,21 @@ class AppStorageService {
     return pickAndSavePdf(bytes, fileName);
   }
 
+  /// اندروید: دیالوگ File Explorer سیستم (تغییر نام و مسیر).
+  /// دسکتاپ: FilePicker.saveFile
   Future<String?> pickAndSaveBackup(List<int> bytes, String fileName) async {
     final data = Uint8List.fromList(List<int>.from(bytes));
     AppLifecycleManager.beginExternalUi();
     try {
       if (Platform.isAndroid) {
-        return await _saveViaAndroidPicker(
+        return await _saveViaAndroidSystemDialog(
           data: data,
           fileName: fileName,
           method: 'pickAndSaveBackup',
         );
       }
 
-      final initialDir = (await ensureRoot()).path;
+      final initialDir = await _defaultInitialDir();
       final uri = await FilePicker.saveFile(
         dialogTitle: 'ذخیره نسخه پشتیبان NexVault',
         fileName: fileName,
@@ -102,14 +114,14 @@ class AppStorageService {
     AppLifecycleManager.beginExternalUi();
     try {
       if (Platform.isAndroid) {
-        return await _saveViaAndroidPicker(
+        return await _saveViaAndroidSystemDialog(
           data: data,
           fileName: fileName,
           method: 'pickAndSavePdf',
         );
       }
 
-      final initialDir = (await ensureRoot()).path;
+      final initialDir = await _defaultInitialDir();
       final uri = await FilePicker.saveFile(
         dialogTitle: 'ذخیره PDF NexVault',
         fileName: fileName,
@@ -126,10 +138,8 @@ class AppStorageService {
     }
   }
 
-  /// Temporary file → native picker receives only its path to avoid Binder
-  /// transaction-size limits. The native side always targets the single
-  /// NexVault root; it does not create backup/pdf subfolders.
-  Future<String?> _saveViaAndroidPicker({
+  /// فایل موقت → نیتیو → دیالوگ CREATE_DOCUMENT سیستم
+  Future<String?> _saveViaAndroidSystemDialog({
     required Uint8List data,
     required String fileName,
     required String method,
@@ -143,18 +153,20 @@ class AppStorageService {
     );
     await temp.writeAsBytes(data, flush: true);
     try {
-      return await _channel.invokeMethod<String>(
+      final saved = await _channel.invokeMethod<String>(
         method,
         <String, dynamic>{
           'fileName': fileName,
           'path': temp.path,
         },
       );
+      return saved;
+    } on PlatformException catch (e) {
+      if (e.code == 'SAVE_FAILED') rethrow;
+      return null;
     } finally {
       try {
-        if (await temp.exists()) {
-          await temp.delete();
-        }
+        if (await temp.exists()) await temp.delete();
       } catch (_) {}
     }
   }
