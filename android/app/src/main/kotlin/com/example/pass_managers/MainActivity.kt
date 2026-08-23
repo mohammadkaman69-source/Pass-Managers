@@ -1,9 +1,11 @@
 package com.example.pass_managers
 
+import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
 import android.os.Environment
+import android.provider.DocumentsContract
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import io.flutter.embedding.android.FlutterFragmentActivity
@@ -49,11 +51,13 @@ class MainActivity : FlutterFragmentActivity() {
             val bytes = pendingBytes
             pendingResult = null
             pendingBytes = null
+            val name = pendingFileName
             pendingFileName = null
 
             if (result == null) return@registerForActivityResult
 
             if (uri == null || bytes == null) {
+                // کاربر انصراف داد
                 result.success(null)
                 return@registerForActivityResult
             }
@@ -97,6 +101,7 @@ class MainActivity : FlutterFragmentActivity() {
                 METHOD_SAVE_TO_APP_FOLDER,
                 METHOD_SAVE_PDF,
                 METHOD_SAVE_BACKUP -> {
+                    // این متدها هم دیالوگ سیستم را باز می‌کنند
                     launchSaveDialog(call, result, defaultMime(call.method))
                 }
 
@@ -125,6 +130,7 @@ class MainActivity : FlutterFragmentActivity() {
         }
     }
 
+    /** پوشهٔ عمومی برای دیفالت (اگر ساخته شود). */
     private fun ensurePublicFolders(): Map<String, String> {
         return try {
             val root = publicAppRoot()
@@ -142,6 +148,10 @@ class MainActivity : FlutterFragmentActivity() {
         return root
     }
 
+    /**
+     * دیالوگ File Explorer سیستم را باز می‌کند.
+     * bytes از Flutter یا از فایل موقت خوانده می‌شود.
+     */
     private fun launchSaveDialog(
         call: MethodCall,
         result: MethodChannel.Result,
@@ -187,6 +197,7 @@ class MainActivity : FlutterFragmentActivity() {
         pendingFileName = fileName
 
         try {
+            // CreateDocument launcher با نام پیشنهادی
             createDocumentLauncher.launch(fileName)
         } catch (e: Exception) {
             pendingResult = null
