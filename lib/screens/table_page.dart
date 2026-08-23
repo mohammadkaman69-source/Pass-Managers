@@ -128,8 +128,13 @@ class _TablePageState extends State<TablePage> {
           ),
           ElevatedButton(
             onPressed: () {
-              final columnCount = int.tryParse(columnsController.text.trim());
-              final rowCount = int.tryParse(rowsController.text.trim());
+              final columnCount = int.tryParse(
+                columnsController.text.trim(),
+              );
+              final rowCount = int.tryParse(
+                rowsController.text.trim(),
+              );
+
               if (columnCount != null &&
                   columnCount > 0 &&
                   rowCount != null &&
@@ -156,6 +161,7 @@ class _TablePageState extends State<TablePage> {
 
     for (var i = 0; i < count; i++) {
       final controller = TextEditingController();
+
       final name = await showDialog<String>(
         context: context,
         builder: (dialogContext) => AlertDialog(
@@ -182,14 +188,18 @@ class _TablePageState extends State<TablePage> {
             ElevatedButton(
               onPressed: () {
                 final value = controller.text.trim();
-                if (value.isNotEmpty) Navigator.pop(dialogContext, value);
+                if (value.isNotEmpty) {
+                  Navigator.pop(dialogContext, value);
+                }
               },
               child: const Text('بعدی'),
             ),
           ],
         ),
       );
+
       controller.dispose();
+
       if (name == null || name.trim().isEmpty) return null;
       names.add(name.trim());
     }
@@ -203,6 +213,7 @@ class _TablePageState extends State<TablePage> {
 
     final columnCount = counts['columns']!;
     final rowCount = counts['rows']!;
+
     final names = await _askColumnNames(columnCount);
     if (names == null || names.isEmpty) return;
 
@@ -211,7 +222,10 @@ class _TablePageState extends State<TablePage> {
       final createdIds = <TableRowData, int>{};
 
       for (var rowIndex = 0; rowIndex < rowCount; rowIndex++) {
-        final rowId = await _repository.createRow(tableId: widget.tableId);
+        final rowId = await _repository.createRow(
+          tableId: widget.tableId,
+        );
+
         final columns = <TableColumnDefinition>[];
         final values = <int, String>{};
 
@@ -222,16 +236,28 @@ class _TablePageState extends State<TablePage> {
             position: i,
             value: '',
           );
-          columns.add(TableColumnDefinition(names[i], fieldId: fieldId));
+
+          columns.add(
+            TableColumnDefinition(
+              names[i],
+              fieldId: fieldId,
+            ),
+          );
+
           values[fieldId] = '';
         }
 
-        final row = TableRowData(columns: columns, values: values);
+        final row = TableRowData(
+          columns: columns,
+          values: values,
+        );
+
         createdRows.add(row);
         createdIds[row] = rowId;
       }
 
       if (!mounted) return;
+
       setState(() {
         widget.table.rows.addAll(createdRows);
         _rowIds.addAll(createdIds);
@@ -248,11 +274,15 @@ class _TablePageState extends State<TablePage> {
     for (final column in row.columns) {
       final fieldId = column.fieldId;
       if (fieldId == null) continue;
-      controllers[fieldId] =
-          TextEditingController(text: row.values[fieldId] ?? '');
-      obscure[fieldId] = column.name.toLowerCase().contains('password') ||
-          column.name.contains('رمز') ||
-          column.name.contains('پسورد');
+
+      controllers[fieldId] = TextEditingController(
+        text: row.values[fieldId] ?? '',
+      );
+
+      obscure[fieldId] =
+          column.name.toLowerCase().contains('password') ||
+              column.name.contains('رمز') ||
+              column.name.contains('پسورد');
     }
 
     final result = await showDialog<bool>(
@@ -266,12 +296,17 @@ class _TablePageState extends State<TablePage> {
               child: Column(
                 children: row.columns.map((column) {
                   final fieldId = column.fieldId;
-                  if (fieldId == null) return const SizedBox.shrink();
+                  if (fieldId == null) {
+                    return const SizedBox.shrink();
+                  }
+
                   final isPassword =
                       column.name.toLowerCase().contains('password') ||
                           column.name.contains('رمز') ||
                           column.name.contains('پسورد');
+
                   final isObscured = obscure[fieldId] ?? true;
+
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 14),
                     child: TextField(
@@ -311,8 +346,11 @@ class _TablePageState extends State<TablePage> {
                 for (final column in row.columns) {
                   final fieldId = column.fieldId;
                   if (fieldId == null) continue;
-                  row.values[fieldId] = controllers[fieldId]!.text;
+
+                  row.values[fieldId] =
+                      controllers[fieldId]!.text;
                 }
+
                 Navigator.pop(dialogContext, true);
               },
               child: const Text('ذخیره'),
@@ -325,17 +363,20 @@ class _TablePageState extends State<TablePage> {
     for (final controller in controllers.values) {
       controller.dispose();
     }
+
     if (result != true) return;
 
     try {
       for (final column in row.columns) {
         final fieldId = column.fieldId;
         if (fieldId == null) continue;
+
         await _repository.updateFieldValue(
           fieldId: fieldId,
           value: row.values[fieldId] ?? '',
         );
       }
+
       if (mounted) setState(() {});
     } catch (error) {
       _showError('ذخیره رکورد ناموفق بود: $error');
@@ -349,10 +390,15 @@ class _TablePageState extends State<TablePage> {
     final fieldId = column.fieldId;
     if (fieldId == null) return;
 
-    final controller = TextEditingController(text: row.values[fieldId] ?? '');
-    final isPassword = column.name.toLowerCase().contains('password') ||
-        column.name.contains('رمز') ||
-        column.name.contains('پسورد');
+    final controller = TextEditingController(
+      text: row.values[fieldId] ?? '',
+    );
+
+    final isPassword =
+        column.name.toLowerCase().contains('password') ||
+            column.name.contains('رمز') ||
+            column.name.contains('پسورد');
+
     var obscure = isPassword;
 
     final result = await showDialog<bool>(
@@ -370,7 +416,9 @@ class _TablePageState extends State<TablePage> {
               suffixIcon: isPassword
                   ? IconButton(
                       onPressed: () {
-                        setDialogState(() => obscure = !obscure);
+                        setDialogState(() {
+                          obscure = !obscure;
+                        });
                       },
                       icon: Icon(
                         obscure
@@ -397,11 +445,17 @@ class _TablePageState extends State<TablePage> {
 
     final newValue = controller.text;
     controller.dispose();
+
     if (result != true) return;
 
     try {
       row.values[fieldId] = newValue;
-      await _repository.updateFieldValue(fieldId: fieldId, value: newValue);
+
+      await _repository.updateFieldValue(
+        fieldId: fieldId,
+        value: newValue,
+      );
+
       if (mounted) setState(() {});
     } catch (error) {
       _showError('ذخیره مقدار ناموفق بود: $error');
@@ -410,27 +464,38 @@ class _TablePageState extends State<TablePage> {
 
   Future<void> deleteRow(int index) async {
     if (index < 0 || index >= widget.table.rows.length) return;
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('حذف رکورد'),
-        content: const Text('آیا از حذف این رکورد مطمئن هستید؟'),
+        content: const Text(
+          'آیا از حذف این رکورد مطمئن هستید؟',
+        ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
+            onPressed: () => Navigator.pop(
+              dialogContext,
+              false,
+            ),
             child: const Text('انصراف'),
           ),
           ElevatedButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
+            onPressed: () => Navigator.pop(
+              dialogContext,
+              true,
+            ),
             child: const Text('حذف'),
           ),
         ],
       ),
     );
+
     if (confirmed != true) return;
 
     final row = widget.table.rows[index];
     final rowId = _rowIds[row];
+
     if (rowId == null) {
       _showError('شناسه رکورد پیدا نشد.');
       return;
@@ -438,7 +503,9 @@ class _TablePageState extends State<TablePage> {
 
     try {
       await _repository.deleteRow(rowId);
+
       if (!mounted) return;
+
       setState(() {
         widget.table.rows.removeAt(index);
         _rowIds.remove(row);
@@ -451,21 +518,31 @@ class _TablePageState extends State<TablePage> {
   Future<void> deleteRowObject(TableRowData row) async {
     final index = widget.table.rows.indexOf(row);
     if (index < 0) return;
+
     await deleteRow(index);
   }
 
-  Future<void> addRowToGroup(List<TableRowData> group) async {
+  Future<void> addRowToGroup(
+    List<TableRowData> group,
+  ) async {
     if (group.isEmpty) return;
+
     final sample = group.first;
+
     if (sample.columns.isEmpty) {
       _showError('این گروه فیلدی ندارد.');
       return;
     }
 
-    final names = sample.columns.map((c) => c.name).toList();
+    final names = sample.columns
+        .map((c) => c.name)
+        .toList();
 
     try {
-      final rowId = await _repository.createRow(tableId: widget.tableId);
+      final rowId = await _repository.createRow(
+        tableId: widget.tableId,
+      );
+
       final columns = <TableColumnDefinition>[];
       final values = <int, String>{};
 
@@ -476,19 +553,35 @@ class _TablePageState extends State<TablePage> {
           position: i,
           value: '',
         );
-        columns.add(TableColumnDefinition(names[i], fieldId: fieldId));
+
+        columns.add(
+          TableColumnDefinition(
+            names[i],
+            fieldId: fieldId,
+          ),
+        );
+
         values[fieldId] = '';
       }
 
-      final row = TableRowData(columns: columns, values: values);
+      final row = TableRowData(
+        columns: columns,
+        values: values,
+      );
 
       final lastInGroup = group.last;
-      final insertAt = widget.table.rows.indexOf(lastInGroup);
+      final insertAt =
+          widget.table.rows.indexOf(lastInGroup);
+
       if (insertAt < 0) {
         widget.table.rows.add(row);
       } else {
-        widget.table.rows.insert(insertAt + 1, row);
+        widget.table.rows.insert(
+          insertAt + 1,
+          row,
+        );
       }
+
       _rowIds[row] = rowId;
 
       if (mounted) setState(() {});
@@ -497,9 +590,13 @@ class _TablePageState extends State<TablePage> {
     }
   }
 
-  Future<void> addColumnToGroup(List<TableRowData> group) async {
+  Future<void> addColumnToGroup(
+    List<TableRowData> group,
+  ) async {
     if (group.isEmpty) return;
+
     final controller = TextEditingController();
+
     final name = await showDialog<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -514,35 +611,54 @@ class _TablePageState extends State<TablePage> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
+            onPressed: () => Navigator.pop(
+              dialogContext,
+            ),
             child: const Text('انصراف'),
           ),
           ElevatedButton(
             onPressed: () {
               final value = controller.text.trim();
-              if (value.isNotEmpty) Navigator.pop(dialogContext, value);
+
+              if (value.isNotEmpty) {
+                Navigator.pop(
+                  dialogContext,
+                  value,
+                );
+              }
             },
             child: const Text('افزودن'),
           ),
         ],
       ),
     );
+
     controller.dispose();
+
     if (name == null || name.isEmpty) return;
 
     try {
       for (final row in group) {
         final rowId = _rowIds[row];
         if (rowId == null) continue;
+
         final fieldId = await _repository.createField(
           rowId: rowId,
           name: name,
           position: row.columns.length,
           value: '',
         );
-        row.columns.add(TableColumnDefinition(name, fieldId: fieldId));
+
+        row.columns.add(
+          TableColumnDefinition(
+            name,
+            fieldId: fieldId,
+          ),
+        );
+
         row.values[fieldId] = '';
       }
+
       if (mounted) setState(() {});
     } catch (error) {
       _showError('افزودن فیلد ناموفق بود: $error');
@@ -554,11 +670,21 @@ class _TablePageState extends State<TablePage> {
     int columnIndex,
   ) async {
     if (group.isEmpty) return;
-    final sample = group.first;
-    if (columnIndex < 0 || columnIndex >= sample.columns.length) return;
 
-    final oldName = sample.columns[columnIndex].name;
-    final controller = TextEditingController(text: oldName);
+    final sample = group.first;
+
+    if (columnIndex < 0 ||
+        columnIndex >= sample.columns.length) {
+      return;
+    }
+
+    final oldName =
+        sample.columns[columnIndex].name;
+
+    final controller = TextEditingController(
+      text: oldName,
+    );
+
     final newName = await showDialog<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -573,34 +699,60 @@ class _TablePageState extends State<TablePage> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
+            onPressed: () => Navigator.pop(
+              dialogContext,
+            ),
             child: const Text('انصراف'),
           ),
           ElevatedButton(
             onPressed: () {
               final value = controller.text.trim();
-              if (value.isNotEmpty) Navigator.pop(dialogContext, value);
+
+              if (value.isNotEmpty) {
+                Navigator.pop(
+                  dialogContext,
+                  value,
+                );
+              }
             },
             child: const Text('ذخیره'),
           ),
         ],
       ),
     );
+
     controller.dispose();
-    if (newName == null || newName.isEmpty || newName == oldName) return;
+
+    if (newName == null ||
+        newName.isEmpty ||
+        newName == oldName) {
+      return;
+    }
 
     try {
       for (final row in group) {
-        if (columnIndex >= row.columns.length) continue;
+        if (columnIndex >= row.columns.length) {
+          continue;
+        }
+
         final column = row.columns[columnIndex];
         final fieldId = column.fieldId;
+
         if (fieldId == null) continue;
-        await _repository.renameField(fieldId: fieldId, name: newName);
+
+        await _repository.renameField(
+          fieldId: fieldId,
+          name: newName,
+        );
+
         column.name = newName;
       }
+
       if (mounted) setState(() {});
     } catch (error) {
-      _showError('تغییر نام فیلد ناموفق بود: $error');
+      _showError(
+        'تغییر نام فیلد ناموفق بود: $error',
+      );
     }
   }
 
@@ -609,46 +761,76 @@ class _TablePageState extends State<TablePage> {
     int columnIndex,
   ) async {
     if (group.isEmpty) return;
+
     final sample = group.first;
-    if (columnIndex < 0 || columnIndex >= sample.columns.length) return;
-    if (sample.columns.length <= 1) {
-      _showError('حداقل یک فیلد باید در رکورد باقی بماند.');
+
+    if (columnIndex < 0 ||
+        columnIndex >= sample.columns.length) {
       return;
     }
 
-    final name = sample.columns[columnIndex].name;
+    if (sample.columns.length <= 1) {
+      _showError(
+        'حداقل یک فیلد باید در رکورد باقی بماند.',
+      );
+      return;
+    }
+
+    final name =
+        sample.columns[columnIndex].name;
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('حذف فیلد'),
-        content: Text('فیلد «$name» از همه سطرهای این گروه حذف شود؟'),
+        content: Text(
+          'فیلد «$name» از همه سطرهای این گروه حذف شود؟',
+        ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
+            onPressed: () => Navigator.pop(
+              dialogContext,
+              false,
+            ),
             child: const Text('انصراف'),
           ),
           ElevatedButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
+            onPressed: () => Navigator.pop(
+              dialogContext,
+              true,
+            ),
             child: const Text('حذف'),
           ),
         ],
       ),
     );
+
     if (confirmed != true) return;
 
     try {
       for (final row in group) {
-        if (columnIndex >= row.columns.length) continue;
-        final column = row.columns[columnIndex];
+        if (columnIndex >= row.columns.length) {
+          continue;
+        }
+
+        final column =
+            row.columns[columnIndex];
+
         final fieldId = column.fieldId;
+
         if (fieldId == null) continue;
+
         await _repository.deleteField(fieldId);
+
         row.columns.removeAt(columnIndex);
         row.values.remove(fieldId);
       }
+
       if (mounted) setState(() {});
     } catch (error) {
-      _showError('حذف فیلد ناموفق بود: $error');
+      _showError(
+        'حذف فیلد ناموفق بود: $error',
+      );
     }
   }
 
@@ -658,7 +840,9 @@ class _TablePageState extends State<TablePage> {
     int newIndex,
   ) async {
     if (group.isEmpty) return;
+
     final sample = group.first;
+
     if (oldIndex < 0 ||
         newIndex < 0 ||
         oldIndex >= sample.columns.length ||
@@ -669,21 +853,42 @@ class _TablePageState extends State<TablePage> {
 
     try {
       for (final row in group) {
-        if (row.columns.any((c) => c.fieldId == null)) continue;
-        if (oldIndex >= row.columns.length || newIndex >= row.columns.length) {
+        if (row.columns.any(
+          (c) => c.fieldId == null,
+        )) {
           continue;
         }
-        final ids = row.columns.map((c) => c.fieldId!).toList();
+
+        if (oldIndex >= row.columns.length ||
+            newIndex >= row.columns.length) {
+          continue;
+        }
+
+        final ids = row.columns
+            .map((c) => c.fieldId!)
+            .toList();
+
         final moved = ids.removeAt(oldIndex);
         ids.insert(newIndex, moved);
-        await _repository.updateFieldPositions(ids);
 
-        final col = row.columns.removeAt(oldIndex);
-        row.columns.insert(newIndex, col);
+        await _repository.updateFieldPositions(
+          ids,
+        );
+
+        final col =
+            row.columns.removeAt(oldIndex);
+
+        row.columns.insert(
+          newIndex,
+          col,
+        );
       }
+
       if (mounted) setState(() {});
     } catch (error) {
-      _showError('جابه‌جایی فیلد ناموفق بود: $error');
+      _showError(
+        'جابه‌جایی فیلد ناموفق بود: $error',
+      );
     }
   }
 
@@ -692,7 +897,11 @@ class _TablePageState extends State<TablePage> {
     int columnIndex,
   ) {
     final sample = group.first;
-    if (columnIndex < 0 || columnIndex >= sample.columns.length) return;
+
+    if (columnIndex < 0 ||
+        columnIndex >= sample.columns.length) {
+      return;
+    }
 
     showModalBottomSheet(
       context: context,
@@ -702,40 +911,74 @@ class _TablePageState extends State<TablePage> {
           children: [
             ListTile(
               leading: const Icon(Icons.edit),
-              title: const Text('تغییر نام فیلد'),
+              title: const Text(
+                'تغییر نام فیلد',
+              ),
               onTap: () {
                 Navigator.pop(sheetContext);
-                renameColumnInGroup(group, columnIndex);
+                renameColumnInGroup(
+                  group,
+                  columnIndex,
+                );
               },
             ),
             ListTile(
-              leading: const Icon(Icons.arrow_upward),
+              leading: const Icon(
+                Icons.arrow_upward,
+              ),
               enabled: columnIndex > 0,
-              title: const Text('انتقال به بالا'),
+              title: const Text(
+                'انتقال به بالا',
+              ),
               onTap: columnIndex > 0
                   ? () {
-                      Navigator.pop(sheetContext);
-                      moveColumnInGroup(group, columnIndex, columnIndex - 1);
+                      Navigator.pop(
+                        sheetContext,
+                      );
+                      moveColumnInGroup(
+                        group,
+                        columnIndex,
+                        columnIndex - 1,
+                      );
                     }
                   : null,
             ),
             ListTile(
-              leading: const Icon(Icons.arrow_downward),
-              enabled: columnIndex < sample.columns.length - 1,
-              title: const Text('انتقال به پایین'),
-              onTap: columnIndex < sample.columns.length - 1
+              leading: const Icon(
+                Icons.arrow_downward,
+              ),
+              enabled: columnIndex <
+                  sample.columns.length - 1,
+              title: const Text(
+                'انتقال به پایین',
+              ),
+              onTap: columnIndex <
+                      sample.columns.length - 1
                   ? () {
-                      Navigator.pop(sheetContext);
-                      moveColumnInGroup(group, columnIndex, columnIndex + 1);
+                      Navigator.pop(
+                        sheetContext,
+                      );
+                      moveColumnInGroup(
+                        group,
+                        columnIndex,
+                        columnIndex + 1,
+                      );
                     }
                   : null,
             ),
             ListTile(
-              leading: const Icon(Icons.delete_outline),
-              title: const Text('حذف فیلد'),
+              leading: const Icon(
+                Icons.delete_outline,
+              ),
+              title: const Text(
+                'حذف فیلد',
+              ),
               onTap: () {
                 Navigator.pop(sheetContext);
-                deleteColumnInGroup(group, columnIndex);
+                deleteColumnInGroup(
+                  group,
+                  columnIndex,
+                );
               },
             ),
             const SizedBox(height: 8),
@@ -746,7 +989,10 @@ class _TablePageState extends State<TablePage> {
   }
 
   Future<void> renameTable() async {
-    final controller = TextEditingController(text: widget.table.name);
+    final controller = TextEditingController(
+      text: widget.table.name,
+    );
+
     final name = await showDialog<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -761,29 +1007,49 @@ class _TablePageState extends State<TablePage> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
+            onPressed: () => Navigator.pop(
+              dialogContext,
+            ),
             child: const Text('انصراف'),
           ),
           ElevatedButton(
             onPressed: () {
               final value = controller.text.trim();
-              if (value.isNotEmpty) Navigator.pop(dialogContext, value);
+
+              if (value.isNotEmpty) {
+                Navigator.pop(
+                  dialogContext,
+                  value,
+                );
+              }
             },
             child: const Text('ذخیره'),
           ),
         ],
       ),
     );
+
     controller.dispose();
+
     if (name == null || name.isEmpty) return;
 
     try {
-      await _repository.renameItem(id: widget.tableId, name: name);
+      await _repository.renameItem(
+        id: widget.tableId,
+        name: name,
+      );
+
       if (!mounted) return;
-      setState(() => widget.table.name = name);
+
+      setState(() {
+        widget.table.name = name;
+      });
+
       widget.onRenamed?.call(name);
     } catch (error) {
-      _showError('تغییر نام جدول ناموفق بود: $error');
+      _showError(
+        'تغییر نام جدول ناموفق بود: $error',
+      );
     }
   }
 
@@ -792,43 +1058,65 @@ class _TablePageState extends State<TablePage> {
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('حذف جدول'),
-        content: Text('جدول «${widget.table.name}» و همه رکوردهایش حذف شود؟'),
+        content: Text(
+          'جدول «${widget.table.name}» و همه رکوردهایش حذف شود؟',
+        ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
+            onPressed: () => Navigator.pop(
+              dialogContext,
+              false,
+            ),
             child: const Text('انصراف'),
           ),
           ElevatedButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
+            onPressed: () => Navigator.pop(
+              dialogContext,
+              true,
+            ),
             child: const Text('حذف'),
           ),
         ],
       ),
     );
+
     if (confirmed != true) return;
 
     try {
-      await _repository.deleteItem(widget.tableId);
+      await _repository.deleteItem(
+        widget.tableId,
+      );
+
       if (!mounted) return;
+
       widget.onDelete?.call();
       Navigator.pop(context);
     } catch (error) {
-      _showError('حذف جدول ناموفق بود: $error');
+      _showError(
+        'حذف جدول ناموفق بود: $error',
+      );
     }
   }
 
   String _rowSignature(TableRowData row) {
-    return row.columns.map((c) => c.name.trim()).join('|');
+    return row.columns
+        .map((c) => c.name.trim())
+        .join('|');
   }
 
-  List<List<TableRowData>> _groupRows(List<TableRowData> rows) {
+  List<List<TableRowData>> _groupRows(
+    List<TableRowData> rows,
+  ) {
     final groups = <List<TableRowData>>[];
+
     List<TableRowData>? current;
     String? currentSig;
 
     for (final row in rows) {
       final sig = _rowSignature(row);
-      if (current == null || sig != currentSig) {
+
+      if (current == null ||
+          sig != currentSig) {
         current = <TableRowData>[row];
         currentSig = sig;
         groups.add(current);
@@ -836,49 +1124,88 @@ class _TablePageState extends State<TablePage> {
         current.add(row);
       }
     }
+
     return groups;
   }
 
   List<TableRowData> _filteredRows() {
     final q = _searchQuery.trim().toLowerCase();
-    if (q.isEmpty) return widget.table.rows;
+
+    if (q.isEmpty) {
+      return widget.table.rows;
+    }
+
     return widget.table.rows.where((row) {
       for (final col in row.columns) {
-        if (col.name.toLowerCase().contains(q)) return true;
+        if (col.name
+            .toLowerCase()
+            .contains(q)) {
+          return true;
+        }
+
         final fieldId = col.fieldId;
+
         if (fieldId == null) continue;
-        final val = (row.values[fieldId] ?? '').toLowerCase();
-        if (val.contains(q)) return true;
+
+        final val =
+            (row.values[fieldId] ?? '')
+                .toLowerCase();
+
+        if (val.contains(q)) {
+          return true;
+        }
       }
+
       return false;
     }).toList();
   }
 
-  double _measureWidth(String text) {
-    final content = text.isEmpty ? ' ' : text;
+  double _measureWidth(
+    String text, {
+    FontWeight weight = FontWeight.normal,
+  }) {
+    final content =
+        text.isEmpty ? ' ' : text;
+
     final painter = TextPainter(
       text: TextSpan(
         text: content,
-        style: const TextStyle(fontSize: 13),
+        style: TextStyle(
+          fontSize: 13,
+          fontWeight: weight,
+        ),
       ),
       textDirection: TextDirection.rtl,
       maxLines: 1,
     )..layout();
-    final width = painter.width + 24;
+
+    const horizontalPadding = 24.0;
+
+    final width =
+        painter.width + horizontalPadding;
+
     if (width < 88) return 88;
     if (width > 260) return 260;
+
     return width;
   }
 
-  /// ارتفاع واقعی متن با همان استایل رندر + padding عمودی
   double _measureHeight(
     String text,
     double columnWidth, {
     FontWeight weight = FontWeight.normal,
   }) {
-    final content = text.isEmpty ? ' ' : text;
-    // padding افقی 8+8 و کمی حاشیه برای border
-    final maxW = (columnWidth - 18).clamp(20.0, 400.0);
+    final content =
+        text.isEmpty ? ' ' : text;
+
+    const horizontalPadding = 16.0;
+    const verticalPadding = 16.0;
+    const safetyPadding = 4.0;
+
+    final maxW =
+        (columnWidth - horizontalPadding)
+            .clamp(20.0, 400.0);
+
     final painter = TextPainter(
       text: TextSpan(
         text: content,
@@ -889,107 +1216,213 @@ class _TablePageState extends State<TablePage> {
         ),
       ),
       textDirection: TextDirection.rtl,
+      textAlign: TextAlign.right,
       maxLines: null,
-      textWidthBasis: TextWidthBasis.parent,
+      textWidthBasis:
+          TextWidthBasis.parent,
     )..layout(maxWidth: maxW);
-    // padding عمودی 6+6 + 2px حاشیه امن برای جلوگیری از برش
-    final h = painter.height + 14;
-    if (h < 36) return 36;
-    return h.ceilToDouble();
+
+    final height =
+        painter.height +
+            verticalPadding +
+            safetyPadding;
+
+    if (height < 36) {
+      return 36;
+    }
+
+    return height.ceilToDouble();
   }
 
-  String _displayValue(TableColumnDefinition column, String raw) {
-    final isPassword = column.name.toLowerCase().contains('password') ||
-        column.name.contains('رمز') ||
-        column.name.contains('پسورد');
-    if (isPassword && raw.isNotEmpty) return '••••••••';
+  String _displayValue(
+    TableColumnDefinition column,
+    String raw,
+  ) {
+    final isPassword =
+        column.name
+                .toLowerCase()
+                .contains('password') ||
+            column.name.contains('رمز') ||
+            column.name.contains('پسورد');
+
+    if (isPassword && raw.isNotEmpty) {
+      return '••••••••';
+    }
+
     return raw;
   }
 
-  Widget _buildSideBySideGroup(List<TableRowData> group) {
-    if (group.isEmpty) return const SizedBox.shrink();
+  Widget _buildSideBySideGroup(
+    List<TableRowData> group,
+  ) {
+    if (group.isEmpty) {
+      return const SizedBox.shrink();
+    }
 
     final sample = group.first;
-    final fieldCount = sample.columns.length;
+    final fieldCount =
+        sample.columns.length;
 
-    var headerWidth = 88.0;
-    for (final col in sample.columns) {
-      final w = _measureWidth(col.name);
-      if (w > headerWidth) headerWidth = w;
-    }
-    if (headerWidth > 160) headerWidth = 160;
+    /*
+     * هر ستون عرض مستقل خودش را دارد.
+     *
+     * عرض نهایی هر ستون:
+     * max(
+     *   عرض Header,
+     *   عرض محتوای تمام Recordهای همان ستون
+     * )
+     *
+     * بنابراین Header و Cell دقیقاً هم‌عرض
+     * خواهند بود و Header دیگر عرض مشترک
+     * و ثابت برای تمام ستون‌ها ندارد.
+     */
+    final columnWidths = <double>[];
 
-    final recordWidths = <double>[];
-    for (final row in group) {
-      var maxW = 88.0;
-      for (var i = 0; i < fieldCount; i++) {
-        if (i >= row.columns.length) continue;
-        final col = row.columns[i];
-        final fieldId = col.fieldId;
-        final raw = fieldId == null ? '' : (row.values[fieldId] ?? '');
-        final display = _displayValue(col, raw);
-        final w = _measureWidth(display.isEmpty ? ' ' : display);
-        if (w > maxW) maxW = w;
-      }
-      recordWidths.add(maxW);
-    }
-
-    // ارتفاع مشترک هر فیلد = max(هدر bold، همه سلول‌های داده همان فیلد)
-    final rowHeights = <double>[];
     for (var i = 0; i < fieldCount; i++) {
-      var h = _measureHeight(
+      var width = _measureWidth(
         sample.columns[i].name,
-        headerWidth,
         weight: FontWeight.bold,
       );
-      for (var r = 0; r < group.length; r++) {
-        final row = group[r];
-        if (i >= row.columns.length) continue;
-        final col = row.columns[i];
-        final fieldId = col.fieldId;
-        final raw = fieldId == null ? '' : (row.values[fieldId] ?? '');
-        final display = _displayValue(col, raw);
-        final cellH = _measureHeight(
-          display.isEmpty ? ' ' : display,
-          recordWidths[r],
-        );
-        if (cellH > h) h = cellH;
+
+      for (final row in group) {
+        if (i >= row.columns.length) {
+          continue;
+        }
+
+        final column = row.columns[i];
+        final fieldId = column.fieldId;
+
+        final raw = fieldId == null
+            ? ''
+            : (row.values[fieldId] ?? '');
+
+        final display =
+            _displayValue(column, raw);
+
+        final dataWidth =
+            _measureWidth(display);
+
+        if (dataWidth > width) {
+          width = dataWidth;
+        }
       }
-      rowHeights.add(h);
+
+      if (width < 88) {
+        width = 88;
+      }
+
+      if (width > 260) {
+        width = 260;
+      }
+
+      columnWidths.add(width);
     }
 
-    const borderColor = Color(0xFFBDBDBD);
-    const headerBg = Color(0xFFECECEC);
+    /*
+     * ارتفاع هر ردیف/فیلد مشترک بین Header و
+     * تمام Recordهای گروه محاسبه می‌شود.
+     *
+     * Header هم با همان عرض واقعی ستون
+     * اندازه‌گیری می‌شود.
+     */
+    final rowHeights = <double>[];
+
+    for (var i = 0; i < fieldCount; i++) {
+      final columnWidth =
+          columnWidths[i];
+
+      var height = _measureHeight(
+        sample.columns[i].name,
+        columnWidth,
+        weight: FontWeight.bold,
+      );
+
+      for (final row in group) {
+        if (i >= row.columns.length) {
+          continue;
+        }
+
+        final column = row.columns[i];
+        final fieldId = column.fieldId;
+
+        final raw = fieldId == null
+            ? ''
+            : (row.values[fieldId] ?? '');
+
+        final display =
+            _displayValue(column, raw);
+
+        final cellHeight = _measureHeight(
+          display,
+          columnWidth,
+        );
+
+        if (cellHeight > height) {
+          height = cellHeight;
+        }
+      }
+
+      rowHeights.add(height);
+    }
+
+    const borderColor =
+        Color(0xFFBDBDBD);
+
+    const headerBg =
+        Color(0xFFECECEC);
+
     const actionH = 44.0;
 
-    Widget headerColumn = Column(
+    final totalRecordWidth =
+        columnWidths.fold<double>(
+      0,
+      (sum, width) => sum + width,
+    );
+
+    /*
+     * Header
+     */
+    final Widget headerColumn = Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         for (var i = 0; i < fieldCount; i++)
           Container(
-            width: headerWidth,
+            width: columnWidths[i],
             height: rowHeights[i],
             decoration: BoxDecoration(
               color: headerBg,
-              border: Border.all(color: borderColor, width: 0.55),
+              border: Border.all(
+                color: borderColor,
+                width: 0.55,
+              ),
             ),
             child: Material(
               color: Colors.transparent,
               child: InkWell(
-                onLongPress: () => showColumnMenuForGroup(group, i),
+                onLongPress: () =>
+                    showColumnMenuForGroup(
+                  group,
+                  i,
+                ),
                 child: Padding(
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                      const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 6,
+                  ),
                   child: Align(
-                    alignment: Alignment.centerRight,
+                    alignment:
+                        Alignment.centerRight,
                     child: Text(
                       sample.columns[i].name,
                       style: const TextStyle(
-                        fontWeight: FontWeight.bold,
+                        fontWeight:
+                            FontWeight.bold,
                         fontSize: 13,
                         height: 1.25,
                       ),
-                      textAlign: TextAlign.right,
+                      textAlign:
+                          TextAlign.right,
                       softWrap: true,
                       maxLines: null,
                     ),
@@ -999,108 +1432,185 @@ class _TablePageState extends State<TablePage> {
             ),
           ),
         Container(
-          width: headerWidth,
+          width: columnWidths.fold<double>(
+            0,
+            (sum, width) => sum + width,
+          ),
           height: actionH,
           decoration: BoxDecoration(
             color: headerBg,
-            border: Border.all(color: borderColor, width: 0.55),
+            border: Border.all(
+              color: borderColor,
+              width: 0.55,
+            ),
           ),
         ),
       ],
     );
 
+    /*
+     * Record strips
+     */
     final recordStrips = <Widget>[];
-    for (var r = 0; r < group.length; r++) {
+
+    for (var r = 0;
+        r < group.length;
+        r++) {
       final row = group[r];
-      final w = recordWidths[r];
 
       recordStrips.add(
-        Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            for (var i = 0; i < fieldCount; i++)
-              Container(
-                width: w,
-                height: rowHeights[i],
-                decoration: BoxDecoration(
-                  border: Border.all(color: borderColor, width: 0.55),
-                ),
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    onTap: () => editCell(row, row.columns[i]),
-                    onLongPress: () => editRow(row),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 6),
-                      child: Align(
-                        alignment: Alignment.centerRight,
-                        child: Text(
-                          _displayValue(
-                            row.columns[i],
-                            row.values[row.columns[i].fieldId] ?? '',
+        SizedBox(
+          width: totalRecordWidth,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (var i = 0;
+                  i < fieldCount;
+                  i++)
+                Container(
+                  width: columnWidths[i],
+                  height: rowHeights[i],
+                  decoration:
+                      BoxDecoration(
+                    border: Border.all(
+                      color: borderColor,
+                      width: 0.55,
+                    ),
+                  ),
+                  child: Material(
+                    color:
+                        Colors.transparent,
+                    child: InkWell(
+                      onTap: () => editCell(
+                        row,
+                        row.columns[i],
+                      ),
+                      onLongPress: () =>
+                          editRow(row),
+                      child: Padding(
+                        padding:
+                            const EdgeInsets
+                                .symmetric(
+                          horizontal: 8,
+                          vertical: 6,
+                        ),
+                        child: Align(
+                          alignment:
+                              Alignment
+                                  .centerRight,
+                          child: Text(
+                            _displayValue(
+                              row.columns[i],
+                              row.values[
+                                      row.columns[
+                                          i]
+                                      .fieldId] ??
+                                  '',
+                            ),
+                            textAlign:
+                                TextAlign.right,
+                            softWrap: true,
+                            maxLines: null,
+                            style:
+                                const TextStyle(
+                              fontSize: 13,
+                              height: 1.25,
+                            ),
                           ),
-                          textAlign: TextAlign.right,
-                          softWrap: true,
-                          maxLines: null,
-                          style: const TextStyle(fontSize: 13, height: 1.25),
                         ),
                       ),
                     ),
                   ),
                 ),
-              ),
-            Container(
-              width: w,
-              height: actionH,
-              decoration: BoxDecoration(
-                border: Border.all(color: borderColor, width: 0.55),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  IconButton(
-                    padding: EdgeInsets.zero,
-                    constraints:
-                        const BoxConstraints(minWidth: 36, minHeight: 36),
-                    icon: const Icon(Icons.edit, size: 18),
-                    tooltip: 'ویرایش',
-                    onPressed: () => editRow(row),
+              Container(
+                width: totalRecordWidth,
+                height: actionH,
+                decoration: BoxDecoration(
+                  border: Border.all(
+                    color: borderColor,
+                    width: 0.55,
                   ),
-                  IconButton(
-                    padding: EdgeInsets.zero,
-                    constraints:
-                        const BoxConstraints(minWidth: 36, minHeight: 36),
-                    icon: const Icon(Icons.delete_outline, size: 16),
-                    tooltip: 'حذف',
-                    onPressed: () => deleteRowObject(row),
-                  ),
-                ],
+                ),
+                child: Row(
+                  mainAxisAlignment:
+                      MainAxisAlignment.center,
+                  children: [
+                    IconButton(
+                      padding:
+                          EdgeInsets.zero,
+                      constraints:
+                          const BoxConstraints(
+                        minWidth: 36,
+                        minHeight: 36,
+                      ),
+                      icon: const Icon(
+                        Icons.edit,
+                        size: 18,
+                      ),
+                      tooltip: 'ویرایش',
+                      onPressed: () =>
+                          editRow(row),
+                    ),
+                    IconButton(
+                      padding:
+                          EdgeInsets.zero,
+                      constraints:
+                          const BoxConstraints(
+                        minWidth: 36,
+                        minHeight: 36,
+                      ),
+                      icon: const Icon(
+                        Icons.delete_outline,
+                        size: 16,
+                      ),
+                      tooltip: 'حذف',
+                      onPressed: () =>
+                          deleteRowObject(row),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       );
     }
 
     return Card(
-      margin: const EdgeInsets.only(bottom: 16),
-      clipBehavior: Clip.antiAlias,
+      margin:
+          const EdgeInsets.only(bottom: 16),
+      clipBehavior:
+          Clip.antiAlias,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment:
+            CrossAxisAlignment.stretch,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(0, 10, 0, 4),
+            padding:
+                const EdgeInsets.fromLTRB(
+              0,
+              10,
+              0,
+              4,
+            ),
             child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
               children: [
                 Expanded(
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
+                  child:
+                      SingleChildScrollView(
+                    scrollDirection:
+                        Axis.horizontal,
                     reverse: true,
                     child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: recordStrips.reversed.toList(),
+                      crossAxisAlignment:
+                          CrossAxisAlignment
+                              .start,
+                      children:
+                          recordStrips
+                              .reversed
+                              .toList(),
                     ),
                   ),
                 ),
@@ -1110,19 +1620,34 @@ class _TablePageState extends State<TablePage> {
           ),
           const Divider(height: 1),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            padding:
+                const EdgeInsets.symmetric(
+              horizontal: 8,
+              vertical: 4,
+            ),
             child: Wrap(
-              alignment: WrapAlignment.end,
+              alignment:
+                  WrapAlignment.end,
               children: [
                 TextButton.icon(
-                  onPressed: () => addRowToGroup(group),
-                  icon: const Icon(Icons.playlist_add, size: 18),
-                  label: const Text('افزودن سطر'),
+                  onPressed: () =>
+                      addRowToGroup(group),
+                  icon: const Icon(
+                    Icons.playlist_add,
+                    size: 18,
+                  ),
+                  label:
+                      const Text('افزودن سطر'),
                 ),
                 TextButton.icon(
-                  onPressed: () => addColumnToGroup(group),
-                  icon: const Icon(Icons.add_box_outlined, size: 18),
-                  label: const Text('افزودن فیلد'),
+                  onPressed: () =>
+                      addColumnToGroup(group),
+                  icon: const Icon(
+                    Icons.add_box_outlined,
+                    size: 18,
+                  ),
+                  label:
+                      const Text('افزودن فیلد'),
                 ),
               ],
             ),
@@ -1134,7 +1659,8 @@ class _TablePageState extends State<TablePage> {
 
   @override
   Widget build(BuildContext context) {
-    final groups = _groupRows(_filteredRows());
+    final groups =
+        _groupRows(_filteredRows());
 
     return Scaffold(
       appBar: AppBar(
@@ -1148,7 +1674,9 @@ class _TablePageState extends State<TablePage> {
           if (widget.onDelete != null)
             IconButton(
               onPressed: deleteTable,
-              icon: const Icon(Icons.delete_outline),
+              icon: const Icon(
+                Icons.delete_outline,
+              ),
               tooltip: 'حذف جدول',
             ),
         ],
@@ -1158,46 +1686,88 @@ class _TablePageState extends State<TablePage> {
           AppSearchBar(
             tableId: widget.tableId,
             onQueryChanged: (q) {
-              setState(() => _searchQuery = q);
+              setState(() {
+                _searchQuery = q;
+              });
             },
           ),
           Expanded(
             child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
+                ? const Center(
+                    child:
+                        CircularProgressIndicator(),
+                  )
                 : widget.table.rows.isEmpty
                     ? Center(
-                        child: SingleChildScrollView(
-                          padding: const EdgeInsets.all(24),
+                        child:
+                            SingleChildScrollView(
+                          padding:
+                              const EdgeInsets
+                                  .all(24),
                           child: Column(
-                            mainAxisSize: MainAxisSize.min,
+                            mainAxisSize:
+                                MainAxisSize.min,
                             children: [
-                              const Icon(Icons.table_chart_outlined, size: 80),
-                              const SizedBox(height: 20),
-                              const Text('هنوز رکوردی نیست',
-                                  style: TextStyle(fontSize: 18)),
-                              const SizedBox(height: 20),
-                              ElevatedButton.icon(
-                                onPressed: addRow,
-                                icon: const Icon(Icons.add),
-                                label: const Text('افزودن رکورد'),
+                              const Icon(
+                                Icons
+                                    .table_chart_outlined,
+                                size: 80,
+                              ),
+                              const SizedBox(
+                                height: 20,
+                              ),
+                              const Text(
+                                'هنوز رکوردی نیست',
+                                style:
+                                    TextStyle(
+                                  fontSize: 18,
+                                ),
+                              ),
+                              const SizedBox(
+                                height: 20,
+                              ),
+                              ElevatedButton
+                                  .icon(
+                                onPressed:
+                                    addRow,
+                                icon: const Icon(
+                                  Icons.add,
+                                ),
+                                label:
+                                    const Text(
+                                  'افزودن رکورد',
+                                ),
                               ),
                             ],
                           ),
                         ),
                       )
                     : ListView.builder(
-                        padding: const EdgeInsets.fromLTRB(12, 12, 12, 120),
-                        itemCount: groups.length,
-                        itemBuilder: (context, index) =>
-                            _buildSideBySideGroup(groups[index]),
+                        padding:
+                            const EdgeInsets
+                                .fromLTRB(
+                          12,
+                          12,
+                          12,
+                          120,
+                        ),
+                        itemCount:
+                            groups.length,
+                        itemBuilder:
+                            (context, index) =>
+                                _buildSideBySideGroup(
+                          groups[index],
+                        ),
                       ),
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
+      floatingActionButton:
+          FloatingActionButton.extended(
         onPressed: addRow,
         icon: const Icon(Icons.add),
-        label: const Text('افزودن رکورد'),
+        label:
+            const Text('افزودن رکورد'),
       ),
     );
   }
