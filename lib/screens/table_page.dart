@@ -5,6 +5,7 @@ import '../models/table_row_data.dart';
 import '../models/tree_item.dart';
 import '../repositories/tree_repository.dart';
 import '../widgets/app_search_bar.dart';
+import '../services/app_language.dart';
 
 class TablePage extends StatefulWidget {
   final TreeItem table;
@@ -97,7 +98,7 @@ class _TablePageState extends State<TablePage> {
     } catch (error) {
       if (!mounted) return;
       setState(() => _isLoading = false);
-      _showError('بارگذاری جدول ناموفق بود: $error');
+      _showError(AppStrings.loadTableFailed(context, error));
     }
   }
 
@@ -108,7 +109,7 @@ class _TablePageState extends State<TablePage> {
     final result = await showDialog<Map<String, int>>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('افزودن رکورد'),
+        title: Text(AppStrings.addRecord(context)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -117,8 +118,8 @@ class _TablePageState extends State<TablePage> {
               autofocus: true,
               keyboardType: TextInputType.number,
               decoration: const InputDecoration(
-                labelText: 'تعداد ستون',
-                hintText: 'مثال: ۵',
+                labelText: AppStrings.columnCount(context),
+                hintText: AppStrings.columnCountHint(context),
                 border: OutlineInputBorder(),
               ),
             ),
@@ -127,8 +128,8 @@ class _TablePageState extends State<TablePage> {
               controller: rowsController,
               keyboardType: TextInputType.number,
               decoration: const InputDecoration(
-                labelText: 'تعداد سطر',
-                hintText: 'مثال: ۳',
+                labelText: AppStrings.rowCount(context),
+                hintText: AppStrings.rowCountHint(context),
                 border: OutlineInputBorder(),
               ),
             ),
@@ -137,7 +138,7 @@ class _TablePageState extends State<TablePage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('انصراف'),
+            child: Text(AppStrings.cancel(context)),
           ),
           ElevatedButton(
             onPressed: () {
@@ -153,7 +154,7 @@ class _TablePageState extends State<TablePage> {
                 });
               }
             },
-            child: const Text('ادامه'),
+            child: Text(AppStrings.continueText(context)),
           ),
         ],
       ),
@@ -172,13 +173,13 @@ class _TablePageState extends State<TablePage> {
       final name = await showDialog<String>(
         context: context,
         builder: (dialogContext) => AlertDialog(
-          title: Text('نام ستون ${i + 1} از $count'),
+          title: Text(AppStrings.columnNameTitle(context, i + 1, count)),
           content: TextField(
             controller: controller,
             autofocus: true,
             textInputAction: TextInputAction.done,
             decoration: const InputDecoration(
-              labelText: 'نام فیلد / هدر',
+              labelText: AppStrings.fieldHeaderName(context),
               border: OutlineInputBorder(),
             ),
             onSubmitted: (value) {
@@ -190,14 +191,14 @@ class _TablePageState extends State<TablePage> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('انصراف'),
+              child: Text(AppStrings.cancel(context)),
             ),
             ElevatedButton(
               onPressed: () {
                 final value = controller.text.trim();
                 if (value.isNotEmpty) Navigator.pop(dialogContext, value);
               },
-              child: const Text('بعدی'),
+              child: Text(AppStrings.next(context)),
             ),
           ],
         ),
@@ -250,7 +251,7 @@ class _TablePageState extends State<TablePage> {
         _rowIds.addAll(createdIds);
       });
     } catch (error) {
-      _showError('افزودن رکورد ناموفق بود: $error');
+      _showError(AppStrings.addRecordFailed(context, error));
     }
   }
 
@@ -272,7 +273,7 @@ class _TablePageState extends State<TablePage> {
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: const Text('ویرایش رکورد'),
+          title: Text(AppStrings.editRecord(context)),
           content: SizedBox(
             width: 500,
             child: SingleChildScrollView(
@@ -317,7 +318,7 @@ class _TablePageState extends State<TablePage> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text('انصراف'),
+              child: Text(AppStrings.cancel(context)),
             ),
             ElevatedButton(
               onPressed: () {
@@ -328,7 +329,7 @@ class _TablePageState extends State<TablePage> {
                 }
                 Navigator.pop(dialogContext, true);
               },
-              child: const Text('ذخیره'),
+              child: Text(AppStrings.save(context)),
             ),
           ],
         ),
@@ -351,7 +352,7 @@ class _TablePageState extends State<TablePage> {
       }
       if (mounted) setState(() {});
     } catch (error) {
-      _showError('ذخیره رکورد ناموفق بود: $error');
+      _showError(AppStrings.saveRecordFailed(context, error));
     }
   }
 
@@ -397,11 +398,11 @@ class _TablePageState extends State<TablePage> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text('انصراف'),
+              child: Text(AppStrings.cancel(context)),
             ),
             ElevatedButton(
               onPressed: () => Navigator.pop(dialogContext, true),
-              child: const Text('ذخیره'),
+              child: Text(AppStrings.save(context)),
             ),
           ],
         ),
@@ -417,7 +418,7 @@ class _TablePageState extends State<TablePage> {
       await _repository.updateFieldValue(fieldId: fieldId, value: newValue);
       if (mounted) setState(() {});
     } catch (error) {
-      _showError('ذخیره مقدار ناموفق بود: $error');
+      _showError(AppStrings.saveValueFailed(context, error));
     }
   }
 
@@ -426,16 +427,16 @@ class _TablePageState extends State<TablePage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('حذف رکورد'),
-        content: const Text('آیا از حذف این رکورد مطمئن هستید؟'),
+        title: Text(AppStrings.deleteRecord(context)),
+        content: Text(AppStrings.deleteRecordConfirm(context)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('انصراف'),
+            child: Text(AppStrings.cancel(context)),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('حذف'),
+            child: Text(AppStrings.delete(context)),
           ),
         ],
       ),
@@ -445,7 +446,7 @@ class _TablePageState extends State<TablePage> {
     final row = widget.table.rows[index];
     final rowId = _rowIds[row];
     if (rowId == null) {
-      _showError('شناسه رکورد پیدا نشد.');
+      _showError(AppStrings.recordIdNotFound(context));
       return;
     }
 
@@ -457,7 +458,7 @@ class _TablePageState extends State<TablePage> {
         _rowIds.remove(row);
       });
     } catch (error) {
-      _showError('حذف رکورد ناموفق بود: $error');
+      _showError(AppStrings.deleteRecordFailed(context, error));
     }
   }
 
@@ -471,7 +472,7 @@ class _TablePageState extends State<TablePage> {
     if (group.isEmpty) return;
     final sample = group.first;
     if (sample.columns.isEmpty) {
-      _showError('این گروه فیلدی ندارد.');
+      _showError(AppStrings.groupHasNoFields(context));
       return;
     }
 
@@ -506,7 +507,7 @@ class _TablePageState extends State<TablePage> {
 
       if (mounted) setState(() {});
     } catch (error) {
-      _showError('افزودن سطر ناموفق بود: $error');
+      _showError(AppStrings.addRowFailed(context, error));
     }
   }
 
@@ -516,26 +517,26 @@ class _TablePageState extends State<TablePage> {
     final name = await showDialog<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('افزودن فیلد'),
+        title: Text(AppStrings.addField(context)),
         content: TextField(
           controller: controller,
           autofocus: true,
           decoration: const InputDecoration(
-            labelText: 'نام فیلد',
+            labelText: AppStrings.fieldName(context),
             border: OutlineInputBorder(),
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('انصراف'),
+            child: Text(AppStrings.cancel(context)),
           ),
           ElevatedButton(
             onPressed: () {
               final value = controller.text.trim();
               if (value.isNotEmpty) Navigator.pop(dialogContext, value);
             },
-            child: const Text('افزودن'),
+            child: Text(AppStrings.add(context)),
           ),
         ],
       ),
@@ -558,7 +559,7 @@ class _TablePageState extends State<TablePage> {
       }
       if (mounted) setState(() {});
     } catch (error) {
-      _showError('افزودن فیلد ناموفق بود: $error');
+      _showError(AppStrings.addFieldFailed(context, error));
     }
   }
 
@@ -575,26 +576,26 @@ class _TablePageState extends State<TablePage> {
     final newName = await showDialog<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('تغییر نام فیلد'),
+        title: Text(AppStrings.renameField(context)),
         content: TextField(
           controller: controller,
           autofocus: true,
           decoration: const InputDecoration(
-            labelText: 'نام فیلد',
+            labelText: AppStrings.fieldName(context),
             border: OutlineInputBorder(),
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('انصراف'),
+            child: Text(AppStrings.cancel(context)),
           ),
           ElevatedButton(
             onPressed: () {
               final value = controller.text.trim();
               if (value.isNotEmpty) Navigator.pop(dialogContext, value);
             },
-            child: const Text('ذخیره'),
+            child: Text(AppStrings.save(context)),
           ),
         ],
       ),
@@ -613,7 +614,7 @@ class _TablePageState extends State<TablePage> {
       }
       if (mounted) setState(() {});
     } catch (error) {
-      _showError('تغییر نام فیلد ناموفق بود: $error');
+      _showError(AppStrings.renameFieldFailed(context, error));
     }
   }
 
@@ -625,7 +626,7 @@ class _TablePageState extends State<TablePage> {
     final sample = group.first;
     if (columnIndex < 0 || columnIndex >= sample.columns.length) return;
     if (sample.columns.length <= 1) {
-      _showError('حداقل یک فیلد باید در رکورد باقی بماند.');
+      _showError(AppStrings.minOneField(context));
       return;
     }
 
@@ -633,16 +634,16 @@ class _TablePageState extends State<TablePage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('حذف فیلد'),
-        content: Text('فیلد «$name» از همه سطرهای این گروه حذف شود؟'),
+        title: Text(AppStrings.deleteField(context)),
+        content: Text(AppStrings.deleteFieldConfirm(context, name)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('انصراف'),
+            child: Text(AppStrings.cancel(context)),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('حذف'),
+            child: Text(AppStrings.delete(context)),
           ),
         ],
       ),
@@ -661,7 +662,7 @@ class _TablePageState extends State<TablePage> {
       }
       if (mounted) setState(() {});
     } catch (error) {
-      _showError('حذف فیلد ناموفق بود: $error');
+      _showError(AppStrings.deleteFieldFailed(context, error));
     }
   }
 
@@ -696,7 +697,7 @@ class _TablePageState extends State<TablePage> {
       }
       if (mounted) setState(() {});
     } catch (error) {
-      _showError('جابه‌جایی فیلد ناموفق بود: $error');
+      _showError(AppStrings.moveFieldFailed(context, error));
     }
   }
 
@@ -715,7 +716,7 @@ class _TablePageState extends State<TablePage> {
           children: [
             ListTile(
               leading: const Icon(Icons.edit),
-              title: const Text('تغییر نام فیلد'),
+              title: Text(AppStrings.renameField(context)),
               onTap: () {
                 Navigator.pop(sheetContext);
                 renameColumnInGroup(group, columnIndex);
@@ -724,7 +725,7 @@ class _TablePageState extends State<TablePage> {
             ListTile(
               leading: const Icon(Icons.arrow_upward),
               enabled: columnIndex > 0,
-              title: const Text('انتقال به بالا'),
+              title: Text(AppStrings.moveUp(context)),
               onTap: columnIndex > 0
                   ? () {
                       Navigator.pop(sheetContext);
@@ -735,7 +736,7 @@ class _TablePageState extends State<TablePage> {
             ListTile(
               leading: const Icon(Icons.arrow_downward),
               enabled: columnIndex < sample.columns.length - 1,
-              title: const Text('انتقال به پایین'),
+              title: Text(AppStrings.moveDown(context)),
               onTap: columnIndex < sample.columns.length - 1
                   ? () {
                       Navigator.pop(sheetContext);
@@ -745,7 +746,7 @@ class _TablePageState extends State<TablePage> {
             ),
             ListTile(
               leading: const Icon(Icons.delete_outline),
-              title: const Text('حذف فیلد'),
+              title: Text(AppStrings.deleteField(context)),
               onTap: () {
                 Navigator.pop(sheetContext);
                 deleteColumnInGroup(group, columnIndex);
@@ -763,26 +764,26 @@ class _TablePageState extends State<TablePage> {
     final name = await showDialog<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('تغییر نام جدول'),
+        title: Text(AppStrings.renameTable(context)),
         content: TextField(
           controller: controller,
           autofocus: true,
           decoration: const InputDecoration(
-            labelText: 'نام جدول',
+            labelText: AppStrings.tableName(context),
             border: OutlineInputBorder(),
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('انصراف'),
+            child: Text(AppStrings.cancel(context)),
           ),
           ElevatedButton(
             onPressed: () {
               final value = controller.text.trim();
               if (value.isNotEmpty) Navigator.pop(dialogContext, value);
             },
-            child: const Text('ذخیره'),
+            child: Text(AppStrings.save(context)),
           ),
         ],
       ),
@@ -796,7 +797,7 @@ class _TablePageState extends State<TablePage> {
       setState(() => widget.table.name = name);
       widget.onRenamed?.call(name);
     } catch (error) {
-      _showError('تغییر نام جدول ناموفق بود: $error');
+      _showError(AppStrings.renameTableFailed(context, error));
     }
   }
 
@@ -804,16 +805,16 @@ class _TablePageState extends State<TablePage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('حذف جدول'),
-        content: Text('جدول «${widget.table.name}» و همه رکوردهایش حذف شود؟'),
+        title: Text(AppStrings.deleteTable(context)),
+        content: Text(AppStrings.deleteTableConfirm(context, widget.table.name)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('انصراف'),
+            child: Text(AppStrings.cancel(context)),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('حذف'),
+            child: Text(AppStrings.delete(context)),
           ),
         ],
       ),
@@ -826,7 +827,7 @@ class _TablePageState extends State<TablePage> {
       widget.onDelete?.call();
       Navigator.pop(context);
     } catch (error) {
-      _showError('حذف جدول ناموفق بود: $error');
+      _showError(AppStrings.deleteTableFailed(context, error));
     }
   }
 
@@ -1089,7 +1090,7 @@ class _TablePageState extends State<TablePage> {
                     constraints:
                         const BoxConstraints(minWidth: 36, minHeight: 36),
                     icon: const Icon(Icons.edit, size: 18),
-                    tooltip: 'ویرایش',
+                    tooltip: AppStrings.edit(context),
                     onPressed: () => editRow(row),
                   ),
                   IconButton(
@@ -1097,7 +1098,7 @@ class _TablePageState extends State<TablePage> {
                     constraints:
                         const BoxConstraints(minWidth: 36, minHeight: 36),
                     icon: const Icon(Icons.delete_outline, size: 16),
-                    tooltip: 'حذف',
+                    tooltip: AppStrings.delete(context),
                     onPressed: () => deleteRowObject(row),
                   ),
                 ],
@@ -1142,12 +1143,12 @@ class _TablePageState extends State<TablePage> {
                 TextButton.icon(
                   onPressed: () => addRowToGroup(group),
                   icon: const Icon(Icons.playlist_add, size: 18),
-                  label: const Text('افزودن سطر'),
+                  label: Text(AppStrings.addRow(context)),
                 ),
                 TextButton.icon(
                   onPressed: () => addColumnToGroup(group),
                   icon: const Icon(Icons.add_box_outlined, size: 18),
-                  label: const Text('افزودن فیلد'),
+                  label: Text(AppStrings.addField(context)),
                 ),
               ],
             ),
@@ -1168,13 +1169,13 @@ class _TablePageState extends State<TablePage> {
           IconButton(
             onPressed: renameTable,
             icon: const Icon(Icons.edit),
-            tooltip: 'تغییر نام جدول',
+            tooltip: AppStrings.renameTable(context),
           ),
           if (widget.onDelete != null)
             IconButton(
               onPressed: deleteTable,
               icon: const Icon(Icons.delete_outline),
-              tooltip: 'حذف جدول',
+              tooltip: AppStrings.deleteTable(context),
             ),
         ],
       ),
@@ -1198,15 +1199,15 @@ class _TablePageState extends State<TablePage> {
                             children: [
                               const Icon(Icons.table_chart_outlined, size: 80),
                               const SizedBox(height: 20),
-                              const Text(
-                                'هنوز رکوردی نیست',
+                              Text(
+                                AppStrings.noRecordsYet(context),
                                 style: TextStyle(fontSize: 18),
                               ),
                               const SizedBox(height: 20),
                               ElevatedButton.icon(
                                 onPressed: addRow,
                                 icon: const Icon(Icons.add),
-                                label: const Text('افزودن رکورد'),
+                                label: Text(AppStrings.addRecord(context)),
                               ),
                             ],
                           ),
@@ -1224,7 +1225,7 @@ class _TablePageState extends State<TablePage> {
       floatingActionButton: FloatingActionButton.extended(
         onPressed: addRow,
         icon: const Icon(Icons.add),
-        label: const Text('افزودن رکورد'),
+        label: Text(AppStrings.addRecord(context)),
       ),
     );
   }
