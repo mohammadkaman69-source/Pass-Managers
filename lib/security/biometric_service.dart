@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:local_auth/local_auth.dart';
 
+import '../services/app_language.dart';
 import 'security_session.dart';
 
 class BiometricService {
@@ -103,8 +104,12 @@ class BiometricService {
 
   Future<bool> _authenticate() async {
     try {
+      final reason = AppLanguage.instance.t(
+        'برای ورود به NexVault احراز هویت کنید.',
+        'Authenticate to unlock NexVault.',
+      );
       return await _auth.authenticate(
-        localizedReason: 'برای ورود به NexVault احراز هویت کنید.',
+        localizedReason: reason,
         persistAcrossBackgrounding: true,
         biometricOnly: false,
       );
