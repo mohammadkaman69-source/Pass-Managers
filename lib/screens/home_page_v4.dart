@@ -87,9 +87,10 @@ class _HomePageV4State extends State<HomePageV4> {
         ],
       ),
     );
-    if (confirmed != true) return;
-    final password = await _askPassword(AppStrings.backupPassword(context));
-    if (password == null) return;
+    if (!mounted || confirmed != true) return;
+    final passwordLabel = AppStrings.backupPassword(context);
+    final password = await _askPassword(passwordLabel);
+    if (!mounted || password == null) return;
     setState(() => _busy = true);
     try {
       final result = await _backupService.restoreBackup(masterPassword: password);
