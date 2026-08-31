@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/tree_item.dart';
 import '../repositories/tree_repository.dart';
+import '../services/app_language.dart';
 import '../services/pdf_export_service.dart';
 import '../widgets/app_search_bar.dart';
 import '../services/search_service.dart';
@@ -68,7 +69,7 @@ class _TreePageState extends State<TreePage> {
       if (!mounted) return;
       setState(() => _isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('بارگذاری پوشه ناموفق بود: $error')),
+        SnackBar(content: Text(AppStrings.loadFolderFailed(context, error))),
       );
     }
   }
@@ -83,7 +84,7 @@ class _TreePageState extends State<TreePage> {
             children: [
               ListTile(
                 leading: const Icon(Icons.create_new_folder_outlined),
-                title: const Text('ساخت پوشه'),
+                title: Text(AppStrings.createFolder(context)),
                 onTap: () {
                   Navigator.pop(sheetContext);
                   createFolder();
@@ -91,7 +92,7 @@ class _TreePageState extends State<TreePage> {
               ),
               ListTile(
                 leading: const Icon(Icons.table_chart_outlined),
-                title: const Text('ساخت جدول'),
+                title: Text(AppStrings.createTable(context)),
                 onTap: () {
                   Navigator.pop(sheetContext);
                   createTable();
@@ -111,16 +112,16 @@ class _TreePageState extends State<TreePage> {
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          title: const Text('ساخت پوشه'),
+          title: Text(AppStrings.createFolder(context)),
           content: TextField(
             controller: controller,
             autofocus: true,
-            decoration: const InputDecoration(labelText: 'نام پوشه'),
+            decoration: InputDecoration(labelText: AppStrings.folderName(context)),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('انصراف'),
+              child: Text(AppStrings.cancel(context)),
             ),
             ElevatedButton(
               onPressed: () async {
@@ -146,11 +147,11 @@ class _TreePageState extends State<TreePage> {
                 } catch (error) {
                   if (!mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('ساخت پوشه ناموفق بود: $error')),
+                    SnackBar(content: Text(AppStrings.createFolderFailed(context, error))),
                   );
                 }
               },
-              child: const Text('ساخت'),
+              child: Text(AppStrings.create(context)),
             ),
           ],
         );
@@ -164,16 +165,16 @@ class _TreePageState extends State<TreePage> {
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          title: const Text('ساخت جدول'),
+          title: Text(AppStrings.createTable(context)),
           content: TextField(
             controller: controller,
             autofocus: true,
-            decoration: const InputDecoration(labelText: 'نام جدول'),
+            decoration: InputDecoration(labelText: AppStrings.tableName(context)),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('انصراف'),
+              child: Text(AppStrings.cancel(context)),
             ),
             ElevatedButton(
               onPressed: () async {
@@ -199,11 +200,11 @@ class _TreePageState extends State<TreePage> {
                 } catch (error) {
                   if (!mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('ساخت جدول ناموفق بود: $error')),
+                    SnackBar(content: Text(AppStrings.createTableFailed(context, error))),
                   );
                 }
               },
-              child: const Text('ساخت'),
+              child: Text(AppStrings.create(context)),
             ),
           ],
         );
@@ -282,12 +283,12 @@ class _TreePageState extends State<TreePage> {
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          title: const Text('تغییر نام'),
+          title: Text(AppStrings.rename(context)),
           content: TextField(controller: controller, autofocus: true),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('انصراف'),
+              child: Text(AppStrings.cancel(context)),
             ),
             ElevatedButton(
               onPressed: () async {
@@ -305,11 +306,11 @@ class _TreePageState extends State<TreePage> {
                 } catch (error) {
                   if (!mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('تغییر نام ناموفق بود: $error')),
+                    SnackBar(content: Text(AppStrings.renameFailed(context, error))),
                   );
                 }
               },
-              child: const Text('ذخیره'),
+              child: Text(AppStrings.save(context)),
             ),
           ],
         );
@@ -323,18 +324,18 @@ class _TreePageState extends State<TreePage> {
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          title: const Text('حذف پوشه'),
+          title: Text(AppStrings.deleteFolder(context)),
           content: Text(
             'پوشه «${widget.item.name}» و همه محتوای داخل آن حذف شود؟',
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text('انصراف'),
+              child: Text(AppStrings.cancel(context)),
             ),
             ElevatedButton(
               onPressed: () => Navigator.pop(dialogContext, true),
-              child: const Text('حذف'),
+              child: Text(AppStrings.delete(context)),
             ),
           ],
         );
@@ -354,7 +355,7 @@ class _TreePageState extends State<TreePage> {
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('حذف پوشه ناموفق بود: $error')),
+        SnackBar(content: Text(AppStrings.deleteFolderFailed(context, error))),
       );
     }
   }
@@ -383,14 +384,14 @@ class _TreePageState extends State<TreePage> {
 
       if (fileUri == null || fileUri.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('ذخیره PDF لغو شد.')),
+          SnackBar(content: Text(AppStrings.pdfCancelled(context))),
         );
         return;
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('PDF با موفقیت ذخیره شد.'),
+          content: Text(AppStrings.pdfSaved(context)),
           duration: Duration(seconds: 4),
         ),
       );
@@ -398,7 +399,7 @@ class _TreePageState extends State<TreePage> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('خطا در ساخت PDF:\n$error'),
+          content: Text(AppStrings.pdfError(context, error)),
           duration: const Duration(seconds: 5),
         ),
       );
@@ -428,18 +429,18 @@ class _TreePageState extends State<TreePage> {
             IconButton(
               onPressed: _exportPdf,
               icon: const Icon(Icons.picture_as_pdf_outlined),
-              tooltip: 'خروجی PDF',
+              tooltip: AppStrings.pdfExport(context),
             ),
           IconButton(
             onPressed: renameItem,
             icon: const Icon(Icons.edit),
-            tooltip: 'تغییر نام',
+            tooltip: AppStrings.rename(context),
           ),
           if (widget.onDelete != null)
             IconButton(
               onPressed: deleteFolder,
               icon: const Icon(Icons.delete_outline),
-              tooltip: 'حذف پوشه',
+              tooltip: AppStrings.deleteFolder(context),
             ),
         ],
       ),
@@ -463,7 +464,7 @@ class _TreePageState extends State<TreePage> {
                               color: Theme.of(context).colorScheme.primary,
                             ),
                             const SizedBox(height: 20),
-                            const Text('پوشه خالی است',
+                            const Text(AppStrings.emptyFolder(context),
                                 style: TextStyle(fontSize: 18)),
                             const SizedBox(height: 20),
                             ElevatedButton.icon(
