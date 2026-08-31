@@ -22,6 +22,9 @@ class _HomePageV4State extends State<HomePageV4> {
 
   Future<String?> _askPassword(String title) async {
     final controller = TextEditingController();
+    final mainPasswordLabel = AppStrings.mainPassword(context);
+    final cancelLabel = AppStrings.cancel(context);
+    final continueLabel = AppStrings.continueText(context);
     final result = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -31,17 +34,17 @@ class _HomePageV4State extends State<HomePageV4> {
           autofocus: true,
           obscureText: true,
           decoration: InputDecoration(
-            labelText: AppStrings.mainPassword(context),
+            labelText: mainPasswordLabel,
             border: const OutlineInputBorder(),
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(AppStrings.cancel(context))),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(cancelLabel)),
           ElevatedButton(
             onPressed: () {
               if (controller.text.isNotEmpty) Navigator.pop(ctx, controller.text);
             },
-            child: Text(AppStrings.continueText(context)),
+            child: Text(continueLabel),
           ),
         ],
       ),
@@ -52,11 +55,12 @@ class _HomePageV4State extends State<HomePageV4> {
 
   Future<void> _createBackup() async {
     if (_busy) return;
-    final password = await _askPassword(AppStrings.backupPasswordEncryption(context));
+    final title = AppStrings.backupPasswordEncryption(context);
+    final password = await _askPassword(title);
     if (password == null) return;
     final verified = await SecurityManager().unlock(password);
+    if (!mounted) return;
     if (!verified) {
-      if (!mounted) return;
       _message(AppStrings.wrongPassword(context));
       return;
     }
@@ -76,14 +80,18 @@ class _HomePageV4State extends State<HomePageV4> {
 
   Future<void> _restoreBackup() async {
     if (_busy) return;
+    final restoreTitle = AppStrings.restoreBackup(context);
+    final restoreWarning = AppStrings.restoreWarning(context);
+    final cancelLabel = AppStrings.cancel(context);
+    final restoreLabel = AppStrings.restore(context);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(AppStrings.restoreBackup(context)),
-        content: Text(AppStrings.restoreWarning(context)),
+        title: Text(restoreTitle),
+        content: Text(restoreWarning),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(AppStrings.cancel(context))),
-          ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: Text(AppStrings.restore(context))),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(cancelLabel)),
+          ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: Text(restoreLabel)),
         ],
       ),
     );
@@ -101,7 +109,7 @@ class _HomePageV4State extends State<HomePageV4> {
       _message(AppStrings.restoreCancelled(context));
     } on BackupFormatException catch (error) {
       if (!mounted) return;
-      _message('Restore: ${error.message}');
+      _message(AppStrings.backupRestoreError(context, error));
     } catch (error) {
       if (!mounted) return;
       _message(AppStrings.backupRestoreError(context, error));
@@ -113,26 +121,36 @@ class _HomePageV4State extends State<HomePageV4> {
   Future<void> _showRecoveryKey() async {
     final key = _backupService.lastRecoveryKey;
     if (key == null || key.isEmpty) {
+      if (!mounted) return;
+      final title = AppStrings.recoveryKey(context);
+      final message = AppStrings.noActiveRecoveryKey(context);
+      final closeLabel = AppStrings.close(context);
       await showDialog<void>(
         context: context,
         builder: (ctx) => AlertDialog(
-          title: Text(AppStrings.recoveryKey(context)),
-          content: Text(AppStrings.noActiveRecoveryKey(context)),
-          actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: Text(AppStrings.close(context)))],
+          title: Text(title),
+          content: Text(message),
+          actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: Text(closeLabel))],
         ),
       );
       return;
     }
+    if (!mounted) return;
+    final title = AppStrings.recoveryKeyTitle(context);
+    final description = AppStrings.recoveryKeyDescription(context);
+    final copyLabel = AppStrings.copyKey(context);
+    final savedLabel = AppStrings.recoveryKeySaved(context);
+    final copiedMessage = AppStrings.recoveryKeyCopied(context);
     await showDialog<void>(
       context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
-        title: Text(AppStrings.recoveryKeyTitle(context)),
+        title: Text(title),
         content: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(AppStrings.recoveryKeyDescription(context)),
+              Text(description),
               const SizedBox(height: 16),
               SelectableText(key, textDirection: TextDirection.ltr, style: const TextStyle(fontFamily: 'monospace', letterSpacing: 0.8)),
             ],
@@ -141,14 +159,13 @@ class _HomePageV4State extends State<HomePageV4> {
         actions: [
           TextButton(
             onPressed: () async {
-              final copiedMessage = AppStrings.recoveryKeyCopied(context);
               await Clipboard.setData(ClipboardData(text: key));
               if (!ctx.mounted) return;
               ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text(copiedMessage)));
             },
-            child: Text(AppStrings.copyKey(context)),
+            child: Text(copyLabel),
           ),
-          ElevatedButton(onPressed: () => Navigator.pop(ctx), child: Text(AppStrings.recoveryKeySaved(context))),
+          ElevatedButton(onPressed: () => Navigator.pop(ctx), child: Text(savedLabel)),
         ],
       ),
     );
@@ -164,14 +181,18 @@ class _HomePageV4State extends State<HomePageV4> {
     final enabled = await _biometricService.isEnabled();
     if (!mounted) return;
     if (enabled) {
+      final title = AppStrings.biometricSettings(context);
+      final question = AppStrings.biometricDisableQuestion(context);
+      final cancelLabel = AppStrings.cancel(context);
+      final disableLabel = AppStrings.disable(context);
       final disable = await showDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(
-          title: Text(AppStrings.biometricSettings(context)),
-          content: Text(AppStrings.biometricDisableQuestion(context)),
+          title: Text(title),
+          content: Text(question),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(AppStrings.cancel(context))),
-            ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: Text(AppStrings.disable(context))),
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(cancelLabel)),
+            ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: Text(disableLabel)),
           ],
         ),
       );
@@ -188,10 +209,13 @@ class _HomePageV4State extends State<HomePageV4> {
 
   Future<void> _chooseLanguage() async {
     final current = AppLanguage.instance.locale.languageCode;
+    final title = AppStrings.selectLanguage(context);
+    final faLabel = AppStrings.persian(context);
+    final enLabel = AppStrings.english(context);
     final selected = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(AppStrings.selectLanguage(context)),
+        title: Text(title),
         content: RadioGroup<String>(
           groupValue: current,
           onChanged: (value) {
@@ -200,8 +224,8 @@ class _HomePageV4State extends State<HomePageV4> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              RadioListTile<String>(value: 'fa', title: Text(AppStrings.persian(context))),
-              RadioListTile<String>(value: 'en', title: Text(AppStrings.english(context))),
+              RadioListTile<String>(value: 'fa', title: Text(faLabel)),
+              RadioListTile<String>(value: 'en', title: Text(enLabel)),
             ],
           ),
         ),
