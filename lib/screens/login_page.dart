@@ -65,7 +65,6 @@ class _LoginPageState extends State<LoginPage> {
     } catch (error) {
       if (!mounted) return;
       setState(() => _isLoading = false);
-      if (!mounted) return;
       _showMessage(AppStrings.securityOperationFailed(context, error));
     }
   }
@@ -135,17 +134,19 @@ class _LoginPageState extends State<LoginPage> {
     try {
       if (createMode) {
         await _securityManager.setupMasterPassword(email: email, masterPassword: password);
+        if (!mounted) return;
         _openHome();
         return;
       }
       final unlocked = await _securityManager.unlock(password);
+      if (!mounted) return;
       if (!unlocked) {
-        if (!mounted) return;
         _showMessage(AppStrings.wrongPassword(context));
         return;
       }
       _openHome();
     } catch (error) {
+      if (!mounted) return;
       _showMessage(AppStrings.securityOperationFailed(context, error));
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
