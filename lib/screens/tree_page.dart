@@ -326,7 +326,7 @@ class _TreePageState extends State<TreePage> {
         return AlertDialog(
           title: Text(AppStrings.deleteFolder(context)),
           content: Text(
-            'پوشه «${widget.item.name}» و همه محتوای داخل آن حذف شود؟',
+            AppStrings.deleteFolderConfirm(context, widget.item.name),
           ),
           actions: [
             TextButton(
@@ -390,9 +390,9 @@ class _TreePageState extends State<TreePage> {
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
           content: Text(AppStrings.pdfSaved(context)),
-          duration: Duration(seconds: 4),
+          duration: const Duration(seconds: 4),
         ),
       );
     } catch (error) {
@@ -464,13 +464,13 @@ class _TreePageState extends State<TreePage> {
                               color: Theme.of(context).colorScheme.primary,
                             ),
                             const SizedBox(height: 20),
-                            const Text(AppStrings.emptyFolder(context),
-                                style: TextStyle(fontSize: 18)),
+                            Text(AppStrings.emptyFolder(context),
+                                style: const TextStyle(fontSize: 18)),
                             const SizedBox(height: 20),
                             ElevatedButton.icon(
                               onPressed: createItem,
                               icon: const Icon(Icons.add),
-                              label: const Text('ساخت'),
+                              label: Text(AppStrings.create(context)),
                             ),
                           ],
                         ),
