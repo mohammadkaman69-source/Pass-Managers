@@ -3,14 +3,21 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class AppLanguage extends ChangeNotifier {
   AppLanguage._();
+
   static final AppLanguage instance = AppLanguage._();
+
   static const _storageKey = 'app_language';
+
   Locale _locale = const Locale('fa');
   bool _initialized = false;
+
   Locale get locale => _locale;
   bool get isPersian => _locale.languageCode == 'fa';
   bool get isEnglish => _locale.languageCode == 'en';
+
+  /// بدون BuildContext — برای سرویس‌ها و پیام‌های سطح پایین
   String t(String fa, String en) => isPersian ? fa : en;
+
   Future<void> load() async {
     if (_initialized) return;
     final prefs = await SharedPreferences.getInstance();
@@ -22,6 +29,7 @@ class AppLanguage extends ChangeNotifier {
     }
     _initialized = true;
   }
+
   Future<void> setLanguage(String languageCode) async {
     if (languageCode != 'fa' && languageCode != 'en') return;
     final next = Locale(languageCode);
@@ -33,40 +41,85 @@ class AppLanguage extends ChangeNotifier {
   }
 }
 
+/// تمام متن‌های UI — فارسی / انگلیسی. طراحی UI تغییر نمی‌کند.
 class AppStrings {
   AppStrings._();
+
   static bool fa(BuildContext context) =>
       Localizations.localeOf(context).languageCode == 'fa';
+
   static String _t(BuildContext context, String persian, String english) =>
       fa(context) ? persian : english;
+
+  // —— زبان ——
   static String language(BuildContext context) => _t(context, 'زبان', 'Language');
   static String persian(BuildContext context) => _t(context, 'فارسی', 'Persian');
   static String english(BuildContext context) => _t(context, 'انگلیسی', 'English');
-  static String selectLanguage(BuildContext context) => _t(context, 'انتخاب زبان', 'Choose language');
-  static String languageChanged(BuildContext context) => _t(context, 'زبان برنامه تغییر کرد.', 'App language changed.');
-  static String mainPassword(BuildContext context) => _t(context, 'رمز اصلی', 'Master Password');
-  static String email(BuildContext context) => _t(context, 'آدرس ایمیل', 'Email address');
-  static String confirmPassword(BuildContext context) => _t(context, 'تکرار رمز اصلی', 'Confirm Master Password');
-  static String createAccount(BuildContext context) => _t(context, 'ساخت حساب', 'Create account');
+  static String selectLanguage(BuildContext context) =>
+      _t(context, 'انتخاب زبان', 'Choose language');
+  static String languageChanged(BuildContext context) =>
+      _t(context, 'زبان برنامه تغییر کرد.', 'App language changed.');
+
+  // —— ورود / حساب ——
+  static String mainPassword(BuildContext context) =>
+      _t(context, 'رمز اصلی', 'Master Password');
+  static String email(BuildContext context) =>
+      _t(context, 'آدرس ایمیل', 'Email address');
+  static String confirmPassword(BuildContext context) =>
+      _t(context, 'تکرار رمز اصلی', 'Confirm Master Password');
+  static String createAccount(BuildContext context) =>
+      _t(context, 'ساخت حساب', 'Create account');
   static String login(BuildContext context) => _t(context, 'ورود', 'Login');
-  static String forgotPassword(BuildContext context) => _t(context, 'رمز را فراموش کرده‌اید؟', 'Forgot your password?');
-  static String recoverySoon(BuildContext context) => _t(context, 'بازیابی رمز به‌زودی فعال می‌شود.', 'Password recovery will be available soon.');
-  static String passwordRule(BuildContext context) => _t(context, 'رمز باید ترکیبی از حروف و عدد باشد و حداقل ۸ کاراکتر داشته باشد.', 'Password must include letters and numbers and be at least 8 characters.');
-  static String encryptionInfo(BuildContext context) => _t(context, 'اطلاعات شما با رمزنگاری امن روی دستگاه ذخیره می‌شود.', 'Your data is stored on-device with strong encryption.');
-  static String biometricLogin(BuildContext context) => _t(context, 'ورود بیومتریک', 'Biometric login');
-  static String invalidEmail(BuildContext context) => _t(context, 'ایمیل معتبر نیست.', 'Email is not valid.');
-  static String enterEmail(BuildContext context) => _t(context, 'ایمیل را وارد کنید.', 'Please enter email.');
-  static String enterPassword(BuildContext context) => _t(context, 'رمز را وارد کنید.', 'Please enter password.');
-  static String weakPassword(BuildContext context) => _t(context, 'رمز باید حداقل ۸ کاراکتر و شامل حروف و عدد باشد.', 'Password must be at least 8 characters with letters and numbers.');
-  static String passwordsMismatch(BuildContext context) => _t(context, 'رمزها یکسان نیستند.', 'Passwords do not match.');
-  static String wrongPassword(BuildContext context) => _t(context, 'رمز اصلی اشتباه است.', 'Master password is incorrect.');
-  static String securityOperationFailed(BuildContext context) => _t(context, 'عملیات امنیتی ناموفق بود.', 'Security operation failed.');
-  static String biometricFailed(BuildContext context) => _t(context, 'احراز هویت بیومتریک ناموفق بود.', 'Biometric authentication failed.');
+  static String forgotPassword(BuildContext context) =>
+      _t(context, 'رمز را فراموش کرده‌اید؟', 'Forgot your password?');
+  static String recoverySoon(BuildContext context) => _t(
+        context,
+        'بازیابی رمز به‌زودی فعال می‌شود.',
+        'Password recovery will be available soon.',
+      );
+  static String passwordRule(BuildContext context) => _t(
+        context,
+        'رمز باید ترکیبی از حروف و عدد باشد و حداقل ۸ کاراکتر داشته باشد.',
+        'Password must include letters and numbers and be at least 8 characters.',
+      );
+  static String encryptionInfo(BuildContext context) => _t(
+        context,
+        'اطلاعات شما با رمزنگاری امن روی دستگاه ذخیره می‌شود.',
+        'Your data is stored on-device with strong encryption.',
+      );
+  static String biometricLogin(BuildContext context) =>
+      _t(context, 'ورود بیومتریک', 'Biometric login');
+  static String invalidEmail(BuildContext context) =>
+      _t(context, 'ایمیل معتبر نیست.', 'Email is not valid.');
+  static String enterEmail(BuildContext context) =>
+      _t(context, 'ایمیل را وارد کنید.', 'Please enter email.');
+  static String enterPassword(BuildContext context) =>
+      _t(context, 'رمز را وارد کنید.', 'Please enter password.');
+  static String weakPassword(BuildContext context) => _t(
+        context,
+        'رمز باید حداقل ۸ کاراکتر و شامل حروف و عدد باشد.',
+        'Password must be at least 8 characters with letters and numbers.',
+      );
+  static String passwordsMismatch(BuildContext context) =>
+      _t(context, 'رمزها یکسان نیستند.', 'Passwords do not match.');
+  static String wrongPassword(BuildContext context) =>
+      _t(context, 'رمز اصلی اشتباه است.', 'Master password is incorrect.');
+  static String securityOperationFailed(BuildContext context) =>
+      _t(context, 'عملیات امنیتی ناموفق بود.', 'Security operation failed.');
+  static String biometricFailed(BuildContext context) =>
+      _t(context, 'احراز هویت بیومتریک ناموفق بود.', 'Biometric authentication failed.');
   static String strengthWeak(BuildContext context) => _t(context, 'ضعیف', 'Weak');
-  static String strengthMedium(BuildContext context) => _t(context, 'متوسط', 'Medium');
+  static String strengthMedium(BuildContext context) =>
+      _t(context, 'متوسط', 'Medium');
   static String strengthStrong(BuildContext context) => _t(context, 'قوی', 'Strong');
+
+  // —— عمومی ——
   static String exit(BuildContext context) => _t(context, 'خروج', 'Exit');
-  static String exitHint(BuildContext context) => _t(context, 'برای خروج دوباره دکمه Back را فشار دهید.', 'Press Back again to exit.');
+  static String exitHint(BuildContext context) => _t(
+        context,
+        'برای خروج دوباره دکمه Back را فشار دهید.',
+        'Press Back again to exit.',
+      );
   static String cancel(BuildContext context) => _t(context, 'انصراف', 'Cancel');
   static String close(BuildContext context) => _t(context, 'بستن', 'Close');
   static String continueText(BuildContext context) => _t(context, 'ادامه', 'Continue');
@@ -82,139 +135,358 @@ class AppStrings {
   static String add(BuildContext context) => _t(context, 'افزودن', 'Add');
   static String rename(BuildContext context) => _t(context, 'تغییر نام', 'Rename');
   static String settings(BuildContext context) => _t(context, 'تنظیمات', 'Settings');
-  static String securityMenu(BuildContext context) => _t(context, 'امنیت و پشتیبان', 'Security & Backup');
-  static String noItems(BuildContext context) => _t(context, 'هنوز موردی ساخته نشده', 'No items yet');
-  static String emptyFolder(BuildContext context) => _t(context, 'پوشه خالی است', 'Folder is empty');
+  static String securityMenu(BuildContext context) =>
+      _t(context, 'امنیت و پشتیبان', 'Security & Backup');
+  static String noItems(BuildContext context) =>
+      _t(context, 'هنوز موردی ساخته نشده', 'No items yet');
+  static String emptyFolder(BuildContext context) =>
+      _t(context, 'پوشه خالی است', 'Folder is empty');
   static String ok(BuildContext context) => _t(context, 'تأیید', 'OK');
-  static String createFolder(BuildContext context) => _t(context, 'ساخت پوشه', 'Create folder');
-  static String createTable(BuildContext context) => _t(context, 'ساخت جدول', 'Create table');
-  static String folderName(BuildContext context) => _t(context, 'نام پوشه', 'Folder name');
-  static String tableName(BuildContext context) => _t(context, 'نام جدول', 'Table name');
+
+  // —— پوشه / جدول ——
+  static String createFolder(BuildContext context) =>
+      _t(context, 'ساخت پوشه', 'Create folder');
+  static String createTable(BuildContext context) =>
+      _t(context, 'ساخت جدول', 'Create table');
+  static String folderName(BuildContext context) =>
+      _t(context, 'نام پوشه', 'Folder name');
+  static String tableName(BuildContext context) =>
+      _t(context, 'نام جدول', 'Table name');
   static String folder(BuildContext context) => _t(context, 'پوشه', 'Folder');
   static String table(BuildContext context) => _t(context, 'جدول', 'Table');
   static String row(BuildContext context) => _t(context, 'سطر', 'Row');
-  static String renameTable(BuildContext context) => _t(context, 'تغییر نام جدول', 'Rename table');
-  static String deleteTable(BuildContext context) => _t(context, 'حذف جدول', 'Delete table');
-  static String deleteFolder(BuildContext context) => _t(context, 'حذف پوشه', 'Delete folder');
-  static String deleteFolderConfirm(BuildContext context, String name) => _t(context, 'پوشه «$name» و همه محتوای داخل آن حذف شود؟', 'Delete folder "$name" and all of its contents?');
-  static String deleteTableConfirm(BuildContext context, String name) => _t(context, 'جدول «$name» و همه رکوردهایش حذف شود؟', 'Delete table "$name" and all of its records?');
-  static String loadFolderFailed(BuildContext context, Object error) => _t(context, 'بارگذاری پوشه ناموفق بود: $error', 'Failed to load folder: $error');
-  static String loadTableFailed(BuildContext context, Object error) => _t(context, 'بارگذاری جدول ناموفق بود: $error', 'Failed to load table: $error');
-  static String loadDataFailed(BuildContext context, Object error) => _t(context, 'بارگذاری داده‌ها ناموفق بود: $error', 'Failed to load data: $error');
-  static String createFolderFailed(BuildContext context, Object error) => _t(context, 'ساخت پوشه ناموفق بود: $error', 'Failed to create folder: $error');
-  static String createTableFailed(BuildContext context, Object error) => _t(context, 'ساخت جدول ناموفق بود: $error', 'Failed to create table: $error');
-  static String renameFailed(BuildContext context, Object error) => _t(context, 'تغییر نام ناموفق بود: $error', 'Rename failed: $error');
-  static String deleteFolderFailed(BuildContext context, Object error) => _t(context, 'حذف پوشه ناموفق بود: $error', 'Failed to delete folder: $error');
-  static String deleteTableFailed(BuildContext context, Object error) => _t(context, 'حذف جدول ناموفق بود: $error', 'Failed to delete table: $error');
-  static String renameTableFailed(BuildContext context, Object error) => _t(context, 'تغییر نام جدول ناموفق بود: $error', 'Failed to rename table: $error');
-  static String addRecord(BuildContext context) => _t(context, 'افزودن رکورد', 'Add record');
-  static String editRecord(BuildContext context) => _t(context, 'ویرایش رکورد', 'Edit record');
-  static String deleteRecord(BuildContext context) => _t(context, 'حذف رکورد', 'Delete record');
-  static String deleteRecordConfirm(BuildContext context) => _t(context, 'آیا از حذف این رکورد مطمئن هستید؟', 'Are you sure you want to delete this record?');
-  static String noRecordsYet(BuildContext context) => _t(context, 'هنوز رکوردی نیست', 'No records yet');
-  static String columnCount(BuildContext context) => _t(context, 'تعداد ستون', 'Number of columns');
-  static String rowCount(BuildContext context) => _t(context, 'تعداد سطر', 'Number of rows');
-  static String columnCountHint(BuildContext context) => _t(context, 'مثال: ۵', 'e.g. 5');
-  static String rowCountHint(BuildContext context) => _t(context, 'مثال: ۳', 'e.g. 3');
-  static String columnNameTitle(BuildContext context, int i, int total) => _t(context, 'نام ستون $i از $total', 'Column name $i of $total');
-  static String fieldHeaderName(BuildContext context) => _t(context, 'نام فیلد / هدر', 'Field / header name');
-  static String fieldName(BuildContext context) => _t(context, 'نام فیلد', 'Field name');
-  static String addRow(BuildContext context) => _t(context, 'افزودن سطر', 'Add row');
-  static String addField(BuildContext context) => _t(context, 'افزودن فیلد', 'Add field');
-  static String renameField(BuildContext context) => _t(context, 'تغییر نام فیلد', 'Rename field');
-  static String deleteField(BuildContext context) => _t(context, 'حذف فیلد', 'Delete field');
-  static String moveUp(BuildContext context) => _t(context, 'انتقال به بالا', 'Move up');
-  static String moveDown(BuildContext context) => _t(context, 'انتقال به پایین', 'Move down');
-  static String deleteFieldConfirm(BuildContext context, String name) => _t(context, 'فیلد «$name» از همه سطرهای این گروه حذف شود؟', 'Remove field "$name" from all rows in this group?');
-  static String minOneField(BuildContext context) => _t(context, 'حداقل یک فیلد باید در رکورد باقی بماند.', 'At least one field must remain in the record.');
-  static String groupHasNoFields(BuildContext context) => _t(context, 'این گروه فیلدی ندارد.', 'This group has no fields.');
-  static String recordIdNotFound(BuildContext context) => _t(context, 'شناسه رکورد پیدا نشد.', 'Record id not found.');
-  static String addRecordFailed(BuildContext context, Object error) => _t(context, 'افزودن رکورد ناموفق بود: $error', 'Failed to add record: $error');
-  static String saveRecordFailed(BuildContext context, Object error) => _t(context, 'ذخیره رکورد ناموفق بود: $error', 'Failed to save record: $error');
-  static String saveValueFailed(BuildContext context, Object error) => _t(context, 'ذخیره مقدار ناموفق بود: $error', 'Failed to save value: $error');
-  static String deleteRecordFailed(BuildContext context, Object error) => _t(context, 'حذف رکورد ناموفق بود: $error', 'Failed to delete record: $error');
-  static String addRowFailed(BuildContext context, Object error) => _t(context, 'افزودن سطر ناموفق بود: $error', 'Failed to add row: $error');
-  static String addFieldFailed(BuildContext context, Object error) => _t(context, 'افزودن فیلد ناموفق بود: $error', 'Failed to add field: $error');
-  static String renameFieldFailed(BuildContext context, Object error) => _t(context, 'تغییر نام فیلد ناموفق بود: $error', 'Failed to rename field: $error');
-  static String deleteFieldFailed(BuildContext context, Object error) => _t(context, 'حذف فیلد ناموفق بود: $error', 'Failed to delete field: $error');
-  static String moveFieldFailed(BuildContext context, Object error) => _t(context, 'جابه‌جایی فیلد ناموفق بود: $error', 'Failed to move field: $error');
-  static String searchInTable(BuildContext context) => _t(context, 'جستجو در این جدول…', 'Search in this table…');
-  static String searchInFolder(BuildContext context) => _t(context, 'جستجو در این پوشه…', 'Search in this folder…');
-  static String searchEverywhere(BuildContext context) => _t(context, 'جستجو در همه…', 'Search everywhere…');
-  static String noResults(BuildContext context) => _t(context, 'موردی پیدا نشد', 'No results found');
-  static String pdfExport(BuildContext context) => _t(context, 'خروجی PDF', 'Export PDF');
-  static String pdfCancelled(BuildContext context) => _t(context, 'ذخیره PDF لغو شد.', 'PDF save was cancelled.');
-  static String pdfSaved(BuildContext context) => _t(context, 'PDF با موفقیت ذخیره شد.', 'PDF saved successfully.');
-  static String pdfError(BuildContext context, Object error) => _t(context, 'خطا در ساخت PDF:\n$error', 'Error creating PDF:\n$error');
-  static String createEncryptedBackup(BuildContext context) => _t(context, 'ایجاد نسخه پشتیبان رمزنگاری‌شده', 'Create encrypted backup');
-  static String restoreBackup(BuildContext context) => _t(context, 'بازیابی نسخه پشتیبان', 'Restore backup');
-  static String backupHealth(BuildContext context) => _t(context, 'بررسی سلامت Backup', 'Backup health check');
-  static String backupHealthSub(BuildContext context) => _t(context, 'Verify بدون تغییر Vault فعلی', 'Verify without changing current vault');
-  static String recoveryKey(BuildContext context) => _t(context, 'Recovery Key آخرین Backup', 'Latest backup Recovery Key');
-  static String recoveryKeySaved(BuildContext context) => _t(context, 'کلید را ذخیره کردم', 'I saved the key');
+  static String renameTable(BuildContext context) =>
+      _t(context, 'تغییر نام جدول', 'Rename table');
+  static String deleteTable(BuildContext context) =>
+      _t(context, 'حذف جدول', 'Delete table');
+  static String deleteFolder(BuildContext context) =>
+      _t(context, 'حذف پوشه', 'Delete folder');
+  static String deleteFolderConfirm(BuildContext context, String name) => _t(
+        context,
+        'پوشه «$name» و همه محتوای داخل آن حذف شود؟',
+        'Delete folder "$name" and all of its contents?',
+      );
+  static String deleteTableConfirm(BuildContext context, String name) => _t(
+        context,
+        'جدول «$name» و همه رکوردهایش حذف شود؟',
+        'Delete table "$name" and all of its records?',
+      );
+  static String loadFolderFailed(BuildContext context, Object error) =>
+      _t(context, 'بارگذاری پوشه ناموفق بود: $error', 'Failed to load folder: $error');
+  static String loadTableFailed(BuildContext context, Object error) =>
+      _t(context, 'بارگذاری جدول ناموفق بود: $error', 'Failed to load table: $error');
+  static String loadDataFailed(BuildContext context, Object error) =>
+      _t(context, 'بارگذاری داده‌ها ناموفق بود: $error', 'Failed to load data: $error');
+  static String createFolderFailed(BuildContext context, Object error) =>
+      _t(context, 'ساخت پوشه ناموفق بود: $error', 'Failed to create folder: $error');
+  static String createTableFailed(BuildContext context, Object error) =>
+      _t(context, 'ساخت جدول ناموفق بود: $error', 'Failed to create table: $error');
+  static String renameFailed(BuildContext context, Object error) =>
+      _t(context, 'تغییر نام ناموفق بود: $error', 'Rename failed: $error');
+  static String deleteFolderFailed(BuildContext context, Object error) =>
+      _t(context, 'حذف پوشه ناموفق بود: $error', 'Failed to delete folder: $error');
+  static String deleteTableFailed(BuildContext context, Object error) =>
+      _t(context, 'حذف جدول ناموفق بود: $error', 'Failed to delete table: $error');
+  static String renameTableFailed(BuildContext context, Object error) =>
+      _t(context, 'تغییر نام جدول ناموفق بود: $error', 'Failed to rename table: $error');
+
+  // —— جدول / رکورد ——
+  static String addRecord(BuildContext context) =>
+      _t(context, 'افزودن رکورد', 'Add record');
+  static String editRecord(BuildContext context) =>
+      _t(context, 'ویرایش رکورد', 'Edit record');
+  static String deleteRecord(BuildContext context) =>
+      _t(context, 'حذف رکورد', 'Delete record');
+  static String deleteRecordConfirm(BuildContext context) => _t(
+        context,
+        'آیا از حذف این رکورد مطمئن هستید؟',
+        'Are you sure you want to delete this record?',
+      );
+  static String noRecordsYet(BuildContext context) =>
+      _t(context, 'هنوز رکوردی نیست', 'No records yet');
+  static String columnCount(BuildContext context) =>
+      _t(context, 'تعداد ستون', 'Number of columns');
+  static String rowCount(BuildContext context) =>
+      _t(context, 'تعداد سطر', 'Number of rows');
+  static String columnCountHint(BuildContext context) =>
+      _t(context, 'مثال: ۵', 'e.g. 5');
+  static String rowCountHint(BuildContext context) =>
+      _t(context, 'مثال: ۳', 'e.g. 3');
+  static String columnNameTitle(BuildContext context, int i, int total) => _t(
+        context,
+        'نام ستون $i از $total',
+        'Column name $i of $total',
+      );
+  static String fieldHeaderName(BuildContext context) =>
+      _t(context, 'نام فیلد / هدر', 'Field / header name');
+  static String fieldName(BuildContext context) =>
+      _t(context, 'نام فیلد', 'Field name');
+  static String addRow(BuildContext context) =>
+      _t(context, 'افزودن سطر', 'Add row');
+  static String addField(BuildContext context) =>
+      _t(context, 'افزودن فیلد', 'Add field');
+  static String renameField(BuildContext context) =>
+      _t(context, 'تغییر نام فیلد', 'Rename field');
+  static String deleteField(BuildContext context) =>
+      _t(context, 'حذف فیلد', 'Delete field');
+  static String moveUp(BuildContext context) =>
+      _t(context, 'انتقال به بالا', 'Move up');
+  static String moveDown(BuildContext context) =>
+      _t(context, 'انتقال به پایین', 'Move down');
+  static String deleteFieldConfirm(BuildContext context, String name) => _t(
+        context,
+        'فیلد «$name» از همه سطرهای این گروه حذف شود؟',
+        'Remove field "$name" from all rows in this group?',
+      );
+  static String minOneField(BuildContext context) => _t(
+        context,
+        'حداقل یک فیلد باید در رکورد باقی بماند.',
+        'At least one field must remain in the record.',
+      );
+  static String groupHasNoFields(BuildContext context) =>
+      _t(context, 'این گروه فیلدی ندارد.', 'This group has no fields.');
+  static String recordIdNotFound(BuildContext context) =>
+      _t(context, 'شناسه رکورد پیدا نشد.', 'Record id not found.');
+  static String addRecordFailed(BuildContext context, Object error) =>
+      _t(context, 'افزودن رکورد ناموفق بود: $error', 'Failed to add record: $error');
+  static String saveRecordFailed(BuildContext context, Object error) =>
+      _t(context, 'ذخیره رکورد ناموفق بود: $error', 'Failed to save record: $error');
+  static String saveValueFailed(BuildContext context, Object error) =>
+      _t(context, 'ذخیره مقدار ناموفق بود: $error', 'Failed to save value: $error');
+  static String deleteRecordFailed(BuildContext context, Object error) =>
+      _t(context, 'حذف رکورد ناموفق بود: $error', 'Failed to delete record: $error');
+  static String addRowFailed(BuildContext context, Object error) =>
+      _t(context, 'افزودن سطر ناموفق بود: $error', 'Failed to add row: $error');
+  static String addFieldFailed(BuildContext context, Object error) =>
+      _t(context, 'افزودن فیلد ناموفق بود: $error', 'Failed to add field: $error');
+  static String renameFieldFailed(BuildContext context, Object error) =>
+      _t(context, 'تغییر نام فیلد ناموفق بود: $error', 'Failed to rename field: $error');
+  static String deleteFieldFailed(BuildContext context, Object error) =>
+      _t(context, 'حذف فیلد ناموفق بود: $error', 'Failed to delete field: $error');
+  static String moveFieldFailed(BuildContext context, Object error) =>
+      _t(context, 'جابه‌جایی فیلد ناموفق بود: $error', 'Failed to move field: $error');
+
+  // —— جستجو ——
+  static String searchInTable(BuildContext context) =>
+      _t(context, 'جستجو در این جدول…', 'Search in this table…');
+  static String searchInFolder(BuildContext context) =>
+      _t(context, 'جستجو در این پوشه…', 'Search in this folder…');
+  static String searchEverywhere(BuildContext context) =>
+      _t(context, 'جستجو در همه…', 'Search everywhere…');
+  static String noResults(BuildContext context) =>
+      _t(context, 'موردی پیدا نشد', 'No results found');
+
+  // —— PDF ——
+  static String pdfExport(BuildContext context) =>
+      _t(context, 'خروجی PDF', 'Export PDF');
+  static String pdfCancelled(BuildContext context) =>
+      _t(context, 'ذخیره PDF لغو شد.', 'PDF save was cancelled.');
+  static String pdfSaved(BuildContext context) =>
+      _t(context, 'PDF با موفقیت ذخیره شد.', 'PDF saved successfully.');
+  static String pdfError(BuildContext context, Object error) =>
+      _t(context, 'خطا در ساخت PDF:\n$error', 'Error creating PDF:\n$error');
+
+  // —— Backup ——
+  static String createEncryptedBackup(BuildContext context) =>
+      _t(context, 'ایجاد نسخه پشتیبان رمزنگاری‌شده', 'Create encrypted backup');
+  static String restoreBackup(BuildContext context) =>
+      _t(context, 'بازیابی نسخه پشتیبان', 'Restore backup');
+  static String backupHealth(BuildContext context) =>
+      _t(context, 'بررسی سلامت Backup', 'Backup health check');
+  static String backupHealthSub(BuildContext context) =>
+      _t(context, 'Verify بدون تغییر Vault فعلی', 'Verify without changing current vault');
+  static String recoveryKey(BuildContext context) =>
+      _t(context, 'Recovery Key آخرین Backup', 'Latest backup Recovery Key');
+  static String recoveryKeySaved(BuildContext context) =>
+      _t(context, 'کلید را ذخیره کردم', 'I saved the key');
   static String copy(BuildContext context) => _t(context, 'کپی', 'Copy');
   static String copyKey(BuildContext context) => _t(context, 'کپی کلید', 'Copy key');
-  static String backupPasswordEncryption(BuildContext context) => _t(context, 'رمز عبور برای رمزنگاری Backup', 'Password for backup encryption');
-  static String backupPassword(BuildContext context) => _t(context, 'رمز عبور Backup را وارد کنید', 'Enter backup password');
-  static String recoveryKeyTitle(BuildContext context) => _t(context, 'Recovery Key — حتماً ذخیره کنید', 'Recovery Key — save it now');
-  static String recoveryKeyDescription(BuildContext context) => _t(context, 'این کلید برای بازیابی Backup در صورت از دست رفتن رمز اصلی لازم است.\nکلید داخل فایل Backup نیست؛ آن را در محل امن خارج از دستگاه نگه دارید.', 'This key is required to recover the backup if the master password is lost.\nIt is not stored inside the backup file; keep it in a safe place off this device.');
-  static String recoveryKeyCopied(BuildContext context) => _t(context, 'Recovery Key کپی شد.', 'Recovery Key copied.');
-  static String noActiveRecoveryKey(BuildContext context) => _t(context, 'Recovery Key فعالی در این نشست وجود ندارد.\n\nاین کلید فقط هنگام ساخت موفق Backup جدید تولید می‌شود و بعد از بستن برنامه از حافظه پاک می‌شود. اگر کلید را ذخیره نکرده‌اید، یک Backup جدید بگیرید.', 'There is no active Recovery Key in this session.\n\nThe key is generated only after a successful new Backup and is cleared from memory when the app closes. If you did not save it, create a new Backup.');
-  static String restoreWarning(BuildContext context) => _t(context, 'با بازیابی، اطلاعات فعلی برنامه حذف و اطلاعات نسخه پشتیبان جایگزین می‌شود. ادامه می‌دهید؟', 'Restoring will replace the current app data with the selected backup. Continue?');
-  static String restoreSuccess(BuildContext context, int items, int rows, int values) => _t(context, 'بازیابی موفق: $items مورد، $rows رکورد، $values مقدار. در صورت نیاز بیومتریک را دوباره فعال کنید.', 'Restore successful: $items items, $rows records, $values values. Re-enable biometrics if needed.');
-  static String restoreCancelled(BuildContext context) => _t(context, 'انتخاب فایل پشتیبان لغو شد.', 'Backup file selection was cancelled.');
-  static String backupSaved(BuildContext context) => _t(context, 'نسخه پشتیبان با موفقیت ذخیره شد. Recovery Key را حتماً یادداشت کنید.', 'Backup saved successfully. Be sure to record the Recovery Key.');
-  static String backupCancelled(BuildContext context) => _t(context, 'ذخیره نسخه پشتیبان لغو شد.', 'Backup save was cancelled.');
-  static String backupCreateError(BuildContext context, Object error) => _t(context, 'خطا در ایجاد نسخه پشتیبان: $error', 'Error creating backup: $error');
-  static String backupRestoreError(BuildContext context, Object error) => _t(context, 'خطا در بازیابی نسخه پشتیبان: $error', 'Error restoring backup: $error');
-  static String enterCredential(BuildContext context) => _t(context, 'رمز اصلی یا Recovery Key را وارد کنید.', 'Enter master password or Recovery Key.');
-  static String enterCredentialForRestore(BuildContext context) => _t(context, 'برای Restore رمز اصلی یا Recovery Key را وارد کنید.', 'Enter master password or Recovery Key to restore.');
-  static String filePickCancelled(BuildContext context) => _t(context, 'انتخاب فایل لغو شد.', 'File selection cancelled.');
-  static String verifyFailed(BuildContext context, Object error) => _t(context, 'بررسی Backup ناموفق بود: $error', 'Backup verification failed: $error');
-  static String restoreRealTitle(BuildContext context) => _t(context, 'بازیابی واقعی Vault', 'Real vault restore');
-  static String restoreRealBody(BuildContext context) => _t(context, 'این عملیات اطلاعات فعلی Vault را با Backup انتخاب‌شده جایگزین می‌کند. اگر هر مرحله اعتبارسنجی شکست بخورد، Restore متوقف می‌شود و Vault فعلی حفظ می‌شود. ادامه می‌دهید؟', 'This replaces the current vault with the selected backup. If any validation step fails, restore stops and the current vault is kept. Continue?');
-  static String restoreSuccessTitle(BuildContext context) => _t(context, 'بازیابی با موفقیت تأیید شد', 'Restore confirmed successfully');
-  static String restoreSuccessBody(BuildContext context) => _t(context, 'Backup رمزگشایی، اعتبارسنجی، جایگزینی و پس از Restore دوباره بررسی شد.', 'Backup was decrypted, validated, replaced, and re-checked after restore.');
-  static String treeItems(BuildContext context) => _t(context, 'آیتم‌های درخت', 'Tree items');
+  static String backupPasswordEncryption(BuildContext context) =>
+      _t(context, 'رمز عبور برای رمزنگاری Backup', 'Password for backup encryption');
+  static String backupPassword(BuildContext context) =>
+      _t(context, 'رمز عبور Backup را وارد کنید', 'Enter backup password');
+  static String recoveryKeyTitle(BuildContext context) =>
+      _t(context, 'Recovery Key — حتماً ذخیره کنید', 'Recovery Key — save it now');
+  static String recoveryKeyDescription(BuildContext context) => _t(
+        context,
+        'این کلید برای بازیابی Backup در صورت از دست رفتن رمز اصلی لازم است.\n'
+        'کلید داخل فایل Backup نیست؛ آن را در محل امن خارج از دستگاه نگه دارید.',
+        'This key is required to recover the backup if the master password is lost.\n'
+        'It is not stored inside the backup file; keep it in a safe place off this device.',
+      );
+  static String recoveryKeyCopied(BuildContext context) =>
+      _t(context, 'Recovery Key کپی شد.', 'Recovery Key copied.');
+  static String noActiveRecoveryKey(BuildContext context) => _t(
+        context,
+        'Recovery Key فعالی در این نشست وجود ندارد.\n\n'
+        'این کلید فقط هنگام ساخت موفق Backup جدید تولید می‌شود '
+        'و بعد از بستن برنامه از حافظه پاک می‌شود. '
+        'اگر کلید را ذخیره نکرده‌اید، یک Backup جدید بگیرید.',
+        'There is no active Recovery Key in this session.\n\n'
+        'The key is generated only after a successful new Backup and is cleared '
+        'from memory when the app closes. If you did not save it, create a new Backup.',
+      );
+  static String restoreWarning(BuildContext context) => _t(
+        context,
+        'با بازیابی، اطلاعات فعلی برنامه حذف و اطلاعات نسخه پشتیبان جایگزین می‌شود. ادامه می‌دهید؟',
+        'Restoring will replace the current app data with the selected backup. Continue?',
+      );
+  static String restoreSuccess(
+    BuildContext context,
+    int items,
+    int rows,
+    int values,
+  ) =>
+      _t(
+        context,
+        'بازیابی موفق: $items مورد، $rows رکورد، $values مقدار. در صورت نیاز بیومتریک را دوباره فعال کنید.',
+        'Restore successful: $items items, $rows records, $values values. Re-enable biometrics if needed.',
+      );
+  static String restoreCancelled(BuildContext context) =>
+      _t(context, 'انتخاب فایل پشتیبان لغو شد.', 'Backup file selection was cancelled.');
+  static String backupSaved(BuildContext context) => _t(
+        context,
+        'نسخه پشتیبان با موفقیت ذخیره شد. Recovery Key را حتماً یادداشت کنید.',
+        'Backup saved successfully. Be sure to record the Recovery Key.',
+      );
+  static String backupCancelled(BuildContext context) =>
+      _t(context, 'ذخیره نسخه پشتیبان لغو شد.', 'Backup save was cancelled.');
+  static String backupCreateError(BuildContext context, Object error) =>
+      _t(context, 'خطا در ایجاد نسخه پشتیبان: $error', 'Error creating backup: $error');
+  static String backupRestoreError(BuildContext context, Object error) =>
+      _t(context, 'خطا در بازیابی نسخه پشتیبان: $error', 'Error restoring backup: $error');
+  static String enterCredential(BuildContext context) => _t(
+        context,
+        'رمز اصلی یا Recovery Key را وارد کنید.',
+        'Enter master password or Recovery Key.',
+      );
+  static String enterCredentialForRestore(BuildContext context) => _t(
+        context,
+        'برای Restore رمز اصلی یا Recovery Key را وارد کنید.',
+        'Enter master password or Recovery Key to restore.',
+      );
+  static String filePickCancelled(BuildContext context) =>
+      _t(context, 'انتخاب فایل لغو شد.', 'File selection cancelled.');
+  static String verifyFailed(BuildContext context, Object error) =>
+      _t(context, 'بررسی Backup ناموفق بود: $error', 'Backup verification failed: $error');
+  static String restoreRealTitle(BuildContext context) =>
+      _t(context, 'بازیابی واقعی Vault', 'Real vault restore');
+  static String restoreRealBody(BuildContext context) => _t(
+        context,
+        'این عملیات اطلاعات فعلی Vault را با Backup انتخاب‌شده جایگزین می‌کند. '
+        'اگر هر مرحله اعتبارسنجی شکست بخورد، Restore متوقف می‌شود و Vault فعلی حفظ می‌شود. ادامه می‌دهید؟',
+        'This replaces the current vault with the selected backup. '
+        'If any validation step fails, restore stops and the current vault is kept. Continue?',
+      );
+  static String restoreSuccessTitle(BuildContext context) =>
+      _t(context, 'بازیابی با موفقیت تأیید شد', 'Restore confirmed successfully');
+  static String restoreSuccessBody(BuildContext context) => _t(
+        context,
+        'Backup رمزگشایی، اعتبارسنجی، جایگزینی و پس از Restore دوباره بررسی شد.',
+        'Backup was decrypted, validated, replaced, and re-checked after restore.',
+      );
+  static String treeItems(BuildContext context) =>
+      _t(context, 'آیتم‌های درخت', 'Tree items');
   static String records(BuildContext context) => _t(context, 'رکوردها', 'Records');
   static String fields(BuildContext context) => _t(context, 'فیلدها', 'Fields');
   static String values(BuildContext context) => _t(context, 'مقادیر', 'Values');
-  static String integrityPass(BuildContext context) => _t(context, 'یکپارچگی: موفق', 'Integrity: PASS');
-  static String integrityDone(BuildContext context) => _t(context, 'اعتبارسنجی یکپارچگی انجام شد.', 'Integrity verification completed.');
-  static String backupFileCancelled(BuildContext context) => _t(context, 'انتخاب فایل Backup لغو شد.', 'Backup file selection cancelled.');
-  static String restoreFailed(BuildContext context, Object error) => _t(context, 'بازیابی انجام نشد:\n$error', 'Restore failed:\n$error');
-  static String backupCenterTitle(BuildContext context) => _t(context, 'Backup و بازیابی امن', 'Secure backup & restore');
-  static String backupCenterHeading(BuildContext context) => _t(context, 'مرکز Backup / Restore', 'Backup / Restore Center');
-  static String backupCenterDesc(BuildContext context) => _t(context, 'همین صفحه برای بررسی و بازیابی استفاده می‌شود. بازیابی فقط پس از احراز هویت، اعتبارسنجی کامل و بررسی نهایی دیتابیس موفق اعلام می‌شود.', 'Use this page to verify and restore. Restore is only reported successful after authentication, full validation, and a final database check.');
-  static String credentialLabel(BuildContext context) => _t(context, 'رمز اصلی یا Recovery Key', 'Master password or Recovery Key');
-  static String backupValid(BuildContext context) => _t(context, 'Backup معتبر است', 'Backup is valid');
-  static String formatVersion(BuildContext context, int v) => _t(context, 'فرمت: v$v', 'Format: v$v');
-  static String schemaVersion(BuildContext context, int v) => _t(context, 'اسکیما: v$v', 'Schema: v$v');
-  static String viewLastRecoveryKey(BuildContext context) => _t(context, 'مشاهده Recovery Key آخرین Backup', 'View latest backup Recovery Key');
-  static String recoveryKeyOutsideFile(BuildContext context) => _t(context, 'این کلید خارج از فایل Backup نگهداری می‌شود. آن را در محل امن دیگری ذخیره کنید.', 'This key is kept outside the backup file. Store it in another safe place.');
-  static String biometricSettings(BuildContext context) => _t(context, 'تنظیم ورود بیومتریک', 'Biometric login settings');
-  static String biometricUnavailable(BuildContext context) => _t(context, 'بیومتریک روی این دستگاه در دسترس نیست.', 'Biometrics are not available on this device.');
-  static String biometricDisableQuestion(BuildContext context) => _t(context, 'ورود بیومتریک فعال است. غیرفعال شود؟', 'Biometric login is enabled. Disable it?');
-  static String disable(BuildContext context) => _t(context, 'غیرفعال کردن', 'Disable');
-  static String biometricDisabled(BuildContext context) => _t(context, 'ورود بیومتریک غیرفعال شد.', 'Biometric login disabled.');
-  static String biometricEnabled(BuildContext context) => _t(context, 'ورود بیومتریک فعال شد.', 'Biometric login enabled.');
-  static String biometricEnableFailed(BuildContext context) => _t(context, 'فعال‌سازی بیومتریک انجام نشد.', 'Biometric activation failed.');
-  static String addPassword(BuildContext context) => _t(context, 'افزودن رمز', 'Add password');
+  static String integrityPass(BuildContext context) =>
+      _t(context, 'یکپارچگی: موفق', 'Integrity: PASS');
+  static String integrityDone(BuildContext context) =>
+      _t(context, 'اعتبارسنجی یکپارچگی انجام شد.', 'Integrity verification completed.');
+  static String backupFileCancelled(BuildContext context) =>
+      _t(context, 'انتخاب فایل Backup لغو شد.', 'Backup file selection cancelled.');
+  static String restoreFailed(BuildContext context, Object error) =>
+      _t(context, 'بازیابی انجام نشد:\n$error', 'Restore failed:\n$error');
+  static String backupCenterTitle(BuildContext context) =>
+      _t(context, 'Backup و بازیابی امن', 'Secure backup & restore');
+  static String backupCenterHeading(BuildContext context) =>
+      _t(context, 'مرکز Backup / Restore', 'Backup / Restore Center');
+  static String backupCenterDesc(BuildContext context) => _t(
+        context,
+        'همین صفحه برای بررسی و بازیابی استفاده می‌شود. '
+        'بازیابی فقط پس از احراز هویت، اعتبارسنجی کامل و بررسی نهایی دیتابیس موفق اعلام می‌شود.',
+        'Use this page to verify and restore. Restore is only reported successful after authentication, full validation, and a final database check.',
+      );
+  static String credentialLabel(BuildContext context) =>
+      _t(context, 'رمز اصلی یا Recovery Key', 'Master password or Recovery Key');
+  static String backupValid(BuildContext context) =>
+      _t(context, 'Backup معتبر است', 'Backup is valid');
+  static String formatVersion(BuildContext context, int v) =>
+      _t(context, 'فرمت: v$v', 'Format: v$v');
+  static String schemaVersion(BuildContext context, int v) =>
+      _t(context, 'اسکیما: v$v', 'Schema: v$v');
+  static String viewLastRecoveryKey(BuildContext context) =>
+      _t(context, 'مشاهده Recovery Key آخرین Backup', 'View latest backup Recovery Key');
+  static String recoveryKeyOutsideFile(BuildContext context) => _t(
+        context,
+        'این کلید خارج از فایل Backup نگهداری می‌شود. آن را در محل امن دیگری ذخیره کنید.',
+        'This key is kept outside the backup file. Store it in another safe place.',
+      );
+
+  // —— بیومتریک ——
+  static String biometricSettings(BuildContext context) =>
+      _t(context, 'تنظیم ورود بیومتریک', 'Biometric login settings');
+  static String biometricUnavailable(BuildContext context) => _t(
+        context,
+        'بیومتریک روی این دستگاه در دسترس نیست.',
+        'Biometrics are not available on this device.',
+      );
+  static String biometricDisableQuestion(BuildContext context) => _t(
+        context,
+        'ورود بیومتریک فعال است. غیرفعال شود؟',
+        'Biometric login is enabled. Disable it?',
+      );
+  static String disable(BuildContext context) =>
+      _t(context, 'غیرفعال کردن', 'Disable');
+  static String biometricDisabled(BuildContext context) =>
+      _t(context, 'ورود بیومتریک غیرفعال شد.', 'Biometric login disabled.');
+  static String biometricEnabled(BuildContext context) =>
+      _t(context, 'ورود بیومتریک فعال شد.', 'Biometric login enabled.');
+  static String biometricEnableFailed(BuildContext context) =>
+      _t(context, 'فعال‌سازی بیومتریک انجام نشد.', 'Biometric activation failed.');
+
+  // —— افزودن رمز (صفحه جدا) ——
+  static String addPassword(BuildContext context) =>
+      _t(context, 'افزودن رمز', 'Add password');
   static String titleLabel(BuildContext context) => _t(context, 'عنوان', 'Title');
-  static String titleHint(BuildContext context) => _t(context, 'مثال: Nextcloud', 'e.g. Nextcloud');
-  static String username(BuildContext context) => _t(context, 'نام کاربری', 'Username');
-  static String password(BuildContext context) => _t(context, 'رمز عبور', 'Password');
-  static String generatePassword(BuildContext context) => _t(context, 'تولید رمز', 'Generate password');
-  static String passwordSettings(BuildContext context) => _t(context, 'تنظیمات رمز عبور', 'Password settings');
-  static String passwordLength(BuildContext context, int n) => _t(context, 'طول رمز: $n', 'Password length: $n');
-  static String lowerCase(BuildContext context) => _t(context, 'حروف کوچک (a-z)', 'Lowercase (a-z)');
-  static String upperCase(BuildContext context) => _t(context, 'حروف بزرگ (A-Z)', 'Uppercase (A-Z)');
-  static String digits(BuildContext context) => _t(context, 'اعداد (0-9)', 'Digits (0-9)');
-  static String symbols(BuildContext context) => _t(context, 'نمادها (!@#...)', 'Symbols (!@#...)');
+  static String titleHint(BuildContext context) =>
+      _t(context, 'مثال: Nextcloud', 'e.g. Nextcloud');
+  static String username(BuildContext context) =>
+      _t(context, 'نام کاربری', 'Username');
+  static String password(BuildContext context) =>
+      _t(context, 'رمز عبور', 'Password');
+  static String generatePassword(BuildContext context) =>
+      _t(context, 'تولید رمز', 'Generate password');
+  static String passwordSettings(BuildContext context) =>
+      _t(context, 'تنظیمات رمز عبور', 'Password settings');
+  static String passwordLength(BuildContext context, int n) =>
+      _t(context, 'طول رمز: $n', 'Password length: $n');
+  static String lowerCase(BuildContext context) =>
+      _t(context, 'حروف کوچک (a-z)', 'Lowercase (a-z)');
+  static String upperCase(BuildContext context) =>
+      _t(context, 'حروف بزرگ (A-Z)', 'Uppercase (A-Z)');
+  static String digits(BuildContext context) =>
+      _t(context, 'اعداد (0-9)', 'Digits (0-9)');
+  static String symbols(BuildContext context) =>
+      _t(context, 'نمادها (!@#...)', 'Symbols (!@#...)');
   static String website(BuildContext context) => _t(context, 'وب‌سایت', 'Website');
   static String notes(BuildContext context) => _t(context, 'یادداشت', 'Notes');
-  static String selectCharType(BuildContext context) => _t(context, 'حداقل یک نوع کاراکتر برای رمز انتخاب کنید.', 'Select at least one character type for the password.');
-  static String enterTitle(BuildContext context) => _t(context, 'عنوان را وارد کنید.', 'Please enter a title.');
-  static String enterOrGeneratePassword(BuildContext context) => _t(context, 'رمز را وارد یا تولید کنید.', 'Enter or generate a password.');
-  static String saveComingSoon(BuildContext context) => _t(context, 'ذخیره‌سازی در مرحله بعد اضافه می‌شود.', 'Saving will be added in a later step.');
+  static String selectCharType(BuildContext context) => _t(
+        context,
+        'حداقل یک نوع کاراکتر برای رمز انتخاب کنید.',
+        'Select at least one character type for the password.',
+      );
+  static String enterTitle(BuildContext context) =>
+      _t(context, 'عنوان را وارد کنید.', 'Please enter a title.');
+  static String enterOrGeneratePassword(BuildContext context) => _t(
+        context,
+        'رمز را وارد یا تولید کنید.',
+        'Enter or generate a password.',
+      );
+  static String saveComingSoon(BuildContext context) => _t(
+        context,
+        'ذخیره‌سازی در مرحله بعد اضافه می‌شود.',
+        'Saving will be added in a later step.',
+      );
 }
