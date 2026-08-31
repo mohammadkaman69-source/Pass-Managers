@@ -33,7 +33,7 @@ class _BackupCenterPageState extends State<BackupCenterPage> {
     final credential = _credentialController.text.trim();
     if (credential.isEmpty) {
       setState(() {
-        _error = _t('رمز اصلی یا Recovery Key را وارد کنید.', 'Enter the master password or Recovery Key.');
+        _error = _t(AppStrings.enterCredential(context), 'Enter the master password or Recovery Key.');
         _result = null;
       });
       return;
@@ -51,13 +51,13 @@ class _BackupCenterPageState extends State<BackupCenterPage> {
       setState(() => _result = result);
     } on BackupCancelledException {
       if (!mounted) return;
-      setState(() => _error = _t('انتخاب فایل لغو شد.', 'File selection was cancelled.'));
+      setState(() => _error = _t(AppStrings.filePickCancelled(context), 'File selection was cancelled.'));
     } on BackupFormatException catch (error) {
       if (!mounted) return;
       setState(() => _error = error.message);
     } catch (error) {
       if (!mounted) return;
-      setState(() => _error = _t('بررسی Backup ناموفق بود: $error', 'Backup verification failed: $error'));
+      setState(() => _error = _t(AppStrings.verifyFailed(context, error), 'Backup verification failed: $error'));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -67,7 +67,7 @@ class _BackupCenterPageState extends State<BackupCenterPage> {
     final credential = _credentialController.text.trim();
     if (credential.isEmpty) {
       setState(() {
-        _error = _t('برای Restore رمز اصلی یا Recovery Key را وارد کنید.', 'Enter the master password or Recovery Key to restore.');
+        _error = _t(AppStrings.enterCredentialForRestore(context), 'Enter the master password or Recovery Key to restore.');
         _result = null;
       });
       return;
@@ -75,7 +75,7 @@ class _BackupCenterPageState extends State<BackupCenterPage> {
 
     final cancelLabel = AppStrings.cancel(context);
     final restoreLabel = AppStrings.restore(context);
-    final dialogTitle = _t('بازیابی واقعی Vault', 'Restore Vault');
+    final dialogTitle = _t(AppStrings.restoreRealTitle(context), 'Restore Vault');
     final dialogContent = _t('این عملیات اطلاعات فعلی Vault را با Backup انتخاب‌شده جایگزین می‌کند. اگر هر مرحله اعتبارسنجی شکست بخورد، Restore متوقف می‌شود و Vault فعلی حفظ می‌شود. ادامه می‌دهید؟', 'This operation replaces the current Vault data with the selected Backup. If any validation step fails, Restore stops and the current Vault is preserved. Continue?');
     final confirmed = await showDialog<bool>(
       context: context,
@@ -105,28 +105,28 @@ class _BackupCenterPageState extends State<BackupCenterPage> {
       await showDialog<void>(
         context: context,
         builder: (dialogContext) => AlertDialog(
-          title: Text(_t('بازیابی با موفقیت تأیید شد', 'Restore verified successfully')),
+          title: Text(_t(AppStrings.restoreSuccessTitle(context), 'Restore verified successfully')),
           content: SingleChildScrollView(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(_t('Backup رمزگشایی، اعتبارسنجی، جایگزینی و پس از Restore دوباره بررسی شد.', 'The Backup was decrypted, validated, restored, and verified again after Restore.')),
+                Text(_t(AppStrings.restoreSuccessBody(context), 'The Backup was decrypted, validated, restored, and verified again after Restore.')),
                 const SizedBox(height: 16),
-                Text('${_t('آیتم‌های درخت', 'Tree items')}: ${result.treeItemCount}'),
-                Text('${_t('رکوردها', 'Records')}: ${result.rowCount}'),
-                Text('${_t('فیلدها', 'Fields')}: ${result.fieldCount}'),
-                Text('${_t('مقادیر', 'Values')}: ${result.valueCount}'),
+                Text('${_t(AppStrings.treeItems(context), 'Tree items')}: ${result.treeItemCount}'),
+                Text('${_t(AppStrings.records(context), 'Records')}: ${result.rowCount}'),
+                Text('${_t(AppStrings.fields(context), 'Fields')}: ${result.fieldCount}'),
+                Text('${_t(AppStrings.values(context), 'Values')}: ${result.valueCount}'),
                 const SizedBox(height: 12),
-                Text(_t('یکپارچگی: موفق', 'Integrity: successful')),
+                Text(_t(AppStrings.integrityPass(context), 'Integrity: successful')),
               ],
             ),
           ),
-          actions: [ElevatedButton(onPressed: () => Navigator.pop(dialogContext), child: Text(_t('تأیید', 'OK')))],
+          actions: [ElevatedButton(onPressed: () => Navigator.pop(dialogContext), child: Text(_t(AppStrings.confirm(context), 'OK')))],
         ),
       );
     } on BackupCancelledException {
-      if (mounted) setState(() => _error = _t('انتخاب فایل Backup لغو شد.', 'Backup file selection was cancelled.'));
+      if (mounted) setState(() => _error = _t(AppStrings.backupFileCancelled(context), 'Backup file selection was cancelled.'));
     } on BackupFormatException catch (error) {
       if (mounted) setState(() => _error = '${_t('بازیابی انجام نشد', 'Restore failed')}:\n${error.message}');
     } catch (error) {
@@ -174,7 +174,7 @@ class _BackupCenterPageState extends State<BackupCenterPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(_t('Backup و بازیابی امن', 'Secure Backup & Restore'))),
+      appBar: AppBar(title: Text(_t(AppStrings.backupCenterTitle(context), 'Secure Backup & Restore'))),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -184,7 +184,7 @@ class _BackupCenterPageState extends State<BackupCenterPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text(_t('مرکز Backup / Restore', 'Backup / Restore Center'), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                  Text(_t(AppStrings.backupCenterHeading(context), 'Backup / Restore Center'), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
                   Text(_t('همین صفحه برای بررسی و بازیابی استفاده می‌شود. بازیابی فقط پس از احراز هویت، اعتبارسنجی کامل و بررسی نهایی دیتابیس موفق اعلام می‌شود.', 'This page is used for verification and restore. A restore is reported successful only after authentication, full validation, and final database verification.')),
                   const SizedBox(height: 16),
@@ -192,7 +192,7 @@ class _BackupCenterPageState extends State<BackupCenterPage> {
                     controller: _credentialController,
                     obscureText: true,
                     textDirection: TextDirection.ltr,
-                    decoration: InputDecoration(labelText: _t('رمز اصلی یا Recovery Key', 'Master Password or Recovery Key'), border: const OutlineInputBorder()),
+                    decoration: InputDecoration(labelText: _t(AppStrings.credentialLabel(context), 'Master Password or Recovery Key'), border: const OutlineInputBorder()),
                   ),
                   const SizedBox(height: 12),
                   Row(
@@ -210,16 +210,16 @@ class _BackupCenterPageState extends State<BackupCenterPage> {
                     const SizedBox(height: 16),
                     const Divider(),
                     const SizedBox(height: 8),
-                    Text(_t('Backup معتبر است', 'Backup is valid'), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                    Text(_t(AppStrings.backupValid(context), 'Backup is valid'), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 8),
                     Text('Format: v${_result!.formatVersion}'),
                     Text('Schema: v${_result!.schemaVersion}'),
-                    Text('${_t('آیتم‌های درخت', 'Tree items')}: ${_result!.treeItemCount}'),
-                    Text('${_t('رکوردها', 'Records')}: ${_result!.rowCount}'),
-                    Text('${_t('فیلدها', 'Fields')}: ${_result!.fieldCount}'),
-                    Text('${_t('مقادیر', 'Values')}: ${_result!.valueCount}'),
+                    Text('${_t(AppStrings.treeItems(context), 'Tree items')}: ${_result!.treeItemCount}'),
+                    Text('${_t(AppStrings.records(context), 'Records')}: ${_result!.rowCount}'),
+                    Text('${_t(AppStrings.fields(context), 'Fields')}: ${_result!.fieldCount}'),
+                    Text('${_t(AppStrings.values(context), 'Values')}: ${_result!.valueCount}'),
                     const SizedBox(height: 8),
-                    Text(_t('اعتبارسنجی یکپارچگی انجام شد.', 'Integrity validation completed.')),
+                    Text(_t(AppStrings.integrityDone(context), 'Integrity validation completed.')),
                   ],
                 ],
               ),
@@ -229,8 +229,8 @@ class _BackupCenterPageState extends State<BackupCenterPage> {
           Card(
             child: ListTile(
               leading: const Icon(Icons.key_outlined),
-              title: Text(_t('مشاهده Recovery Key آخرین Backup', 'View Recovery Key of latest Backup')),
-              subtitle: Text(_t('این کلید خارج از فایل Backup نگهداری می‌شود. آن را در محل امن دیگری ذخیره کنید.', 'This key is kept outside the Backup file. Store it securely somewhere else.')),
+              title: Text(_t(AppStrings.viewLastRecoveryKey(context), 'View Recovery Key of latest Backup')),
+              subtitle: Text(_t(AppStrings.recoveryKeyOutsideFile(context), 'This key is kept outside the Backup file. Store it securely somewhere else.')),
               onTap: _showRecoveryKey,
             ),
           ),
@@ -239,3 +239,4 @@ class _BackupCenterPageState extends State<BackupCenterPage> {
     );
   }
 }
+
