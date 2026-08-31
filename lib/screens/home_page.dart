@@ -2,6 +2,7 @@
 
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../services/app_language.dart';
 import 'package:flutter/services.dart';
 
 import '../models/tree_item.dart';
@@ -67,9 +68,9 @@ class _HomePageState extends State<HomePage> {
     showDialog<void>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('خروج'),
+        title: const Text(AppStrings.exit(context)),
         content: const Text(
-          'برای خروج دوباره دکمه Back را فشار دهید.',
+          AppStrings.exitHint(context),
         ),
         actions: [
           TextButton(
@@ -77,13 +78,13 @@ class _HomePageState extends State<HomePage> {
               Navigator.pop(dialogContext);
               _lastBackPress = null;
             },
-            child: const Text('انصراف'),
+            child: const Text(AppStrings.cancel(context)),
           ),
           ElevatedButton(
             onPressed: () {
               SystemNavigator.pop();
             },
-            child: const Text('خروج'),
+            child: const Text(AppStrings.exit(context)),
           ),
         ],
       ),
@@ -143,7 +144,7 @@ class _HomePageState extends State<HomePage> {
         _isLoading = false;
       });
 
-      _showMessage('بارگذاری داده‌ها ناموفق بود: $error');
+      _showMessage(AppStrings.loadDataFailed(context, error));
     }
   }
 
@@ -185,11 +186,11 @@ class _HomePageState extends State<HomePage> {
 
       _showMessage(
         fileUri == null || fileUri.isEmpty
-            ? 'ذخیره PDF لغو شد.'
-            : 'PDF با موفقیت ذخیره شد.',
+            ? AppStrings.pdfCancelled(context)
+            : AppStrings.pdfSaved(context),
       );
     } catch (error) {
-      _showMessage('خطا در ساخت PDF:\n$error');
+      _showMessage(AppStrings.pdfError(context, error));
     } finally {
       if (mounted) {
         setState(() {
@@ -213,14 +214,14 @@ class _HomePageState extends State<HomePage> {
           autofocus: true,
           obscureText: true,
           decoration: const InputDecoration(
-            labelText: 'رمز اصلی',
+            labelText: AppStrings.mainPassword(context),
             border: OutlineInputBorder(),
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('لغو'),
+            child: const Text(AppStrings.cancel(context)),
           ),
           ElevatedButton(
             onPressed: () {
@@ -229,7 +230,7 @@ class _HomePageState extends State<HomePage> {
                 Navigator.pop(dialogContext, value);
               }
             },
-            child: const Text('ادامه'),
+            child: const Text(AppStrings.continueText(context)),
           ),
         ],
       ),
@@ -244,7 +245,7 @@ class _HomePageState extends State<HomePage> {
     if (_isBackupBusy) return;
 
     final password = await _askMasterPasswordForBackup(
-      title: 'رمز عبور برای رمزنگاری Backup',
+      title: AppStrings.backupPasswordEncryption(context),
     );
 
     if (password == null || password.isEmpty) return;
@@ -252,7 +253,7 @@ class _HomePageState extends State<HomePage> {
     final verified = await SecurityManager().unlock(password);
 
     if (!verified) {
-      _showMessage('رمز اصلی اشتباه است.');
+      _showMessage(AppStrings.wrongPassword(context));
       return;
     }
 
@@ -271,15 +272,15 @@ class _HomePageState extends State<HomePage> {
 
       _showMessage(
         saved
-            ? 'نسخه پشتیبان با موفقیت ذخیره شد. Recovery Key را حتماً یادداشت کنید.'
-            : 'ذخیره نسخه پشتیبان لغو شد.',
+            ? AppStrings.backupSaved(context)
+            : AppStrings.backupCancelled(context),
       );
 
       if (saved) {
         await _showRecoveryKeyAfterBackup();
       }
     } catch (error) {
-      _showMessage('خطا در ایجاد نسخه پشتیبان: $error');
+      _showMessage(AppStrings.backupCreateError(context, error));
     } finally {
       if (mounted) {
         setState(() {
@@ -297,7 +298,7 @@ class _HomePageState extends State<HomePage> {
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Recovery Key — حتماً ذخیره کنید'),
+        title: const Text(AppStrings.recoveryKeyTitle(context)),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -326,15 +327,15 @@ class _HomePageState extends State<HomePage> {
               await Clipboard.setData(ClipboardData(text: recoveryKey));
               if (dialogContext.mounted) {
                 ScaffoldMessenger.of(dialogContext).showSnackBar(
-                  const SnackBar(content: Text('Recovery Key کپی شد.')),
+                  const SnackBar(content: Text(AppStrings.recoveryKeyCopied(context))),
                 );
               }
             },
-            child: const Text('کپی کلید'),
+            child: const Text(AppStrings.copyKey(context)),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('کلید را ذخیره کردم'),
+            child: const Text(AppStrings.recoveryKeySaved(context)),
           ),
         ],
       ),
@@ -347,18 +348,18 @@ class _HomePageState extends State<HomePage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('بازیابی نسخه پشتیبان'),
+        title: const Text(AppStrings.restoreBackup(context)),
         content: const Text(
           'با بازیابی، اطلاعات فعلی برنامه حذف و اطلاعات نسخه پشتیبان جایگزین می‌شود. ادامه می‌دهید؟',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('لغو'),
+            child: const Text(AppStrings.cancel(context)),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('بازیابی'),
+            child: const Text(AppStrings.restore(context)),
           ),
         ],
       ),
@@ -367,7 +368,7 @@ class _HomePageState extends State<HomePage> {
     if (confirmed != true) return;
 
     final password = await _askMasterPasswordForBackup(
-      title: 'رمز عبور Backup را وارد کنید',
+      title: AppStrings.backupPassword(context),
     );
 
     if (password == null || password.isEmpty) return;
@@ -393,11 +394,11 @@ class _HomePageState extends State<HomePage> {
         'در صورت نیاز بیومتریک را دوباره فعال کنید.',
       );
     } on BackupCancelledException {
-      _showMessage('انتخاب فایل پشتیبان لغو شد.');
+      _showMessage(AppStrings.restoreCancelled(context));
     } on BackupFormatException catch (error) {
       _showMessage('خطا در بازیابی: ${error.message}');
     } catch (error) {
-      _showMessage('خطا در بازیابی نسخه پشتیبان: $error');
+      _showMessage(AppStrings.backupRestoreError(context, error));
     } finally {
       if (mounted) {
         setState(() {
@@ -434,7 +435,7 @@ class _HomePageState extends State<HomePage> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('بستن'),
+              child: const Text(AppStrings.close(context)),
             ),
           ],
         ),
@@ -450,7 +451,7 @@ class _HomePageState extends State<HomePage> {
     if (!mounted) return;
 
     if (!supported) {
-      _showMessage('بیومتریک روی این دستگاه در دسترس نیست.');
+      _showMessage(AppStrings.biometricUnavailable(context));
       return;
     }
 
@@ -462,18 +463,18 @@ class _HomePageState extends State<HomePage> {
       final disable = await showDialog<bool>(
         context: context,
         builder: (dialogContext) => AlertDialog(
-          title: const Text('ورود بیومتریک'),
+          title: const Text(AppStrings.biometricLogin(context)),
           content: const Text(
-            'ورود بیومتریک فعال است. غیرفعال شود؟',
+            AppStrings.biometricDisableQuestion(context),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text('لغو'),
+              child: const Text(AppStrings.cancel(context)),
             ),
             ElevatedButton(
               onPressed: () => Navigator.pop(dialogContext, true),
-              child: const Text('غیرفعال کردن'),
+              child: const Text(AppStrings.disable(context)),
             ),
           ],
         ),
@@ -483,7 +484,7 @@ class _HomePageState extends State<HomePage> {
         await _biometricService.disable();
 
         if (mounted) {
-          _showMessage('ورود بیومتریک غیرفعال شد.');
+          _showMessage(AppStrings.biometricDisabled(context));
         }
       }
 
@@ -496,8 +497,8 @@ class _HomePageState extends State<HomePage> {
 
     _showMessage(
       enabledNow
-          ? 'ورود بیومتریک فعال شد.'
-          : 'فعال‌سازی بیومتریک انجام نشد.',
+          ? AppStrings.biometricEnabled(context)
+          : AppStrings.biometricEnableFailed(context),
     );
   }
 
@@ -510,7 +511,7 @@ class _HomePageState extends State<HomePage> {
           children: [
             ListTile(
               leading: const Icon(Icons.backup_outlined),
-              title: const Text('ایجاد نسخه پشتیبان رمزنگاری‌شده'),
+              title: const Text(AppStrings.createEncryptedBackup(context)),
               onTap: () {
                 Navigator.pop(sheetContext);
                 _createBackup();
@@ -518,7 +519,7 @@ class _HomePageState extends State<HomePage> {
             ),
             ListTile(
               leading: const Icon(Icons.restore_outlined),
-              title: const Text('بازیابی نسخه پشتیبان'),
+              title: const Text(AppStrings.restoreBackup(context)),
               onTap: () {
                 Navigator.pop(sheetContext);
                 _restoreBackup();
@@ -526,8 +527,8 @@ class _HomePageState extends State<HomePage> {
             ),
             ListTile(
               leading: const Icon(Icons.verified_outlined),
-              title: const Text('بررسی سلامت Backup'),
-              subtitle: const Text('Verify بدون تغییر Vault فعلی'),
+              title: const Text(AppStrings.backupHealth(context)),
+              subtitle: const Text(AppStrings.backupHealthSub(context)),
               onTap: () {
                 Navigator.pop(sheetContext);
                 _openBackupCenter();
@@ -535,7 +536,7 @@ class _HomePageState extends State<HomePage> {
             ),
             ListTile(
               leading: const Icon(Icons.key_outlined),
-              title: const Text('Recovery Key آخرین Backup'),
+              title: const Text(AppStrings.recoveryKey(context)),
               onTap: () {
                 Navigator.pop(sheetContext);
                 _showRecoveryKeyFromMenu();
@@ -543,7 +544,7 @@ class _HomePageState extends State<HomePage> {
             ),
             ListTile(
               leading: const Icon(Icons.fingerprint),
-              title: const Text('تنظیم ورود بیومتریک'),
+              title: const Text(AppStrings.biometricSettings(context)),
               onTap: () {
                 Navigator.pop(sheetContext);
                 _configureBiometric();
@@ -564,7 +565,7 @@ class _HomePageState extends State<HomePage> {
           children: [
             ListTile(
               leading: const Icon(Icons.create_new_folder_outlined),
-              title: const Text('ساخت پوشه'),
+              title: const Text(AppStrings.createFolder(context)),
               onTap: () {
                 Navigator.pop(sheetContext);
                 createFolder();
@@ -572,7 +573,7 @@ class _HomePageState extends State<HomePage> {
             ),
             ListTile(
               leading: const Icon(Icons.table_chart_outlined),
-              title: const Text('ساخت جدول'),
+              title: const Text(AppStrings.createTable(context)),
               onTap: () {
                 Navigator.pop(sheetContext);
                 createTable();
@@ -608,7 +609,7 @@ class _HomePageState extends State<HomePage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('انصراف'),
+            child: const Text(AppStrings.cancel(context)),
           ),
           ElevatedButton(
             onPressed: () {
@@ -617,7 +618,7 @@ class _HomePageState extends State<HomePage> {
                 Navigator.pop(dialogContext, value);
               }
             },
-            child: const Text('ذخیره'),
+            child: const Text(AppStrings.save(context)),
           ),
         ],
       ),
@@ -630,8 +631,8 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> createFolder() async {
     final name = await _askName(
-      title: 'ساخت پوشه',
-      label: 'نام پوشه',
+      title: AppStrings.createFolder(context),
+      label: AppStrings.folderName(context),
     );
 
     if (name == null) return;
@@ -653,8 +654,8 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> createTable() async {
     final name = await _askName(
-      title: 'ساخت جدول',
-      label: 'نام جدول',
+      title: AppStrings.createTable(context),
+      label: AppStrings.tableName(context),
     );
 
     if (name == null) return;
@@ -784,7 +785,7 @@ class _HomePageState extends State<HomePage> {
                                 AppLogo(height: 72),
                                 SizedBox(height: 16),
                                 Text(
-                                  'هنوز موردی ساخته نشده',
+                                  AppStrings.noItems(context),
                                   style: TextStyle(
                                     fontSize: 16,
                                     color: Colors.grey,
