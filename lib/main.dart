@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
-import 'screens/home_page.dart';
+import 'screens/home_page_v4.dart';
 import 'screens/login_page.dart';
 import 'screens/splash_page.dart';
 import 'security/app_lifecycle_manager.dart';
@@ -11,7 +11,6 @@ import 'services/app_storage_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
   await AppLanguage.instance.load();
 
   try {
@@ -53,11 +52,8 @@ class _PassManagersState extends State<PassManagers> {
   void _lockApp() {
     final navigator = appNavigatorKey.currentState;
     if (navigator == null) return;
-
     navigator.pushAndRemoveUntil(
-      MaterialPageRoute(
-        builder: (_) => LoginPage(onLoginSuccess: _unlockApp),
-      ),
+      MaterialPageRoute(builder: (_) => LoginPage(onLoginSuccess: _unlockApp)),
       (route) => false,
     );
     _lifecycleManager.markResumed();
@@ -66,35 +62,26 @@ class _PassManagersState extends State<PassManagers> {
   void _unlockApp() {
     final navigator = appNavigatorKey.currentState;
     if (navigator == null) return;
-
     navigator.pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const HomePage()),
+      MaterialPageRoute(builder: (_) => const HomePageV4()),
       (route) => false,
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final locale = AppLanguage.instance.locale;
-
     return MaterialApp(
       navigatorKey: appNavigatorKey,
       debugShowCheckedModeBanner: false,
       title: 'NexVault',
-      locale: locale,
-      supportedLocales: const [
-        Locale('fa'),
-        Locale('en'),
-      ],
+      locale: AppLanguage.instance.locale,
+      supportedLocales: const [Locale('fa'), Locale('en')],
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      theme: ThemeData(
-        colorSchemeSeed: Colors.blue,
-        useMaterial3: true,
-      ),
+      theme: ThemeData(colorSchemeSeed: Colors.blue, useMaterial3: true),
       home: SplashPage(onLoginSuccess: _unlockApp),
     );
   }
