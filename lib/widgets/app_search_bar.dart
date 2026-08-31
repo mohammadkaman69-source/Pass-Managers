@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import '../services/app_language.dart';
 
 import '../services/search_service.dart';
 
@@ -110,11 +111,11 @@ class _AppSearchBarState extends State<AppSearchBar> {
   String _kindLabel(SearchHitKind kind) {
     switch (kind) {
       case SearchHitKind.folder:
-        return 'پوشه';
+        return AppStrings.folder(context);
       case SearchHitKind.table:
-        return 'جدول';
+        return AppStrings.table(context);
       case SearchHitKind.row:
-        return 'سطر';
+        return AppStrings.row(context);
     }
   }
 
@@ -134,10 +135,10 @@ class _AppSearchBarState extends State<AppSearchBar> {
             onChanged: _onChanged,
             decoration: InputDecoration(
               hintText: widget.tableId != null
-                  ? 'جستجو در این جدول…'
+                  ? AppStrings.searchInTable(context)
                   : widget.folderId != null
-                      ? 'جستجو در این پوشه…'
-                      : 'جستجو در همه…',
+                      ? AppStrings.searchInFolder(context)
+                      : AppStrings.searchEverywhere(context),
               prefixIcon: const Icon(Icons.search),
               suffixIcon: hasQuery
                   ? IconButton(
@@ -167,7 +168,7 @@ class _AppSearchBarState extends State<AppSearchBar> {
             child: Align(
               alignment: Alignment.centerRight,
               child: Text(
-                'موردی پیدا نشد',
+                AppStrings.noResults(context),
                 style: TextStyle(color: Colors.grey),
               ),
             ),
