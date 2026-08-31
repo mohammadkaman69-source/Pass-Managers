@@ -140,8 +140,10 @@ class _HomePageV4State extends State<HomePageV4> {
         actions: [
           TextButton(
             onPressed: () async {
+              final copiedMessage = AppStrings.recoveryKeyCopied(context);
               await Clipboard.setData(ClipboardData(text: key));
-              if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text(AppStrings.recoveryKeyCopied(context))));
+              if (!ctx.mounted) return;
+              ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text(copiedMessage)));
             },
             child: Text(AppStrings.copyKey(context)),
           ),
