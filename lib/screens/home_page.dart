@@ -1,5 +1,3 @@
-// بخش 1/3
-
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../services/app_language.dart';
@@ -68,23 +66,21 @@ class _HomePageState extends State<HomePage> {
     showDialog<void>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text(AppStrings.exit(context)),
-        content: const Text(
-          AppStrings.exitHint(context),
-        ),
+        title: Text(AppStrings.exit(context)),
+        content: Text(AppStrings.exitHint(context)),
         actions: [
           TextButton(
             onPressed: () {
               Navigator.pop(dialogContext);
               _lastBackPress = null;
             },
-            child: const Text(AppStrings.cancel(context)),
+            child: Text(AppStrings.cancel(context)),
           ),
           ElevatedButton(
             onPressed: () {
               SystemNavigator.pop();
             },
-            child: const Text(AppStrings.exit(context)),
+            child: Text(AppStrings.exit(context)),
           ),
         ],
       ),
@@ -213,15 +209,15 @@ class _HomePageState extends State<HomePage> {
           controller: controller,
           autofocus: true,
           obscureText: true,
-          decoration: const InputDecoration(
+          decoration: InputDecoration(
             labelText: AppStrings.mainPassword(context),
-            border: OutlineInputBorder(),
+            border: const OutlineInputBorder(),
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
-            child: const Text(AppStrings.cancel(context)),
+            child: Text(AppStrings.cancel(context)),
           ),
           ElevatedButton(
             onPressed: () {
@@ -230,7 +226,7 @@ class _HomePageState extends State<HomePage> {
                 Navigator.pop(dialogContext, value);
               }
             },
-            child: const Text(AppStrings.continueText(context)),
+            child: Text(AppStrings.continueText(context)),
           ),
         ],
       ),
@@ -298,16 +294,13 @@ class _HomePageState extends State<HomePage> {
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) => AlertDialog(
-        title: const Text(AppStrings.recoveryKeyTitle(context)),
+        title: Text(AppStrings.recoveryKeyTitle(context)),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text(
-                'این کلید برای بازیابی Backup در صورت از دست رفتن رمز اصلی لازم است.\n'
-                'کلید داخل فایل Backup نیست؛ آن را در محل امن خارج از دستگاه نگه دارید.',
-              ),
+              Text(AppStrings.recoveryKeyDescription(context)),
               const SizedBox(height: 16),
               SelectableText(
                 recoveryKey,
@@ -327,15 +320,15 @@ class _HomePageState extends State<HomePage> {
               await Clipboard.setData(ClipboardData(text: recoveryKey));
               if (dialogContext.mounted) {
                 ScaffoldMessenger.of(dialogContext).showSnackBar(
-                  const SnackBar(content: Text(AppStrings.recoveryKeyCopied(context))),
+                  SnackBar(content: Text(AppStrings.recoveryKeyCopied(context))),
                 );
               }
             },
-            child: const Text(AppStrings.copyKey(context)),
+            child: Text(AppStrings.copyKey(context)),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(dialogContext),
-            child: const Text(AppStrings.recoveryKeySaved(context)),
+            child: Text(AppStrings.recoveryKeySaved(context)),
           ),
         ],
       ),
@@ -348,18 +341,16 @@ class _HomePageState extends State<HomePage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text(AppStrings.restoreBackup(context)),
-        content: const Text(
-          'با بازیابی، اطلاعات فعلی برنامه حذف و اطلاعات نسخه پشتیبان جایگزین می‌شود. ادامه می‌دهید؟',
-        ),
+        title: Text(AppStrings.restoreBackup(context)),
+        content: Text(AppStrings.restoreWarning(context)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text(AppStrings.cancel(context)),
+            child: Text(AppStrings.cancel(context)),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text(AppStrings.restore(context)),
+            child: Text(AppStrings.restore(context)),
           ),
         ],
       ),
@@ -387,16 +378,17 @@ class _HomePageState extends State<HomePage> {
       if (!mounted) return;
 
       _showMessage(
-        'بازیابی موفق: '
-        '${result.treeItemCount} مورد، '
-        '${result.rowCount} رکورد، '
-        '${result.valueCount} مقدار. '
-        'در صورت نیاز بیومتریک را دوباره فعال کنید.',
+        AppStrings.restoreSuccess(
+          context,
+          result.treeItemCount,
+          result.rowCount,
+          result.valueCount,
+        ),
       );
     } on BackupCancelledException {
       _showMessage(AppStrings.restoreCancelled(context));
     } on BackupFormatException catch (error) {
-      _showMessage('خطا در بازیابی: ${error.message}');
+      _showMessage(AppStrings.backupRestoreError(context, error.message));
     } catch (error) {
       _showMessage(AppStrings.backupRestoreError(context, error));
     } finally {
@@ -417,7 +409,6 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-
   Future<void> _showRecoveryKeyFromMenu() async {
     final recoveryKey = _backupService.lastRecoveryKey;
     if (recoveryKey == null || recoveryKey.isEmpty) {
@@ -426,16 +417,11 @@ class _HomePageState extends State<HomePage> {
         context: context,
         builder: (ctx) => AlertDialog(
           title: const Text('Recovery Key'),
-          content: const Text(
-            'Recovery Key فعالی در این نشست نیست.\n\n'
-            'این کلید فقط هنگام ساخت موفق Backup جدید تولید می‌شود '
-            'و بعد از بستن برنامه از حافظه پاک می‌شود. '
-            'اگر کلید را ذخیره نکرده‌اید، یک Backup جدید بگیرید.',
-          ),
+          content: Text(AppStrings.noActiveRecoveryKey(context)),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text(AppStrings.close(context)),
+              child: Text(AppStrings.close(context)),
             ),
           ],
         ),
@@ -463,18 +449,16 @@ class _HomePageState extends State<HomePage> {
       final disable = await showDialog<bool>(
         context: context,
         builder: (dialogContext) => AlertDialog(
-          title: const Text(AppStrings.biometricLogin(context)),
-          content: const Text(
-            AppStrings.biometricDisableQuestion(context),
-          ),
+          title: Text(AppStrings.biometricLogin(context)),
+          content: Text(AppStrings.biometricDisableQuestion(context)),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text(AppStrings.cancel(context)),
+              child: Text(AppStrings.cancel(context)),
             ),
             ElevatedButton(
               onPressed: () => Navigator.pop(dialogContext, true),
-              child: const Text(AppStrings.disable(context)),
+              child: Text(AppStrings.disable(context)),
             ),
           ],
         ),
@@ -511,7 +495,7 @@ class _HomePageState extends State<HomePage> {
           children: [
             ListTile(
               leading: const Icon(Icons.backup_outlined),
-              title: const Text(AppStrings.createEncryptedBackup(context)),
+              title: Text(AppStrings.createEncryptedBackup(context)),
               onTap: () {
                 Navigator.pop(sheetContext);
                 _createBackup();
@@ -519,7 +503,7 @@ class _HomePageState extends State<HomePage> {
             ),
             ListTile(
               leading: const Icon(Icons.restore_outlined),
-              title: const Text(AppStrings.restoreBackup(context)),
+              title: Text(AppStrings.restoreBackup(context)),
               onTap: () {
                 Navigator.pop(sheetContext);
                 _restoreBackup();
@@ -527,8 +511,8 @@ class _HomePageState extends State<HomePage> {
             ),
             ListTile(
               leading: const Icon(Icons.verified_outlined),
-              title: const Text(AppStrings.backupHealth(context)),
-              subtitle: const Text(AppStrings.backupHealthSub(context)),
+              title: Text(AppStrings.backupHealth(context)),
+              subtitle: Text(AppStrings.backupHealthSub(context)),
               onTap: () {
                 Navigator.pop(sheetContext);
                 _openBackupCenter();
@@ -536,7 +520,7 @@ class _HomePageState extends State<HomePage> {
             ),
             ListTile(
               leading: const Icon(Icons.key_outlined),
-              title: const Text(AppStrings.recoveryKey(context)),
+              title: Text(AppStrings.recoveryKey(context)),
               onTap: () {
                 Navigator.pop(sheetContext);
                 _showRecoveryKeyFromMenu();
@@ -544,7 +528,7 @@ class _HomePageState extends State<HomePage> {
             ),
             ListTile(
               leading: const Icon(Icons.fingerprint),
-              title: const Text(AppStrings.biometricSettings(context)),
+              title: Text(AppStrings.biometricSettings(context)),
               onTap: () {
                 Navigator.pop(sheetContext);
                 _configureBiometric();
@@ -565,7 +549,7 @@ class _HomePageState extends State<HomePage> {
           children: [
             ListTile(
               leading: const Icon(Icons.create_new_folder_outlined),
-              title: const Text(AppStrings.createFolder(context)),
+              title: Text(AppStrings.createFolder(context)),
               onTap: () {
                 Navigator.pop(sheetContext);
                 createFolder();
@@ -573,7 +557,7 @@ class _HomePageState extends State<HomePage> {
             ),
             ListTile(
               leading: const Icon(Icons.table_chart_outlined),
-              title: const Text(AppStrings.createTable(context)),
+              title: Text(AppStrings.createTable(context)),
               onTap: () {
                 Navigator.pop(sheetContext);
                 createTable();
@@ -609,7 +593,7 @@ class _HomePageState extends State<HomePage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
-            child: const Text(AppStrings.cancel(context)),
+            child: Text(AppStrings.cancel(context)),
           ),
           ElevatedButton(
             onPressed: () {
@@ -618,7 +602,7 @@ class _HomePageState extends State<HomePage> {
                 Navigator.pop(dialogContext, value);
               }
             },
-            child: const Text(AppStrings.save(context)),
+            child: Text(AppStrings.save(context)),
           ),
         ],
       ),
@@ -778,15 +762,15 @@ class _HomePageState extends State<HomePage> {
                 child: _isLoading
                     ? const Center(child: CircularProgressIndicator())
                     : items.isEmpty
-                        ? const Center(
+                        ? Center(
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                AppLogo(height: 72),
-                                SizedBox(height: 16),
+                                const AppLogo(height: 72),
+                                const SizedBox(height: 16),
                                 Text(
                                   AppStrings.noItems(context),
-                                  style: TextStyle(
+                                  style: const TextStyle(
                                     fontSize: 16,
                                     color: Colors.grey,
                                   ),
@@ -824,4 +808,3 @@ class _HomePageState extends State<HomePage> {
     );
   }
 }
-
