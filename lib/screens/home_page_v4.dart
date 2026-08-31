@@ -56,6 +56,7 @@ class _HomePageV4State extends State<HomePageV4> {
     if (password == null) return;
     final verified = await SecurityManager().unlock(password);
     if (!verified) {
+      if (!mounted) return;
       _message(AppStrings.wrongPassword(context));
       return;
     }
@@ -66,6 +67,7 @@ class _HomePageV4State extends State<HomePageV4> {
       _message(saved ? AppStrings.backupSaved(context) : AppStrings.backupCancelled(context));
       if (saved) await _showRecoveryKey();
     } catch (error) {
+      if (!mounted) return;
       _message(AppStrings.backupCreateError(context, error));
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -94,10 +96,13 @@ class _HomePageV4State extends State<HomePageV4> {
       if (!mounted) return;
       _message(AppStrings.restoreSuccess(context, result.treeItemCount, result.rowCount, result.valueCount));
     } on BackupCancelledException {
+      if (!mounted) return;
       _message(AppStrings.restoreCancelled(context));
     } on BackupFormatException catch (error) {
+      if (!mounted) return;
       _message('Restore: ${error.message}');
     } catch (error) {
+      if (!mounted) return;
       _message(AppStrings.backupRestoreError(context, error));
     } finally {
       if (mounted) setState(() => _busy = false);
