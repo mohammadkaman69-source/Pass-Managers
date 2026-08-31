@@ -65,6 +65,7 @@ class _LoginPageState extends State<LoginPage> {
     } catch (error) {
       if (!mounted) return;
       setState(() => _isLoading = false);
+      if (!mounted) return;
       _showMessage(AppStrings.securityOperationFailed(context, error));
     }
   }
@@ -139,6 +140,7 @@ class _LoginPageState extends State<LoginPage> {
       }
       final unlocked = await _securityManager.unlock(password);
       if (!unlocked) {
+        if (!mounted) return;
         _showMessage(AppStrings.wrongPassword(context));
         return;
       }
