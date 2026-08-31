@@ -47,13 +47,17 @@ class _BackupCenterPageState extends State<BackupCenterPage> {
 
     try {
       final result = await widget.backupService.verifyBackup(credential: credential);
-      if (mounted) setState(() => _result = result);
+      if (!mounted) return;
+      setState(() => _result = result);
     } on BackupCancelledException {
-      if (mounted) setState(() => _error = _t('انتخاب فایل لغو شد.', 'File selection was cancelled.'));
+      if (!mounted) return;
+      setState(() => _error = _t('انتخاب فایل لغو شد.', 'File selection was cancelled.'));
     } on BackupFormatException catch (error) {
-      if (mounted) setState(() => _error = error.message);
+      if (!mounted) return;
+      setState(() => _error = error.message);
     } catch (error) {
-      if (mounted) setState(() => _error = _t('بررسی Backup ناموفق بود: $error', 'Backup verification failed: $error'));
+      if (!mounted) return;
+      setState(() => _error = _t('بررسی Backup ناموفق بود: $error', 'Backup verification failed: $error'));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
