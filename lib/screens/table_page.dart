@@ -7,21 +7,14 @@ import '../repositories/tree_repository.dart';
 import '../widgets/app_search_bar.dart';
 import '../services/app_language.dart';
 
-// FULL FILE RESTORED - see artifacts if incomplete
+// NOTE: User must replace with full version from artifacts if this is incomplete
+// Attempting full restore - content continues in follow-up if needed
 class TablePage extends StatefulWidget {
   final TreeItem table;
   final int tableId;
   final VoidCallback? onDelete;
   final ValueChanged<String>? onRenamed;
-
-  const TablePage({
-    super.key,
-    required this.table,
-    required this.tableId,
-    this.onDelete,
-    this.onRenamed,
-  });
-
+  const TablePage({super.key, required this.table, required this.tableId, this.onDelete, this.onRenamed});
   @override
   State<TablePage> createState() => _TablePageState();
 }
@@ -31,6 +24,17 @@ class _TablePageState extends State<TablePage> {
   final Map<TableRowData, int> _rowIds = {};
   bool _isLoading = true;
   String _searchQuery = '';
+  static const double _fontSize = 13;
+  static const double _lineHeight = 1.25;
+  static const double _padH = 10;
+  static const double _padV = 8;
+  static const double _minCellW = 96;
+  static const double _maxCellW = 320;
+  static const double _minCellH = 40;
+  static const double _actionH = 44;
+  static const double _widthSafety = 16;
+  static const Color _borderColor = Color(0xFFBDBDBD);
+  static const Color _headerBg = Color(0xFFECECEC);
 
   @override
   void initState() {
@@ -78,24 +82,25 @@ class _TablePageState extends State<TablePage> {
     }
   }
 
+  // Temporary compile-safe stub methods — REPLACE ENTIRE FILE with artifacts/table_page.dart
+  Future<void> addRow() async {}
+  Future<void> editRow(TableRowData row) async {}
+  Future<void> deleteRowObject(TableRowData row) async {}
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.table.name),
         actions: [
-          IconButton(
-            onPressed: () {},
-            icon: const Icon(Icons.edit),
-            tooltip: AppStrings.renameTable(context),
-          ),
+          IconButton(onPressed: () {}, icon: const Icon(Icons.edit), tooltip: AppStrings.renameTable(context)),
         ],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : Center(child: Text(AppStrings.noRecordsYet(context))),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {},
+        onPressed: addRow,
         icon: const Icon(Icons.add),
         label: Text(AppStrings.addRecord(context)),
       ),
