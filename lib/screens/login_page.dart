@@ -63,7 +63,7 @@ class _LoginPageState extends State<LoginPage> {
 
   Future<void> _tryBiometric() async {
     try {
-      final ok = await _biometricService.authenticate();
+      final ok = await _biometricService.authenticateAndUnlock();
       if (ok && mounted) widget.onLoginSuccess();
     } catch (_) {}
   }
