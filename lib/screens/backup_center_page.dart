@@ -73,17 +73,18 @@ class _BackupCenterPageState extends State<BackupCenterPage> {
       return;
     }
 
+    final cancelLabel = AppStrings.cancel(context);
+    final restoreLabel = AppStrings.restore(context);
+    final dialogTitle = _t('بازیابی واقعی Vault', 'Restore Vault');
+    final dialogContent = _t('این عملیات اطلاعات فعلی Vault را با Backup انتخاب‌شده جایگزین می‌کند. اگر هر مرحله اعتبارسنجی شکست بخورد، Restore متوقف می‌شود و Vault فعلی حفظ می‌شود. ادامه می‌دهید؟', 'This operation replaces the current Vault data with the selected Backup. If any validation step fails, Restore stops and the current Vault is preserved. Continue?');
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: Text(_t('بازیابی واقعی Vault', 'Restore Vault')),
-        content: Text(_t(
-          'این عملیات اطلاعات فعلی Vault را با Backup انتخاب‌شده جایگزین می‌کند. اگر هر مرحله اعتبارسنجی شکست بخورد، Restore متوقف می‌شود و Vault فعلی حفظ می‌شود. ادامه می‌دهید؟',
-          'This operation replaces the current Vault data with the selected Backup. If any validation step fails, Restore stops and the current Vault is preserved. Continue?',
-        )),
+        title: Text(dialogTitle),
+        content: Text(dialogContent),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: Text(AppStrings.cancel(context))),
-          ElevatedButton(onPressed: () => Navigator.pop(dialogContext, true), child: Text(AppStrings.restore(context))),
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: Text(cancelLabel)),
+          ElevatedButton(onPressed: () => Navigator.pop(dialogContext, true), child: Text(restoreLabel)),
         ],
       ),
     );
@@ -157,8 +158,10 @@ class _BackupCenterPageState extends State<BackupCenterPage> {
         actions: [
           TextButton(
             onPressed: () async {
+              final copiedMessage = AppStrings.recoveryKeyCopied(context);
               await Clipboard.setData(ClipboardData(text: recoveryKey));
-              if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text(AppStrings.recoveryKeyCopied(context))));
+              if (!ctx.mounted) return;
+              ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text(copiedMessage)));
             },
             child: Text(AppStrings.copy(context)),
           ),
